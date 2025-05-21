@@ -15,6 +15,7 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 18,
         marginBottom: 10,
+        fontWeight: 'bold',
     },
     subtitle: {
         fontSize: 14,
@@ -36,6 +37,22 @@ const styles = StyleSheet.create({
     value: {
         width: '60%',
     },
+    suplementoRow: {
+        flexDirection: 'row',
+        marginBottom: 5,
+        marginLeft: 20,
+    },
+    suplementoLabel: {
+        width: '40%',
+    },
+    suplementoValue: {
+        width: '60%',
+    },
+    totalSection: {
+        marginTop: 10,
+        paddingTop: 10,
+        borderTop: 1,
+    },
     footer: {
         position: 'absolute',
         bottom: 30,
@@ -51,15 +68,81 @@ const styles = StyleSheet.create({
         paddingTop: 10,
         textAlign: 'center',
     },
+    pendingAmount: {
+        color: 'red',
+        fontWeight: 'bold',
+    },
 });
 
 interface ReservaPDFProps {
     reserva: any;
     socio: any;
     servicio: any;
+    suplementosList: SuplementoInfo[];
 }
 
-export const ReservaPDF: React.FC<ReservaPDFProps> = ({ reserva, socio, servicio }) => {
+interface SuplementoAgrupado {
+    id: string;
+    nombre: string;
+    precio: number;
+    cantidad: number;
+    tipo: 'fijo' | 'porHora';
+}
+
+interface Suplemento {
+    id: string;
+    cantidad?: number;
+}
+
+interface SuplementoInfo {
+    id: string;
+    nombre: string;
+    precio: number;
+    tipo: 'fijo' | 'porHora';
+}
+
+export const ReservaPDF: React.FC<ReservaPDFProps> = ({ reserva, socio, servicio, suplementosList }) => {
+    // Agrupar suplementos por ID y calcular totales
+    const suplementosAgrupados = reserva.suplementos.reduce((acc: SuplementoAgrupado[], sup: Suplemento) => {
+        const existingIndex = acc.findIndex(item => item.id === sup.id);
+        const suplementoInfo = suplementosList.find((s: SuplementoInfo) => s.id === sup.id);
+
+        if (!suplementoInfo) {
+            console.warn(`Suplemento no encontrado: ${sup.id}`);
+            return acc;
+        }
+
+        if (existingIndex === -1) {
+            acc.push({
+                id: sup.id,
+                nombre: suplementoInfo.nombre,
+                precio: suplementoInfo.precio,
+                cantidad: sup.cantidad || 1,
+                tipo: suplementoInfo.tipo
+            });
+        } else {
+            acc[existingIndex].cantidad = (acc[existingIndex].cantidad || 1) + (sup.cantidad || 1);
+        }
+        return acc;
+    }, []);
+
+    // Calcular el total de suplementos
+    const totalSuplementos = suplementosAgrupados.reduce((total: number, sup: SuplementoAgrupado) => {
+        const precioSuplemento = sup.tipo === 'fijo' ? sup.precio : sup.precio * sup.cantidad;
+        return total + precioSuplemento;
+    }, 0);
+
+    // Calcular el precio total
+    const precioTotal = (servicio?.precio || 0) + totalSuplementos;
+
+    // Calcular el monto pendiente
+    const montoPendiente = precioTotal - (reserva.montoAbonado || 0);
+
+    // Asegurarse de que los datos necesarios estén presentes
+    if (!reserva || !socio || !servicio) {
+        return null;
+    }
+
     return (
         <PDFViewer style={{ width: '100%', height: '100vh' }}>
             <Document>
@@ -83,45 +166,69 @@ export const ReservaPDF: React.FC<ReservaPDFProps> = ({ reserva, socio, servicio
                             <Text style={styles.value}>{servicio.nombre}</Text>
                         </View>
                         <View style={styles.row}>
-                            <Text style={styles.label}>Fecha:</Text>
+                            <Text style={styles.label}>Fecha de Reserva:</Text>
                             <Text style={styles.value}>{format(new Date(reserva.fecha), 'PPP', { locale: es })}</Text>
+                        </View>
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Fecha de Creación:</Text>
+                            <Text style={styles.value}>{format(new Date(reserva.createdAt), 'PPP', { locale: es })}</Text>
                         </View>
                         <View style={styles.row}>
                             <Text style={styles.label}>Precio Base:</Text>
                             <Text style={styles.value}>{servicio.precio}€</Text>
                         </View>
 
-                        {reserva.suplementos && reserva.suplementos.length > 0 && (
+                        {suplementosAgrupados.length > 0 && (
                             <>
-                                <Text style={{ marginTop: 10, marginBottom: 5 }}>Suplementos:</Text>
-                                {reserva.suplementos.map((sup: any, index: number) => (
-                                    <View key={index} style={styles.row}>
-                                        <Text style={styles.label}>{sup.nombre}:</Text>
-                                        <Text style={styles.value}>
-                                            {sup.precio}€ {sup.cantidad ? `(${sup.cantidad} horas)` : ''}
+                                <Text style={{ marginTop: 10, marginBottom: 5, fontWeight: 'bold' }}>Suplementos:</Text>
+                                {suplementosAgrupados.map((sup: SuplementoAgrupado, index: number) => (
+                                    <View key={index} style={styles.suplementoRow}>
+                                        <Text style={styles.suplementoLabel}>{sup.nombre}:</Text>
+                                        <Text style={styles.suplementoValue}>
+                                            {sup.precio}€ {sup.tipo === 'porHora' ? `(${sup.cantidad} horas)` : ''} = {(sup.tipo === 'fijo' ? sup.precio : sup.precio * sup.cantidad).toFixed(2)}€
                                         </Text>
                                     </View>
                                 ))}
+                                <View style={[styles.suplementoRow, { marginTop: 5 }]}>
+                                    <Text style={[styles.suplementoLabel, { fontWeight: 'bold' }]}>Total Suplementos:</Text>
+                                    <Text style={[styles.suplementoValue, { fontWeight: 'bold' }]}>{totalSuplementos.toFixed(2)}€</Text>
+                                </View>
                             </>
                         )}
 
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Precio Total:</Text>
-                            <Text style={styles.value}>{reserva.precio}€</Text>
+                        <View style={styles.totalSection}>
+                            <View style={styles.row}>
+                                <Text style={styles.label}>Precio Base:</Text>
+                                <Text style={styles.value}>{servicio.precio}€</Text>
+                            </View>
+                            {totalSuplementos > 0 && (
+                                <View style={styles.row}>
+                                    <Text style={styles.label}>Total Suplementos:</Text>
+                                    <Text style={styles.value}>{totalSuplementos}€</Text>
+                                </View>
+                            )}
+                            <View style={styles.row}>
+                                <Text style={styles.label}>Precio Total:</Text>
+                                <Text style={styles.value}>{precioTotal}€</Text>
+                            </View>
+
+                            {reserva.montoAbonado > 0 && (
+                                <>
+                                    <View style={styles.row}>
+                                        <Text style={styles.label}>Monto Abonado:</Text>
+                                        <Text style={styles.value}>{reserva.montoAbonado}€</Text>
+                                    </View>
+                                    <View style={styles.row}>
+                                        <Text style={styles.label}>Método de Pago:</Text>
+                                        <Text style={styles.value}>{reserva.metodoPago === 'efectivo' ? 'Efectivo' : 'Tarjeta'}</Text>
+                                    </View>
+                                    <View style={styles.row}>
+                                        <Text style={styles.label}>Monto Pendiente:</Text>
+                                        <Text style={[styles.value, styles.pendingAmount]}>{montoPendiente}€</Text>
+                                    </View>
+                                </>
+                            )}
                         </View>
-
-                        {reserva.montoAbonado > 0 && (
-                            <>
-                                <View style={styles.row}>
-                                    <Text style={styles.label}>Monto Abonado:</Text>
-                                    <Text style={styles.value}>{reserva.montoAbonado}€</Text>
-                                </View>
-                                <View style={styles.row}>
-                                    <Text style={styles.label}>Método de Pago:</Text>
-                                    <Text style={styles.value}>{reserva.metodoPago === 'efectivo' ? 'Efectivo' : 'Tarjeta'}</Text>
-                                </View>
-                            </>
-                        )}
 
                         {reserva.observaciones && (
                             <View style={{ marginTop: 10 }}>

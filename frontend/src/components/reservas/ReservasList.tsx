@@ -214,6 +214,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         message: '',
         severity: 'success'
     });
+    const [openPDF, setOpenPDF] = useState(false);
 
     useEffect(() => {
         if (token && !user) {
@@ -336,10 +337,16 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
     };
 
     const handleOpenDialog = (reserva?: Reserva) => {
+        console.log('Abriendo diálogo de reserva:', reserva ? 'edición' : 'nueva');
         if (reserva) {
             setSelectedReserva(reserva);
+            // Buscar el servicio correspondiente en la lista de servicios del backend
+            const servicioSeleccionado = servicios.find(s =>
+                s.nombre.toLowerCase() === reserva.tipoInstalacion.toLowerCase()
+            );
+
             setFormData({
-                servicio: reserva.tipoInstalacion,
+                servicio: servicioSeleccionado?.id || '',
                 fecha: new Date(reserva.fecha).toISOString().split('T')[0],
                 socio: reserva.socio._id,
                 suplementos: reserva.suplementos,
@@ -349,9 +356,11 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
             });
         } else {
             setSelectedReserva(null);
+            const fechaInicial = selectedDate ? selectedDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+            console.log('Fecha inicial para nueva reserva:', fechaInicial);
             setFormData({
                 servicio: '',
-                fecha: selectedDate ? selectedDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                fecha: fechaInicial,
                 socio: '',
                 suplementos: [],
                 observaciones: '',
@@ -381,13 +390,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 : `${API_BASE_URL}/reservas`;
             const method = selectedReserva ? 'PATCH' : 'POST';
 
-            // Mapear el servicio seleccionado al tipo de instalación requerido
-            const tipoInstalacionMap: { [key: string]: string } = {
-                'piscina': 'PISCINA',
-                'bbq': 'SALON',
-                'salon': 'SALON'
-            };
-
             const servicioSeleccionado = servicios.find(s => s.id === formData.servicio);
             if (!servicioSeleccionado) {
                 alert('Por favor, selecciona un servicio válido');
@@ -401,19 +403,41 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 return;
             }
 
+            // Eliminar suplementos duplicados y asegurar que tengan toda la información necesaria
+            const suplementosUnicos = formData.suplementos.reduce((acc: any[], current) => {
+                const existingIndex = acc.findIndex(item => item.id === current.id);
+                const suplementoInfo = suplementosList.find(s => s.id === current.id);
+
+                if (!suplementoInfo) {
+                    console.warn(`Suplemento no encontrado: ${current.id}`);
+                    return acc;
+                }
+
+                if (existingIndex === -1) {
+                    acc.push({
+                        id: current.id,
+                        nombre: suplementoInfo.nombre,
+                        precio: suplementoInfo.precio,
+                        cantidad: current.cantidad || 1,
+                        tipo: suplementoInfo.tipo
+                    });
+                } else {
+                    // Si ya existe, sumar las cantidades
+                    acc[existingIndex].cantidad = (acc[existingIndex].cantidad || 1) + (current.cantidad || 1);
+                }
+                return acc;
+            }, []);
+
             const reservaData = {
                 fecha: fecha.toISOString(),
-                tipoInstalacion: tipoInstalacionMap[formData.servicio] || 'SALON',
+                tipoInstalacion: servicioSeleccionado.nombre.toUpperCase(),
                 socio: formData.socio,
                 usuarioCreacion: user._id,
-                suplementos: formData.suplementos.map(sup => ({
-                    id: sup.id,
-                    cantidad: sup.cantidad
-                })),
+                suplementos: suplementosUnicos,
                 precio: calcularPrecioTotal(),
                 observaciones: formData.observaciones,
-                montoAbonado: formData.montoAbonado,
-                metodoPago: formData.metodoPago
+                montoAbonado: formData.montoAbonado || 0,
+                metodoPago: formData.metodoPago || ''
             };
 
             const response = await fetch(url, {
@@ -466,13 +490,28 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
 
     const handleSuplementoChange = (suplementoId: string, checked: boolean, cantidad?: number) => {
         setFormData(prev => {
+            const suplemento = suplementosList.find(s => s.id === suplementoId);
+            if (!suplemento) return prev;
+
             const suplementos = [...prev.suplementos];
+            const existingIndex = suplementos.findIndex(s => s.id === suplementoId);
+
             if (checked) {
-                suplementos.push({ id: suplementoId, cantidad });
+                // Si es un suplemento fijo y ya existe, no lo añadimos
+                if (suplemento.tipo === 'fijo' && existingIndex !== -1) {
+                    return prev;
+                }
+                // Si no existe, lo añadimos
+                if (existingIndex === -1) {
+                    suplementos.push({
+                        id: suplementoId,
+                        cantidad: suplemento.tipo === 'porHora' ? (cantidad || 1) : 1
+                    });
+                }
             } else {
-                const index = suplementos.findIndex(s => s.id === suplementoId);
-                if (index !== -1) {
-                    suplementos.splice(index, 1);
+                // Si existe, lo eliminamos
+                if (existingIndex !== -1) {
+                    suplementos.splice(existingIndex, 1);
                 }
             }
             return { ...prev, suplementos };
@@ -481,8 +520,11 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
 
     const handleCantidadChange = (suplementoId: string, cantidad: number) => {
         setFormData(prev => {
+            const suplemento = suplementosList.find(s => s.id === suplementoId);
+            if (!suplemento || suplemento.tipo !== 'porHora') return prev;
+
             const suplementos = prev.suplementos.map(s =>
-                s.id === suplementoId ? { ...s, cantidad } : s
+                s.id === suplementoId ? { ...s, cantidad: Math.max(1, cantidad) } : s
             );
             return { ...prev, suplementos };
         });
@@ -495,15 +537,25 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
             precioTotal += servicio.precio;
         }
 
+        // Calcular precio de suplementos sin duplicados
+        const suplementosPrecios = new Map();
         formData.suplementos.forEach(sup => {
             const suplemento = suplementosList.find(s => s.id === sup.id);
             if (suplemento) {
-                if (suplemento.tipo === 'fijo') {
-                    precioTotal += suplemento.precio;
-                } else if (suplemento.tipo === 'porHora' && sup.cantidad) {
-                    precioTotal += suplemento.precio * sup.cantidad;
-                }
+                const cantidad = sup.cantidad || 1;
+                const precio = suplemento.tipo === 'fijo' ? suplemento.precio : suplemento.precio * cantidad;
+                suplementosPrecios.set(sup.id, {
+                    nombre: suplemento.nombre,
+                    precio: precio,
+                    cantidad: cantidad,
+                    tipo: suplemento.tipo
+                });
             }
+        });
+
+        // Sumar los precios únicos
+        suplementosPrecios.forEach(({ precio }) => {
+            precioTotal += precio;
         });
 
         return precioTotal;
@@ -563,8 +615,8 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         setSelectedReservaLiquidacion(reserva);
         setLiquidacionData({
             suplementos: reserva.suplementos,
-            montoAbonado: reserva.montoAbonado || 0,
-            metodoPago: reserva.metodoPago || '',
+            montoAbonado: 0,
+            metodoPago: '',
             observaciones: ''
         });
         setOpenLiquidacionDialog(true);
@@ -583,35 +635,35 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
 
     const calcularPrecioTotalLiquidacion = () => {
         if (!selectedReservaLiquidacion) return 0;
-
-        const servicio = servicios.find(s => s.id === selectedReservaLiquidacion.tipoInstalacion.toLowerCase());
-        if (!servicio) return 0;
-
-        let precioTotal = servicio.precio;
-        liquidacionData.suplementos.forEach(sup => {
-            const suplemento = suplementosList.find(s => s.id === sup.id);
-            if (suplemento) {
-                if (suplemento.activo) {
-                    precioTotal += suplemento.precio;
-                }
-            }
-        });
-        return precioTotal;
+        return selectedReservaLiquidacion.precio;
     };
 
     const handleLiquidacionSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedReservaLiquidacion) return;
 
-        const montoPendiente = calcularPrecioTotalLiquidacion() - (selectedReservaLiquidacion.montoAbonado || 0);
-
-        if (liquidacionData.montoAbonado > montoPendiente) {
-            alert(`El monto abonado no puede ser mayor al monto pendiente (${montoPendiente.toFixed(2)}€)`);
-            return;
-        }
-
         try {
-            const precioTotal = calcularPrecioTotalLiquidacion();
+            const precioTotal = selectedReservaLiquidacion.precio;
+            const montoPendiente = precioTotal - (selectedReservaLiquidacion.montoAbonado || 0);
+
+            if (liquidacionData.montoAbonado !== montoPendiente) {
+                setSnackbar({
+                    open: true,
+                    message: `Debe abonar el monto total pendiente (${montoPendiente.toFixed(2)}€)`,
+                    severity: 'error'
+                });
+                return;
+            }
+
+            if (!liquidacionData.metodoPago) {
+                setSnackbar({
+                    open: true,
+                    message: 'Debe seleccionar un método de pago',
+                    severity: 'error'
+                });
+                return;
+            }
+
             const datosLiquidacion = {
                 suplementos: liquidacionData.suplementos,
                 pagos: [
@@ -626,32 +678,38 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                         fecha: new Date().toISOString()
                     }
                 ],
-                observaciones: liquidacionData.observaciones
+                observaciones: liquidacionData.observaciones,
+                estado: 'COMPLETADA'
             };
 
             const response = await fetch(`${API_BASE_URL}/reservas/${selectedReservaLiquidacion._id}/liquidar`, {
                 method: 'PATCH',
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
+                    'Content-Type': 'application/json'
                 },
-                credentials: 'include',
-                body: JSON.stringify(datosLiquidacion),
+                body: JSON.stringify(datosLiquidacion)
             });
 
-            const data = await response.json();
-
             if (!response.ok) {
-                alert(data.message || 'Error al liquidar la reserva');
-                return;
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Error al liquidar la reserva');
             }
 
             await fetchReservas();
             handleCloseLiquidacionDialog();
-        } catch (error) {
+            setSnackbar({
+                open: true,
+                message: 'Reserva liquidada correctamente',
+                severity: 'success'
+            });
+        } catch (error: any) {
             console.error('Error al liquidar la reserva:', error);
-            alert('Error al liquidar la reserva. Por favor, inténtalo de nuevo.');
+            setSnackbar({
+                open: true,
+                message: error.message || 'Error al liquidar la reserva',
+                severity: 'error'
+            });
         }
     };
 
@@ -660,7 +718,8 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         setCancelacionData({
             motivo: 'OTRO',
             observaciones: '',
-            montoDevuelto: 0
+            montoDevuelto: 0,
+            pendienteRevisionJunta: false
         });
         setOpenCancelDialog(true);
     };
@@ -674,16 +733,11 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 const fechaReserva = new Date(selectedReservaForCancel.fecha);
                 const fechaActual = new Date();
                 if (!isSameDay(fechaReserva, fechaActual)) {
-                    setOpenCancelDialog(false);
-                    await Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: 'Solo se puede cancelar por condiciones climáticas el mismo día de la reserva',
-                        customClass: {
-                            container: 'swal-over-modal'
-                        }
+                    setSnackbar({
+                        open: true,
+                        message: 'Solo se puede cancelar por condiciones climáticas el mismo día de la reserva',
+                        severity: 'error'
                     });
-                    setOpenCancelDialog(true);
                     return;
                 }
             } else if (cancelacionData.motivo === 'ANTICIPADA') {
@@ -694,20 +748,14 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 if (diasDiferencia < 9) {
                     // Caso de menos de 9 días
                     if (!cancelacionData.observaciones) {
-                        setOpenCancelDialog(false);
-                        await Swal.fire({
-                            icon: 'error',
-                            title: 'Error',
-                            text: 'Debe especificar el motivo de la cancelación para que la Junta pueda valorar la devolución',
-                            customClass: {
-                                container: 'swal-over-modal'
-                            }
+                        setSnackbar({
+                            open: true,
+                            message: 'Debe especificar el motivo de la cancelación para que la Junta pueda valorar la devolución',
+                            severity: 'error'
                         });
-                        setOpenCancelDialog(true);
                         return;
                     }
 
-                    setOpenCancelDialog(false);
                     const result = await Swal.fire({
                         title: 'Cancelación con menos de 9 días',
                         text: 'Se puede anular, pero para devolución de dinero se valorará con Junta una vez conocidos los motivos. ¿Quieres seguir adelante?',
@@ -716,18 +764,14 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                         confirmButtonColor: '#d33',
                         cancelButtonColor: '#3085d6',
                         confirmButtonText: 'Sí, continuar',
-                        cancelButtonText: 'No, volver',
-                        customClass: {
-                            container: 'swal-over-modal'
-                        }
+                        cancelButtonText: 'No, volver'
                     });
 
                     if (!result.isConfirmed) {
-                        setOpenCancelDialog(true);
                         return;
                     }
 
-                    // Si confirma, no permitimos especificar monto a devolver y marcamos como pendiente de revisión
+                    // Si confirma, marcamos como pendiente de revisión
                     setCancelacionData(prev => ({
                         ...prev,
                         montoDevuelto: 0,
@@ -738,20 +782,23 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                     // Caso de más de 9 días
                     if ((selectedReservaForCancel.montoAbonado || 0) > 0) {
                         if (!cancelacionData.montoDevuelto) {
-                            setOpenCancelDialog(false);
-                            await Swal.fire({
-                                icon: 'error',
-                                title: 'Error',
-                                text: 'Debe especificar el monto a devolver',
-                                customClass: {
-                                    container: 'swal-over-modal'
-                                }
+                            setSnackbar({
+                                open: true,
+                                message: 'Debe especificar el monto a devolver',
+                                severity: 'error'
                             });
-                            setOpenCancelDialog(true);
                             return;
                         }
 
-                        setOpenCancelDialog(false);
+                        if (cancelacionData.montoDevuelto > (selectedReservaForCancel.montoAbonado || 0)) {
+                            setSnackbar({
+                                open: true,
+                                message: 'El monto a devolver no puede ser mayor al monto abonado',
+                                severity: 'error'
+                            });
+                            return;
+                        }
+
                         const result = await Swal.fire({
                             title: 'Cancelación con más de 9 días',
                             text: `Se devolverá el dinero de la fianza (${cancelacionData.montoDevuelto}€). ¿Quieres continuar con la cancelación?`,
@@ -760,14 +807,10 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                             confirmButtonColor: '#3085d6',
                             cancelButtonColor: '#d33',
                             confirmButtonText: 'Sí, continuar',
-                            cancelButtonText: 'No, volver',
-                            customClass: {
-                                container: 'swal-over-modal'
-                            }
+                            cancelButtonText: 'No, volver'
                         });
 
                         if (!result.isConfirmed) {
-                            setOpenCancelDialog(true);
                             return;
                         }
                     }
@@ -775,7 +818,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
             }
 
             // Confirmación final antes de proceder
-            setOpenCancelDialog(false);
             const result = await Swal.fire({
                 title: '¿Estás seguro?',
                 text: 'Esta acción no se puede deshacer',
@@ -784,45 +826,38 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 confirmButtonColor: '#d33',
                 cancelButtonColor: '#3085d6',
                 confirmButtonText: 'Sí, cancelar reserva',
-                cancelButtonText: 'No, volver',
-                customClass: {
-                    container: 'swal-over-modal'
-                }
+                cancelButtonText: 'No, volver'
             });
 
             if (result.isConfirmed) {
-                const response = await axios.patch(`/reservas/${selectedReservaForCancel._id}/cancelar`, cancelacionData);
+                const response = await axios.patch(`${API_BASE_URL}/reservas/${selectedReservaForCancel._id}/cancelar`, cancelacionData, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
                 if (response.data) {
-                    await Swal.fire({
-                        icon: 'success',
-                        title: 'Reserva cancelada',
-                        text: cancelacionData.pendienteRevisionJunta
+                    setSnackbar({
+                        open: true,
+                        message: cancelacionData.pendienteRevisionJunta
                             ? 'La reserva ha sido cancelada. La devolución del dinero será valorada por la Junta.'
                             : 'La reserva ha sido cancelada exitosamente',
-                        customClass: {
-                            container: 'swal-over-modal'
-                        }
+                        severity: 'success'
                     });
                     setReservas(reservas.map(r =>
                         r._id === selectedReservaForCancel._id ? response.data : r
                     ));
+                    setOpenCancelDialog(false);
                     setSelectedReservaForCancel(null);
                 }
-            } else {
-                setOpenCancelDialog(true);
             }
         } catch (error: any) {
             console.error('Error al cancelar la reserva:', error);
-            setOpenCancelDialog(false);
-            await Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: error.response?.data?.message || 'Error al cancelar la reserva',
-                customClass: {
-                    container: 'swal-over-modal'
-                }
+            setSnackbar({
+                open: true,
+                message: error.response?.data?.message || 'Error al cancelar la reserva',
+                severity: 'error'
             });
-            setOpenCancelDialog(true);
         }
     };
 
@@ -990,6 +1025,45 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 severity: 'error'
             });
         }
+    };
+
+    const renderResumenPrecio = () => {
+        const servicio = servicios.find(s => s.id === formData.servicio);
+        const suplementosPrecios = new Map();
+
+        // Calcular precios de suplementos sin duplicados
+        formData.suplementos.forEach(sup => {
+            const suplemento = suplementosList.find(s => s.id === sup.id);
+            if (suplemento) {
+                const cantidad = sup.cantidad || 1;
+                const precio = suplemento.tipo === 'fijo' ? suplemento.precio : suplemento.precio * cantidad;
+                suplementosPrecios.set(sup.id, {
+                    nombre: suplemento.nombre,
+                    precio: precio,
+                    cantidad: cantidad,
+                    tipo: suplemento.tipo
+                });
+            }
+        });
+
+        return (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>Resumen del Precio</Typography>
+                {servicio && (
+                    <Typography sx={{ mb: 1 }}>
+                        Servicio: {servicio.precio}€
+                    </Typography>
+                )}
+                {Array.from(suplementosPrecios.values()).map(({ nombre, precio, cantidad, tipo }, index) => (
+                    <Typography key={index} sx={{ mb: 1 }}>
+                        {nombre}{tipo === 'porHora' && cantidad > 1 ? ` (${cantidad})` : ''}: {precio}€
+                    </Typography>
+                ))}
+                <Typography variant="h6" sx={{ mt: 2, color: 'primary.main' }}>
+                    Total: {calcularPrecioTotal()}€
+                </Typography>
+            </Box>
+        );
     };
 
     return (
@@ -1168,14 +1242,16 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                                                     >
                                                         Editar
                                                     </Button>
-                                                    <Button
-                                                        variant="outlined"
-                                                        color="error"
-                                                        startIcon={<DeleteIcon />}
-                                                        onClick={() => handleDelete(reserva._id)}
-                                                    >
-                                                        Eliminar
-                                                    </Button>
+                                                    {(user?.role === 'ADMINISTRADOR' || user?.role === 'JUNTA') && (
+                                                        <Button
+                                                            variant="outlined"
+                                                            color="error"
+                                                            startIcon={<DeleteIcon />}
+                                                            onClick={() => handleDelete(reserva._id)}
+                                                        >
+                                                            Eliminar
+                                                        </Button>
+                                                    )}
                                                     {reserva.estado !== 'COMPLETADA' && reserva.estado !== 'CANCELADA' && (
                                                         <Button
                                                             variant="outlined"
@@ -1223,6 +1299,14 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                                                     </Box>
                                                     <Box sx={{ mb: 2 }}>
                                                         <Typography variant="subtitle2" color="text.secondary">
+                                                            Servicio
+                                                        </Typography>
+                                                        <Typography variant="body1">
+                                                            {servicios.find(s => s.nombre.toLowerCase() === reserva.tipoInstalacion.toLowerCase())?.nombre}
+                                                        </Typography>
+                                                    </Box>
+                                                    <Box sx={{ mb: 2 }}>
+                                                        <Typography variant="subtitle2" color="text.secondary">
                                                             Fecha y Hora
                                                         </Typography>
                                                         <Typography variant="body1">
@@ -1264,6 +1348,16 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                                                             </Typography>
                                                         </Box>
                                                     )}
+                                                    {reserva.montoAbonado !== undefined && (
+                                                        <Box sx={{ mb: 2 }}>
+                                                            <Typography variant="subtitle2" color="text.secondary">
+                                                                Restante a Abonar
+                                                            </Typography>
+                                                            <Typography variant="body1" color="error.main" fontWeight="bold">
+                                                                {(reserva.precio - (reserva.montoAbonado || 0)).toFixed(2)}€
+                                                            </Typography>
+                                                        </Box>
+                                                    )}
                                                     {reserva.metodoPago && (
                                                         <Box sx={{ mb: 2 }}>
                                                             <Typography variant="subtitle2" color="text.secondary">
@@ -1281,12 +1375,20 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                                                             Suplementos
                                                         </Typography>
                                                         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                                            {reserva.suplementos.map((sup, index) => {
+                                                            {reserva.suplementos.reduce((acc: any[], sup) => {
+                                                                const existingIndex = acc.findIndex(item => item.id === sup.id);
+                                                                if (existingIndex === -1) {
+                                                                    acc.push({ ...sup, cantidad: sup.cantidad || 1 });
+                                                                } else {
+                                                                    acc[existingIndex].cantidad = (acc[existingIndex].cantidad || 1) + (sup.cantidad || 1);
+                                                                }
+                                                                return acc;
+                                                            }, []).map((sup, index) => {
                                                                 const suplemento = suplementosList.find(s => s.id === sup.id);
                                                                 return suplemento ? (
                                                                     <Chip
                                                                         key={index}
-                                                                        label={`${suplemento.nombre}${sup.cantidad ? ` (${sup.cantidad})` : ''}`}
+                                                                        label={`${suplemento.nombre}${sup.cantidad > 1 ? ` (${sup.cantidad})` : ''}`}
                                                                         size="small"
                                                                     />
                                                                 ) : null;
@@ -1335,7 +1437,8 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                         <ReservaPDF
                             reserva={selectedReservaForPDF}
                             socio={socios.find(s => s._id === selectedReservaForPDF.socio._id)}
-                            servicio={servicios.find(s => s.id === selectedReservaForPDF.tipoInstalacion.toLowerCase())}
+                            servicio={servicios.find(s => s.nombre.toLowerCase() === selectedReservaForPDF.tipoInstalacion.toLowerCase())}
+                            suplementosList={suplementosList}
                         />
                     )}
                 </DialogContent>
@@ -1385,6 +1488,603 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 onSaveSuplementos={handleSaveSuplementos}
             />
 
+            {/* Modal de Nueva/Editar Reserva */}
+            <Dialog
+                open={openDialog}
+                onClose={handleCloseDialog}
+                maxWidth="md"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        minHeight: '80vh',
+                        maxHeight: '90vh'
+                    }
+                }}
+            >
+                <DialogTitle sx={{
+                    borderBottom: '1px solid rgba(0, 0, 0, 0.12)',
+                    pb: 2,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    bgcolor: 'primary.main',
+                    color: 'white'
+                }}>
+                    <Typography variant="h5" component="div">
+                        {selectedReserva ? 'Editar Reserva' : 'Nueva Reserva'}
+                    </Typography>
+                    <IconButton
+                        onClick={handleCloseDialog}
+                        size="large"
+                        sx={{ color: 'white' }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent sx={{ mt: 2, p: 3 }}>
+                    <Box component="form" onSubmit={handleSubmit}>
+                        {/* Sección de Información Principal */}
+                        <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: 'background.default', borderRadius: 2 }}>
+                            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', mb: 3 }}>
+                                Información Principal
+                            </Typography>
+                            <Grid container spacing={3}>
+                                <Grid sx={{ xs: 12, sm: 6 }}>
+                                    <TextField
+                                        fullWidth
+                                        type="date"
+                                        label="Fecha"
+                                        value={formData.fecha}
+                                        onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
+                                        InputLabelProps={{ shrink: true }}
+                                        sx={{
+                                            '& .MuiInputBase-input': {
+                                                fontSize: '1.1rem',
+                                                padding: '12px 14px'
+                                            },
+                                            '& .MuiInputLabel-root': {
+                                                fontSize: '1.1rem'
+                                            }
+                                        }}
+                                    />
+                                </Grid>
+                                <Grid sx={{ xs: 12, sm: 6 }}>
+                                    <FormControl fullWidth>
+                                        <InputLabel sx={{ fontSize: '1.2rem' }}>Servicio</InputLabel>
+                                        <Select
+                                            value={formData.servicio}
+                                            label="Servicio"
+                                            onChange={(e) => setFormData({ ...formData, servicio: e.target.value })}
+                                            sx={{
+                                                '& .MuiSelect-select': {
+                                                    fontSize: '1.2rem',
+                                                    padding: '11px 14px',
+                                                    minHeight: '48px',
+                                                    minWidth: '200px'
+                                                },
+                                                '& .MuiOutlinedInput-notchedOutline': {
+                                                    borderWidth: '2px'
+                                                }
+                                            }}
+                                        >
+                                            {servicios.filter(s => s.activo).map((servicio) => (
+                                                <MenuItem key={servicio.id} value={servicio.id} sx={{ fontSize: '1.2rem', py: 1 }}>
+                                                    {servicio.nombre} - {servicio.precio}€
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormControl>
+                                </Grid>
+                                <Grid sx={{ xs: 12 }}>
+                                    <Autocomplete
+                                        options={socios}
+                                        getOptionLabel={(option) => `${option.nombre} ${option.apellidos} (${option.numeroSocio})`}
+                                        value={socios.find(s => s._id === formData.socio) || null}
+                                        onChange={(_, newValue) => setFormData({ ...formData, socio: newValue?._id || '' })}
+                                        renderInput={(params) => (
+                                            <TextField
+                                                {...params}
+                                                label="Socio"
+                                                fullWidth
+                                                sx={{
+                                                    '& .MuiInputBase-root': {
+                                                        fontSize: '1.2rem',
+                                                        minHeight: '48px',
+                                                        width: '215%'
+                                                    },
+                                                    '& .MuiInputLabel-root': {
+                                                        fontSize: '1.2rem'
+                                                    },
+                                                    '& .MuiOutlinedInput-notchedOutline': {
+                                                        borderWidth: '2px'
+                                                    },
+                                                    '& .MuiAutocomplete-input': {
+                                                        padding: '11px 14px'
+                                                    },
+                                                    '& .MuiAutocomplete-endAdornment': {
+                                                        top: 'calc(50% - 14px)',
+                                                        right: '14px'
+                                                    }
+                                                }}
+                                            />
+                                        )}
+                                    />
+                                </Grid>
+                            </Grid>
+                        </Paper>
+
+                        {/* Sección de Suplementos */}
+                        <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: 'background.default', borderRadius: 2 }}>
+                            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', mb: 3 }}>
+                                Suplementos Disponibles
+                            </Typography>
+                            <Grid container spacing={2}>
+                                {suplementosList.filter(s => s.activo).map((suplemento) => (
+                                    <Grid sx={{ xs: 12, sm: 6, md: 4 }} key={suplemento.id}>
+                                        <Paper
+                                            elevation={1}
+                                            sx={{
+                                                p: 2,
+                                                border: formData.suplementos.some(s => s.id === suplemento.id)
+                                                    ? '2px solid'
+                                                    : '1px solid',
+                                                borderColor: formData.suplementos.some(s => s.id === suplemento.id)
+                                                    ? 'primary.main'
+                                                    : 'divider',
+                                                borderRadius: 2,
+                                                cursor: 'pointer',
+                                                '&:hover': {
+                                                    borderColor: 'primary.main',
+                                                    bgcolor: 'action.hover'
+                                                }
+                                            }}
+                                            onClick={() => handleSuplementoChange(suplemento.id, !formData.suplementos.some(s => s.id === suplemento.id))}
+                                        >
+                                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                                <Checkbox
+                                                    checked={formData.suplementos.some(s => s.id === suplemento.id)}
+                                                    onChange={(e) => handleSuplementoChange(suplemento.id, e.target.checked)}
+                                                    sx={{ '& .MuiSvgIcon-root': { fontSize: 28 } }}
+                                                />
+                                                <Box sx={{ flex: 1 }}>
+                                                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                                                        {suplemento.nombre}
+                                                    </Typography>
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        {suplemento.precio}€ {suplemento.tipo === 'porHora' ? '/hora' : ''}
+                                                    </Typography>
+                                                </Box>
+                                            </Box>
+                                            {suplemento.tipo === 'porHora' && formData.suplementos.some(s => s.id === suplemento.id) && (
+                                                <TextField
+                                                    type="number"
+                                                    size="small"
+                                                    label="Cantidad de horas"
+                                                    value={formData.suplementos.find(s => s.id === suplemento.id)?.cantidad || 1}
+                                                    onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        handleCantidadChange(suplemento.id, parseInt(e.target.value) || 1);
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    sx={{
+                                                        width: '100%',
+                                                        mt: 1,
+                                                        '& .MuiInputBase-input': {
+                                                            fontSize: '1rem',
+                                                            padding: '8px 14px'
+                                                        }
+                                                    }}
+                                                />
+                                            )}
+                                        </Paper>
+                                    </Grid>
+                                ))}
+                            </Grid>
+                        </Paper>
+
+                        {/* Sección de Pago y Observaciones */}
+                        <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: 'background.default', borderRadius: 2 }}>
+                            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', mb: 3 }}>
+                                Pago y Observaciones
+                            </Typography>
+                            <Grid container spacing={3}>
+                                <Grid sx={{ xs: 12, sm: 6 }}>
+                                    <TextField
+                                        fullWidth
+                                        type="number"
+                                        label="Monto Abonado"
+                                        value={formData.montoAbonado}
+                                        onChange={(e) => setFormData({ ...formData, montoAbonado: parseFloat(e.target.value) || 0 })}
+                                        InputProps={{
+                                            startAdornment: <Typography sx={{ mr: 1, fontSize: '1.1rem' }}>€</Typography>,
+                                        }}
+                                        sx={{
+                                            '& .MuiInputBase-input': {
+                                                fontSize: '1.1rem',
+                                                padding: '12px 14px'
+                                            },
+                                            '& .MuiInputLabel-root': {
+                                                fontSize: '1.1rem'
+                                            }
+                                        }}
+                                    />
+                                </Grid>
+                                <Grid sx={{ xs: 12, sm: 6 }}>
+                                    <FormControl fullWidth>
+                                        <InputLabel sx={{ fontSize: '1.2rem' }}>Método de Pago</InputLabel>
+                                        <Select
+                                            value={formData.metodoPago}
+                                            label="Método de Pago"
+                                            onChange={(e) => setFormData({ ...formData, metodoPago: e.target.value as 'efectivo' | 'tarjeta' | '' })}
+                                            sx={{
+                                                '& .MuiSelect-select': {
+                                                    fontSize: '1.2rem',
+                                                    minHeight: '48px',
+                                                    minWidth: '200px'
+                                                },
+                                                '& .MuiOutlinedInput-notchedOutline': {
+                                                    borderWidth: '2px'
+                                                }
+                                            }}
+                                        >
+                                            <MenuItem value="efectivo" sx={{ fontSize: '1.2rem', py: 1 }}>Efectivo</MenuItem>
+                                            <MenuItem value="tarjeta" sx={{ fontSize: '1.2rem', py: 1 }}>Tarjeta</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                </Grid>
+                                <Grid sx={{ xs: 12 }}>
+                                    <TextField
+                                        fullWidth
+                                        multiline
+                                        rows={4}
+                                        label="Observaciones"
+                                        value={formData.observaciones}
+                                        onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })}
+                                        sx={{
+                                            '& .MuiInputBase-input': {
+                                                fontSize: '1.1rem',
+                                                padding: '12px 14px'
+                                            },
+                                            '& .MuiInputLabel-root': {
+                                                fontSize: '1.1rem'
+                                            }
+                                        }}
+                                    />
+                                </Grid>
+                            </Grid>
+                        </Paper>
+
+                        {/* Resumen de Precio */}
+                        {renderResumenPrecio()}
+
+                        {/* Botones de Acción */}
+                        <Box sx={{
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            gap: 2,
+                            borderTop: '1px solid rgba(0, 0, 0, 0.12)',
+                            pt: 3
+                        }}>
+                            <Button
+                                onClick={handleCloseDialog}
+                                variant="outlined"
+                                sx={{
+                                    fontSize: '1.1rem',
+                                    px: 3,
+                                    py: 1
+                                }}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                type="submit"
+                                variant="contained"
+                                sx={{
+                                    fontSize: '1.1rem',
+                                    px: 3,
+                                    py: 1
+                                }}
+                            >
+                                {selectedReserva ? 'Guardar Cambios' : 'Crear Reserva'}
+                            </Button>
+                        </Box>
+                    </Box>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Liquidación */}
+            <Dialog
+                open={openLiquidacionDialog}
+                onClose={handleCloseLiquidacionDialog}
+                maxWidth="md"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        minHeight: '60vh',
+                        maxHeight: '80vh'
+                    }
+                }}
+            >
+                <DialogTitle sx={{
+                    borderBottom: '1px solid rgba(0, 0, 0, 0.12)',
+                    pb: 2,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    bgcolor: 'primary.main',
+                    color: 'white'
+                }}>
+                    <Typography variant="h5" component="div">
+                        Liquidar Reserva
+                    </Typography>
+                    <IconButton
+                        onClick={handleCloseLiquidacionDialog}
+                        size="large"
+                        sx={{ color: 'white' }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent sx={{ mt: 2, p: 3 }}>
+                    <Box component="form" onSubmit={handleLiquidacionSubmit}>
+                        {/* Sección de Información de la Reserva */}
+                        <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: 'background.default', borderRadius: 2 }}>
+                            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', mb: 3 }}>
+                                Información de la Reserva
+                            </Typography>
+                            <Grid container spacing={3}>
+                                <Grid sx={{ xs: 12, sm: 6 }}>
+                                    <Typography variant="subtitle2" color="text.secondary">
+                                        Socio
+                                    </Typography>
+                                    <Typography variant="body1">
+                                        {selectedReservaLiquidacion?.socio.nombre.nombre} {selectedReservaLiquidacion?.socio.nombre.primerApellido}
+                                    </Typography>
+                                </Grid>
+                                <Grid sx={{ xs: 12, sm: 6 }}>
+                                    <Typography variant="subtitle2" color="text.secondary">
+                                        Servicio
+                                    </Typography>
+                                    <Typography variant="body1">
+                                        {servicios.find(s => s.id === selectedReservaLiquidacion?.tipoInstalacion.toLowerCase())?.nombre}
+                                    </Typography>
+                                </Grid>
+                                <Grid sx={{ xs: 12, sm: 6 }}>
+                                    <Typography variant="subtitle2" color="text.secondary">
+                                        Precio Total
+                                    </Typography>
+                                    <Typography variant="body1">
+                                        {selectedReservaLiquidacion?.precio.toFixed(2)}€
+                                    </Typography>
+                                </Grid>
+                                <Grid sx={{ xs: 12, sm: 6 }}>
+                                    <Typography variant="subtitle2" color="text.secondary">
+                                        Monto Pendiente
+                                    </Typography>
+                                    <Typography variant="body1" color="error.main" fontWeight="bold">
+                                        {(selectedReservaLiquidacion?.precio || 0) - (selectedReservaLiquidacion?.montoAbonado || 0)}€
+                                    </Typography>
+                                </Grid>
+                            </Grid>
+                        </Paper>
+
+                        {/* Sección de Pago */}
+                        <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: 'background.default', borderRadius: 2 }}>
+                            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', mb: 3 }}>
+                                Información del Pago
+                            </Typography>
+                            <Grid container spacing={3}>
+                                <Grid sx={{ xs: 12, sm: 6 }}>
+                                    <TextField
+                                        fullWidth
+                                        type="number"
+                                        label="Monto a Abonar"
+                                        value={liquidacionData.montoAbonado}
+                                        onChange={(e) => {
+                                            const montoPendiente = (selectedReservaLiquidacion?.precio || 0) - (selectedReservaLiquidacion?.montoAbonado || 0);
+                                            const nuevoMonto = parseFloat(e.target.value) || 0;
+                                            if (nuevoMonto <= montoPendiente) {
+                                                setLiquidacionData({ ...liquidacionData, montoAbonado: nuevoMonto });
+                                            }
+                                        }}
+                                        InputProps={{
+                                            startAdornment: <Typography sx={{ mr: 1, fontSize: '1.1rem' }}>€</Typography>,
+                                            endAdornment: (
+                                                <Typography sx={{ ml: 1, fontSize: '1.1rem', color: 'text.secondary' }}>
+                                                    Total pendiente: {((selectedReservaLiquidacion?.precio || 0) - (selectedReservaLiquidacion?.montoAbonado || 0)).toFixed(2)}€
+                                                </Typography>
+                                            )
+                                        }}
+                                        helperText="Debe abonar el monto total pendiente"
+                                        sx={{
+                                            '& .MuiInputBase-input': {
+                                                fontSize: '1.1rem',
+                                                padding: '12px 14px'
+                                            },
+                                            '& .MuiInputLabel-root': {
+                                                fontSize: '1.1rem'
+                                            }
+                                        }}
+                                    />
+                                </Grid>
+                                <Grid sx={{ xs: 12, sm: 6 }}>
+                                    <FormControl fullWidth>
+                                        <InputLabel sx={{ fontSize: '1.2rem' }}>Método de Pago</InputLabel>
+                                        <Select
+                                            value={liquidacionData.metodoPago}
+                                            label="Método de Pago"
+                                            onChange={(e) => setLiquidacionData({ ...liquidacionData, metodoPago: e.target.value as 'efectivo' | 'tarjeta' | '' })}
+                                            sx={{
+                                                '& .MuiSelect-select': {
+                                                    fontSize: '1.2rem',
+                                                    minHeight: '48px',
+                                                    minWidth: '200px'
+                                                },
+                                                '& .MuiOutlinedInput-notchedOutline': {
+                                                    borderWidth: '2px'
+                                                }
+                                            }}
+                                        >
+                                            <MenuItem value="efectivo" sx={{ fontSize: '1.2rem', py: 1 }}>Efectivo</MenuItem>
+                                            <MenuItem value="tarjeta" sx={{ fontSize: '1.2rem', py: 1 }}>Tarjeta</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                </Grid>
+                            </Grid>
+                        </Paper>
+
+                        {/* Sección de Suplementos */}
+                        <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: 'background.default', borderRadius: 2 }}>
+                            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', mb: 3 }}>
+                                Suplementos
+                            </Typography>
+                            <Grid container spacing={2}>
+                                {suplementosList.filter(s => s.activo).map((suplemento) => (
+                                    <Grid sx={{ xs: 12, sm: 6, md: 4 }} key={suplemento.id}>
+                                        <Paper
+                                            elevation={1}
+                                            sx={{
+                                                p: 2,
+                                                border: liquidacionData.suplementos.some(s => s.id === suplemento.id)
+                                                    ? '2px solid'
+                                                    : '1px solid',
+                                                borderColor: liquidacionData.suplementos.some(s => s.id === suplemento.id)
+                                                    ? 'primary.main'
+                                                    : 'divider',
+                                                borderRadius: 2,
+                                                cursor: 'pointer',
+                                                '&:hover': {
+                                                    borderColor: 'primary.main',
+                                                    bgcolor: 'action.hover'
+                                                }
+                                            }}
+                                            onClick={() => {
+                                                const newSuplementos = [...liquidacionData.suplementos];
+                                                const index = newSuplementos.findIndex(s => s.id === suplemento.id);
+                                                if (index === -1) {
+                                                    newSuplementos.push({ id: suplemento.id, cantidad: 1 });
+                                                } else {
+                                                    newSuplementos.splice(index, 1);
+                                                }
+                                                setLiquidacionData({ ...liquidacionData, suplementos: newSuplementos });
+                                            }}
+                                        >
+                                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                                <Checkbox
+                                                    checked={liquidacionData.suplementos.some(s => s.id === suplemento.id)}
+                                                    onChange={(e) => {
+                                                        const newSuplementos = [...liquidacionData.suplementos];
+                                                        if (e.target.checked) {
+                                                            newSuplementos.push({ id: suplemento.id, cantidad: 1 });
+                                                        } else {
+                                                            const index = newSuplementos.findIndex(s => s.id === suplemento.id);
+                                                            if (index !== -1) {
+                                                                newSuplementos.splice(index, 1);
+                                                            }
+                                                        }
+                                                        setLiquidacionData({ ...liquidacionData, suplementos: newSuplementos });
+                                                    }}
+                                                    sx={{ '& .MuiSvgIcon-root': { fontSize: 28 } }}
+                                                />
+                                                <Box sx={{ flex: 1 }}>
+                                                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                                                        {suplemento.nombre}
+                                                    </Typography>
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        {suplemento.precio}€ {suplemento.tipo === 'porHora' ? '/hora' : ''}
+                                                    </Typography>
+                                                </Box>
+                                            </Box>
+                                            {suplemento.tipo === 'porHora' && liquidacionData.suplementos.some(s => s.id === suplemento.id) && (
+                                                <TextField
+                                                    type="number"
+                                                    size="small"
+                                                    label="Cantidad de horas"
+                                                    value={liquidacionData.suplementos.find(s => s.id === suplemento.id)?.cantidad || 1}
+                                                    onChange={(e) => {
+                                                        const newSuplementos = liquidacionData.suplementos.map(s =>
+                                                            s.id === suplemento.id
+                                                                ? { ...s, cantidad: parseInt(e.target.value) || 1 }
+                                                                : s
+                                                        );
+                                                        setLiquidacionData({ ...liquidacionData, suplementos: newSuplementos });
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    sx={{
+                                                        width: '100%',
+                                                        mt: 1,
+                                                        '& .MuiInputBase-input': {
+                                                            fontSize: '1rem',
+                                                            padding: '8px 14px'
+                                                        }
+                                                    }}
+                                                />
+                                            )}
+                                        </Paper>
+                                    </Grid>
+                                ))}
+                            </Grid>
+                        </Paper>
+
+                        {/* Sección de Observaciones */}
+                        <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: 'background.default', borderRadius: 2 }}>
+                            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', mb: 3 }}>
+                                Observaciones
+                            </Typography>
+                            <TextField
+                                fullWidth
+                                multiline
+                                rows={4}
+                                label="Observaciones"
+                                value={liquidacionData.observaciones}
+                                onChange={(e) => setLiquidacionData({ ...liquidacionData, observaciones: e.target.value })}
+                                sx={{
+                                    '& .MuiInputBase-input': {
+                                        fontSize: '1.1rem',
+                                        padding: '12px 14px'
+                                    },
+                                    '& .MuiInputLabel-root': {
+                                        fontSize: '1.1rem'
+                                    }
+                                }}
+                            />
+                        </Paper>
+
+                        {/* Botones de Acción */}
+                        <Box sx={{
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            gap: 2,
+                            borderTop: '1px solid rgba(0, 0, 0, 0.12)',
+                            pt: 3
+                        }}>
+                            <Button
+                                onClick={handleCloseLiquidacionDialog}
+                                variant="outlined"
+                                sx={{
+                                    fontSize: '1.1rem',
+                                    px: 3,
+                                    py: 1
+                                }}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                type="submit"
+                                variant="contained"
+                                sx={{
+                                    fontSize: '1.1rem',
+                                    px: 3,
+                                    py: 1
+                                }}
+                            >
+                                Liquidar Reserva
+                            </Button>
+                        </Box>
+                    </Box>
+                </DialogContent>
+            </Dialog>
+
             <Snackbar
                 open={snackbar.open}
                 autoHideDuration={6000}
@@ -1398,6 +2098,149 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                     {snackbar.message}
                 </Alert>
             </Snackbar>
+
+            <Dialog
+                open={openPDF}
+                onClose={() => setOpenPDF(false)}
+                maxWidth="md"
+                fullWidth
+            >
+                <DialogContent>
+                    {selectedReserva && (
+                        <ReservaPDF
+                            reserva={selectedReserva}
+                            socio={socios.find(s => s._id === selectedReserva.socio._id)}
+                            servicio={servicios.find(s => s.nombre.toLowerCase() === selectedReserva.tipoInstalacion.toLowerCase())}
+                            suplementosList={suplementosList}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Cancelación */}
+            <Dialog
+                open={openCancelDialog}
+                onClose={() => setOpenCancelDialog(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle sx={{
+                    borderBottom: '1px solid rgba(0, 0, 0, 0.12)',
+                    pb: 2,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    bgcolor: 'error.main',
+                    color: 'white'
+                }}>
+                    <Typography variant="h5" component="div">
+                        Cancelar Reserva
+                    </Typography>
+                    <IconButton
+                        onClick={() => setOpenCancelDialog(false)}
+                        size="large"
+                        sx={{ color: 'white' }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent sx={{ mt: 2, p: 3 }}>
+                    <Box component="form" onSubmit={(e) => { e.preventDefault(); handleCancelSubmit(); }}>
+                        <Grid container spacing={3}>
+                            <Grid xs={12}>
+                                <FormControl fullWidth>
+                                    <InputLabel>Motivo de Cancelación</InputLabel>
+                                    <Select
+                                        value={cancelacionData.motivo}
+                                        label="Motivo de Cancelación"
+                                        onChange={(e) => setCancelacionData({ ...cancelacionData, motivo: e.target.value as 'CLIMA' | 'ANTICIPADA' | 'OTRO' })}
+                                    >
+                                        <MenuItem value="CLIMA">Por condiciones climáticas</MenuItem>
+                                        <MenuItem value="ANTICIPADA">Cancelación anticipada</MenuItem>
+                                        <MenuItem value="OTRO">Otro motivo</MenuItem>
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+
+                            {cancelacionData.motivo === 'ANTICIPADA' && (
+                                <>
+                                    <Grid xs={12}>
+                                        <TextField
+                                            fullWidth
+                                            multiline
+                                            rows={3}
+                                            label="Observaciones"
+                                            value={cancelacionData.observaciones}
+                                            onChange={(e) => setCancelacionData({ ...cancelacionData, observaciones: e.target.value })}
+                                            helperText="Especifique el motivo de la cancelación"
+                                        />
+                                    </Grid>
+                                    {selectedReservaForCancel && (() => {
+                                        const fechaReserva = new Date(selectedReservaForCancel.fecha);
+                                        const fechaActual = new Date();
+                                        const diasDiferencia = Math.ceil((fechaReserva.getTime() - fechaActual.getTime()) / (1000 * 60 * 60 * 24));
+
+                                        if (diasDiferencia >= 9 && selectedReservaForCancel.montoAbonado) {
+                                            return (
+                                                <Grid xs={12}>
+                                                    <TextField
+                                                        fullWidth
+                                                        type="number"
+                                                        label="Monto a Devolver"
+                                                        value={cancelacionData.montoDevuelto}
+                                                        onChange={(e) => setCancelacionData({ ...cancelacionData, montoDevuelto: parseFloat(e.target.value) || 0 })}
+                                                        InputProps={{
+                                                            startAdornment: <Typography sx={{ mr: 1 }}>€</Typography>,
+                                                        }}
+                                                        helperText={`Monto máximo a devolver: ${selectedReservaForCancel.montoAbonado}€`}
+                                                    />
+                                                </Grid>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
+                                </>
+                            )}
+
+                            {cancelacionData.motivo === 'OTRO' && (
+                                <Grid xs={12}>
+                                    <TextField
+                                        fullWidth
+                                        multiline
+                                        rows={3}
+                                        label="Observaciones"
+                                        value={cancelacionData.observaciones}
+                                        onChange={(e) => setCancelacionData({ ...cancelacionData, observaciones: e.target.value })}
+                                    />
+                                </Grid>
+                            )}
+                        </Grid>
+
+                        <Box sx={{
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            gap: 2,
+                            mt: 3,
+                            pt: 2,
+                            borderTop: '1px solid rgba(0, 0, 0, 0.12)'
+                        }}>
+                            <Button
+                                onClick={() => setOpenCancelDialog(false)}
+                                variant="outlined"
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                type="submit"
+                                variant="contained"
+                                color="error"
+                            >
+                                Confirmar Cancelación
+                            </Button>
+                        </Box>
+                    </Box>
+                </DialogContent>
+            </Dialog>
         </Box>
     );
 }; 
