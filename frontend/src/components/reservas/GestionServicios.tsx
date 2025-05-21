@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Dialog,
     DialogTitle,
@@ -11,19 +11,11 @@ import {
     IconButton,
     Switch,
     FormControlLabel,
-    Divider,
     List,
     ListItem,
     ListItemText,
     ListItemSecondaryAction,
     Paper,
-    Tabs,
-    Tab,
-    Grid,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
 } from '@mui/material';
 import { Close as CloseIcon, Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { ChromePicker } from 'react-color';
@@ -37,61 +29,31 @@ interface Servicio {
     activo: boolean;
 }
 
-interface Suplemento {
-    _id?: string;
-    id: string;
-    nombre: string;
-    precio: number;
-    tipo: 'fijo' | 'porHora';
-    activo: boolean;
-}
-
 interface GestionServiciosProps {
     open: boolean;
     onClose: () => void;
     servicios: Servicio[];
-    suplementos: Suplemento[];
     onSaveServicios: (servicios: Servicio[]) => void;
-    onSaveSuplementos: (suplementos: Suplemento[]) => void;
 }
 
 export const GestionServicios: React.FC<GestionServiciosProps> = ({
     open,
     onClose,
     servicios,
-    suplementos,
     onSaveServicios,
-    onSaveSuplementos,
 }) => {
-    const [tabValue, setTabValue] = useState(0);
     const [serviciosEdit, setServiciosEdit] = useState<Servicio[]>([]);
-    const [suplementosEdit, setSuplementosEdit] = useState<Suplemento[]>([]);
     const [editingServicio, setEditingServicio] = useState<Servicio | null>(null);
-    const [editingSuplemento, setEditingSuplemento] = useState<Suplemento | null>(null);
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [colorType, setColorType] = useState<'normal' | 'observaciones'>('normal');
 
     // Actualizar los estados cuando cambian los props
-    React.useEffect(() => {
-        console.log('Actualizando estados con nuevos props:', { servicios, suplementos });
+    useEffect(() => {
+        console.log('Actualizando estados con nuevos props de servicios:', servicios);
         if (servicios.length > 0) {
             setServiciosEdit([...servicios]);
         }
-        if (suplementos.length > 0) {
-            // Asegurarnos de que los suplementos tengan todos los campos necesarios
-            const suplementosCompletos = suplementos.map(sup => ({
-                ...sup,
-                activo: Boolean(sup.activo),
-                tipo: sup.tipo || 'fijo',
-                precio: Number(sup.precio)
-            }));
-            setSuplementosEdit(suplementosCompletos);
-        }
-    }, [servicios, suplementos]);
-
-    const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-        setTabValue(newValue);
-    };
+    }, [servicios]);
 
     const handleAddServicio = () => {
         console.log('Añadiendo nuevo servicio');
@@ -154,94 +116,45 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
         setEditingServicio(null);
     };
 
-    const handleAddSuplemento = () => {
-        console.log('Añadiendo nuevo suplemento');
-        const newSuplemento: Suplemento = {
-            id: '',
-            nombre: '',
-            precio: 0,
-            tipo: 'fijo',
-            activo: true
-        };
-        setSuplementosEdit([...suplementosEdit, newSuplemento]);
-        setEditingSuplemento(newSuplemento);
-    };
-
-    const handleEditSuplemento = (suplemento: Suplemento) => {
-        console.log('Editando suplemento:', suplemento);
-        setEditingSuplemento({ ...suplemento });
-    };
-
-    const handleDeleteSuplemento = (index: number) => {
-        console.log('Eliminando suplemento con ID:', index);
-        setSuplementosEdit(suplementosEdit.filter((_, i) => i !== index));
-    };
-
-    const handleSaveSuplemento = (index: number, field: string, value: any) => {
-        console.log('Guardando suplemento:', { index, field, value });
-        const updatedSuplementos = [...suplementosEdit];
-        const suplemento = updatedSuplementos[index];
-
-        if (field === 'nombre') {
-            // Generar ID basado en el nombre
-            const newId = `suplemento-${value.toLowerCase().replace(/\s+/g, '-')}`;
-            suplemento.id = newId;
-            suplemento.nombre = value;
-        } else if (field === 'activo') {
-            // Asegurarnos de que activo sea un booleano
-            suplemento.activo = Boolean(value);
-        } else if (field === 'tipo') {
-            suplemento.tipo = value;
-        } else if (field === 'precio') {
-            suplemento.precio = Number(value);
-        }
-
-        // Asegurarnos de que el suplemento tenga todos los campos necesarios
-        suplemento.activo = Boolean(suplemento.activo);
-        suplemento.tipo = suplemento.tipo || 'fijo';
-        suplemento.precio = Number(suplemento.precio);
-
-        console.log('Suplemento actualizado:', suplemento);
-        setSuplementosEdit(updatedSuplementos);
-    };
-
     const handleSave = () => {
-        console.log('Iniciando guardado de suplementos');
-        console.log('Suplementos originales:', suplementos);
-        console.log('Suplementos editados:', suplementosEdit);
+        console.log('Iniciando guardado de servicios');
+        console.log('Servicios originales:', servicios);
+        console.log('Servicios editados:', serviciosEdit);
 
-        // Filtrar solo los suplementos que han sido modificados
-        const modifiedSuplementos = suplementosEdit.filter((suplemento) => {
-            // Si es un suplemento nuevo (no tiene _id), incluirlo
-            if (!suplemento._id) {
-                console.log('Suplemento nuevo detectado:', suplemento);
+        // Filtrar solo los servicios que han sido modificados
+        const modifiedServicios = serviciosEdit.filter((servicio) => {
+            // Si es un servicio nuevo (no tiene id), incluirlo
+            if (!servicio.id) {
+                console.log('Servicio nuevo detectado:', servicio);
                 return true;
             }
 
-            // Buscar el suplemento original
-            const originalSuplemento = suplementos.find(s => s._id === suplemento._id);
-            if (!originalSuplemento) {
-                console.log('Suplemento original no encontrado:', suplemento);
+            // Buscar el servicio original
+            const originalServicio = servicios.find(s => s.id === servicio.id);
+            if (!originalServicio) {
+                console.log('Servicio original no encontrado:', servicio);
                 return true;
             }
 
             // Comparar los campos relevantes
             const hasChanges = (
-                originalSuplemento.nombre !== suplemento.nombre ||
-                originalSuplemento.precio !== suplemento.precio ||
-                originalSuplemento.tipo !== suplemento.tipo ||
-                originalSuplemento.activo !== suplemento.activo
+                originalServicio.nombre !== servicio.nombre ||
+                originalServicio.precio !== servicio.precio ||
+                originalServicio.color !== servicio.color ||
+                originalServicio.colorConObservaciones !== servicio.colorConObservaciones ||
+                originalServicio.activo !== servicio.activo
             );
 
             if (hasChanges) {
-                console.log('Cambios detectados en suplemento:', {
-                    original: originalSuplemento,
-                    modified: suplemento,
+                console.log('Cambios detectados en servicio:', {
+                    original: originalServicio,
+                    modified: servicio,
                     changes: {
-                        nombre: originalSuplemento.nombre !== suplemento.nombre,
-                        precio: originalSuplemento.precio !== suplemento.precio,
-                        tipo: originalSuplemento.tipo !== suplemento.tipo,
-                        activo: originalSuplemento.activo !== suplemento.activo
+                        nombre: originalServicio.nombre !== servicio.nombre,
+                        precio: originalServicio.precio !== servicio.precio,
+                        color: originalServicio.color !== servicio.color,
+                        colorConObservaciones: originalServicio.colorConObservaciones !== servicio.colorConObservaciones,
+                        activo: originalServicio.activo !== servicio.activo
                     }
                 });
             }
@@ -249,11 +162,11 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
             return hasChanges;
         });
 
-        console.log('Suplementos modificados:', modifiedSuplementos);
-        if (modifiedSuplementos.length > 0) {
-            onSaveSuplementos(modifiedSuplementos);
+        console.log('Servicios modificados:', modifiedServicios);
+        if (modifiedServicios.length > 0) {
+            onSaveServicios(modifiedServicios);
         } else {
-            console.log('No hay suplementos modificados para guardar');
+            console.log('No hay servicios modificados para guardar');
         }
         onClose();
     };
@@ -261,7 +174,7 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
             <DialogTitle>
-                Gestión de Servicios y Suplementos
+                Gestión de Servicios
                 <IconButton
                     onClick={onClose}
                     sx={{ position: 'absolute', right: 8, top: 8 }}
@@ -270,164 +183,82 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
                 </IconButton>
             </DialogTitle>
             <DialogContent>
-                <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-                    <Tabs value={tabValue} onChange={handleTabChange}>
-                        <Tab label="Servicios" />
-                        <Tab label="Suplementos" />
-                    </Tabs>
-                </Box>
-
-                {tabValue === 0 && (
-                    <Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-                            <Button
-                                variant="contained"
-                                startIcon={<AddIcon />}
-                                onClick={handleAddServicio}
-                            >
-                                Nuevo Servicio
-                            </Button>
-                        </Box>
-                        <List>
-                            {serviciosEdit.map((servicio) => (
-                                <Paper key={servicio.id} sx={{ mb: 1 }}>
-                                    <ListItem>
-                                        <ListItemText
-                                            primary={servicio.nombre}
-                                            secondary={`Precio: ${servicio.precio}€`}
-                                        />
-                                        <ListItemSecondaryAction>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <Box
-                                                    sx={{
-                                                        width: 20,
-                                                        height: 20,
-                                                        backgroundColor: servicio.color,
-                                                        borderRadius: '50%',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                    onClick={() => {
-                                                        setEditingServicio(servicio);
-                                                        setColorType('normal');
-                                                        setShowColorPicker(true);
-                                                    }}
-                                                />
-                                                <Box
-                                                    sx={{
-                                                        width: 20,
-                                                        height: 20,
-                                                        backgroundColor: servicio.colorConObservaciones,
-                                                        borderRadius: '50%',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                    onClick={() => {
-                                                        setEditingServicio(servicio);
-                                                        setColorType('observaciones');
-                                                        setShowColorPicker(true);
-                                                    }}
-                                                />
-                                                <FormControlLabel
-                                                    control={
-                                                        <Switch
-                                                            checked={servicio.activo}
-                                                            onChange={(e) => {
-                                                                setServiciosEdit(serviciosEdit.map(s =>
-                                                                    s.id === servicio.id
-                                                                        ? { ...s, activo: e.target.checked }
-                                                                        : s
-                                                                ));
-                                                            }}
-                                                        />
-                                                    }
-                                                    label="Activo"
-                                                />
-                                                <IconButton onClick={() => handleEditServicio(servicio)}>
-                                                    <EditIcon />
-                                                </IconButton>
-                                                <IconButton onClick={() => handleDeleteServicio(servicio.id)}>
-                                                    <DeleteIcon />
-                                                </IconButton>
-                                            </Box>
-                                        </ListItemSecondaryAction>
-                                    </ListItem>
-                                </Paper>
-                            ))}
-                        </List>
+                <Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+                        <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={handleAddServicio}
+                        >
+                            Nuevo Servicio
+                        </Button>
                     </Box>
-                )}
-
-                {tabValue === 1 && (
-                    <Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-                            <Button
-                                variant="contained"
-                                startIcon={<AddIcon />}
-                                onClick={handleAddSuplemento}
-                            >
-                                Nuevo Suplemento
-                            </Button>
-                        </Box>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            {suplementosEdit.map((suplemento, index) => (
-                                <Paper key={index} sx={{ p: 2 }}>
-                                    <Grid container spacing={2} alignItems="center">
-                                        <Grid sx={{ width: { xs: '100%', sm: '25%' } }}>
-                                            <TextField
-                                                fullWidth
-                                                label="Nombre"
-                                                value={suplemento.nombre}
-                                                onChange={(e) => handleSaveSuplemento(index, 'nombre', e.target.value)}
+                    <List>
+                        {serviciosEdit.map((servicio) => (
+                            <Paper key={servicio.id} sx={{ mb: 1 }}>
+                                <ListItem>
+                                    <ListItemText
+                                        primary={servicio.nombre}
+                                        secondary={`Precio: ${servicio.precio}€`}
+                                    />
+                                    <ListItemSecondaryAction>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Box
+                                                sx={{
+                                                    width: 20,
+                                                    height: 20,
+                                                    backgroundColor: servicio.color,
+                                                    borderRadius: '50%',
+                                                    cursor: 'pointer'
+                                                }}
+                                                onClick={() => {
+                                                    setEditingServicio(servicio);
+                                                    setColorType('normal');
+                                                    setShowColorPicker(true);
+                                                }}
                                             />
-                                        </Grid>
-                                        <Grid sx={{ width: { xs: '100%', sm: '16.66%' } }}>
-                                            <TextField
-                                                fullWidth
-                                                type="number"
-                                                label="Precio"
-                                                value={suplemento.precio}
-                                                onChange={(e) => handleSaveSuplemento(index, 'precio', Number(e.target.value))}
+                                            <Box
+                                                sx={{
+                                                    width: 20,
+                                                    height: 20,
+                                                    backgroundColor: servicio.colorConObservaciones,
+                                                    borderRadius: '50%',
+                                                    cursor: 'pointer'
+                                                }}
+                                                onClick={() => {
+                                                    setEditingServicio(servicio);
+                                                    setColorType('observaciones');
+                                                    setShowColorPicker(true);
+                                                }}
                                             />
-                                        </Grid>
-                                        <Grid sx={{ width: { xs: '100%', sm: '25%' } }}>
-                                            <FormControl fullWidth>
-                                                <InputLabel>Tipo</InputLabel>
-                                                <Select
-                                                    value={suplemento.tipo}
-                                                    label="Tipo"
-                                                    onChange={(e) => handleSaveSuplemento(index, 'tipo', e.target.value)}
-                                                >
-                                                    <MenuItem value="fijo">Fijo</MenuItem>
-                                                    <MenuItem value="porHora">Por Hora</MenuItem>
-                                                </Select>
-                                            </FormControl>
-                                        </Grid>
-                                        <Grid sx={{ width: { xs: '100%', sm: '16.66%' } }}>
                                             <FormControlLabel
                                                 control={
                                                     <Switch
-                                                        checked={Boolean(suplemento.activo)}
-                                                        onChange={(e) => handleSaveSuplemento(index, 'activo', e.target.checked)}
+                                                        checked={servicio.activo}
+                                                        onChange={(e) => {
+                                                            setServiciosEdit(serviciosEdit.map(s =>
+                                                                s.id === servicio.id
+                                                                    ? { ...s, activo: e.target.checked }
+                                                                    : s
+                                                            ));
+                                                        }}
                                                     />
                                                 }
                                                 label="Activo"
                                             />
-                                        </Grid>
-                                        <Grid sx={{ width: { xs: '100%', sm: '16.66%' } }}>
-                                            <Button
-                                                variant="outlined"
-                                                color="error"
-                                                startIcon={<DeleteIcon />}
-                                                onClick={() => handleDeleteSuplemento(index)}
-                                            >
-                                                Eliminar
-                                            </Button>
-                                        </Grid>
-                                    </Grid>
-                                </Paper>
-                            ))}
-                        </Box>
-                    </Box>
-                )}
+                                            <IconButton onClick={() => handleEditServicio(servicio)}>
+                                                <EditIcon />
+                                            </IconButton>
+                                            <IconButton onClick={() => handleDeleteServicio(servicio.id)}>
+                                                <DeleteIcon />
+                                            </IconButton>
+                                        </Box>
+                                    </ListItemSecondaryAction>
+                                </ListItem>
+                            </Paper>
+                        ))}
+                    </List>
+                </Box>
 
                 {editingServicio && (
                     <Dialog open={true} onClose={() => setEditingServicio(null)}>
@@ -490,60 +321,6 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
                         <DialogActions>
                             <Button onClick={() => setEditingServicio(null)}>Cancelar</Button>
                             <Button onClick={handleSaveServicio} variant="contained">Guardar</Button>
-                        </DialogActions>
-                    </Dialog>
-                )}
-
-                {editingSuplemento && (
-                    <Dialog open={!!editingSuplemento} onClose={() => setEditingSuplemento(null)}>
-                        <DialogTitle>
-                            {editingSuplemento.id ? 'Editar Suplemento' : 'Nuevo Suplemento'}
-                        </DialogTitle>
-                        <DialogContent>
-                            <Box sx={{ mt: 2 }}>
-                                <TextField
-                                    fullWidth
-                                    label="Nombre"
-                                    value={editingSuplemento.nombre}
-                                    onChange={(e) => handleSaveSuplemento(suplementosEdit.indexOf(editingSuplemento), 'nombre', e.target.value)}
-                                    sx={{ mb: 2 }}
-                                />
-                                <TextField
-                                    fullWidth
-                                    label="Precio"
-                                    type="number"
-                                    value={editingSuplemento.precio}
-                                    onChange={(e) => handleSaveSuplemento(suplementosEdit.indexOf(editingSuplemento), 'precio', Number(e.target.value))}
-                                    sx={{ mb: 2 }}
-                                />
-                                <FormControlLabel
-                                    control={
-                                        <Switch
-                                            checked={editingSuplemento.tipo === 'porHora'}
-                                            onChange={(e) => handleSaveSuplemento(suplementosEdit.indexOf(editingSuplemento), 'tipo', e.target.checked ? 'porHora' : 'fijo')}
-                                        />
-                                    }
-                                    label="Precio por hora"
-                                />
-                                <FormControlLabel
-                                    control={
-                                        <Switch
-                                            checked={editingSuplemento.activo}
-                                            onChange={(e) => handleSaveSuplemento(suplementosEdit.indexOf(editingSuplemento), 'activo', e.target.checked)}
-                                        />
-                                    }
-                                    label="Activo"
-                                />
-                            </Box>
-                        </DialogContent>
-                        <DialogActions>
-                            <Button onClick={() => setEditingSuplemento(null)}>Cancelar</Button>
-                            <Button onClick={() => {
-                                setEditingSuplemento(null);
-                                onSaveSuplementos(suplementosEdit);
-                            }} variant="contained">
-                                Guardar
-                            </Button>
                         </DialogActions>
                     </Dialog>
                 )}

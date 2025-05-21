@@ -44,6 +44,7 @@ import Swal from 'sweetalert2';
 import { ReservaPDF } from './ReservaPDF';
 import { LiquidacionPDF } from './LiquidacionPDF';
 import { GestionServicios } from './GestionServicios';
+import { GestionSuplementos } from './GestionSuplementos';
 
 interface Servicio {
     id: string;
@@ -207,6 +208,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
     const [selectedReservaForPDF, setSelectedReservaForPDF] = useState<any>(null);
     const [selectedLiquidacionData, setSelectedLiquidacionData] = useState<any>(null);
     const [openGestionServicios, setOpenGestionServicios] = useState(false);
+    const [openGestionSuplementos, setOpenGestionSuplementos] = useState(false);
     const [snackbar, setSnackbar] = useState({
         open: false,
         message: '',
@@ -998,14 +1000,24 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 </Typography>
                 <Box>
                     {user && user.role === 'ADMINISTRADOR' && (
-                        <Button
-                            variant="outlined"
-                            startIcon={<SettingsIcon />}
-                            onClick={() => setOpenGestionServicios(true)}
-                            sx={{ mr: 2 }}
-                        >
-                            Gestionar Servicios
-                        </Button>
+                        <>
+                            <Button
+                                variant="outlined"
+                                startIcon={<SettingsIcon />}
+                                onClick={() => setOpenGestionServicios(true)}
+                                sx={{ mr: 2 }}
+                            >
+                                Gestionar Servicios
+                            </Button>
+                            <Button
+                                variant="outlined"
+                                startIcon={<SettingsIcon />}
+                                onClick={() => setOpenGestionSuplementos(true)}
+                                sx={{ mr: 2 }}
+                            >
+                                Gestionar Suplementos
+                            </Button>
+                        </>
                     )}
                     <Button
                         variant="contained"
@@ -1362,8 +1374,14 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 open={openGestionServicios}
                 onClose={() => setOpenGestionServicios(false)}
                 servicios={servicios}
-                suplementos={suplementosList}
                 onSaveServicios={handleSaveServicios}
+            />
+
+            {/* Modal de Gestión de Suplementos */}
+            <GestionSuplementos
+                open={openGestionSuplementos}
+                onClose={() => setOpenGestionSuplementos(false)}
+                suplementos={suplementosList}
                 onSaveSuplementos={handleSaveSuplementos}
             />
 
