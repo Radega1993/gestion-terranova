@@ -1,264 +1,201 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+    Container,
+    Typography,
+    Button,
+    Paper,
     Table,
     TableBody,
     TableCell,
     TableContainer,
     TableHead,
     TableRow,
-    Paper,
-    Button,
+    IconButton,
     Dialog,
     DialogTitle,
     DialogContent,
     DialogActions,
     TextField,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
-    Switch,
-    FormControlLabel,
-    Box,
-    Typography,
     Alert,
-    CircularProgress,
 } from '@mui/material';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
+import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { useAuthStore } from '../../stores/authStore';
+import { API_BASE_URL } from '../../config';
 import { User, UserRole } from '../../types/user';
 
-const UsersList: React.FC = () => {
-    const queryClient = useQueryClient();
+const UsersList = () => {
+    const [users, setUsers] = useState<User[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [openDialog, setOpenDialog] = useState(false);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
-    const [editDialogOpen, setEditDialogOpen] = useState(false);
-    const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
-    const [editForm, setEditForm] = useState({
-        nombre: '',
-        username: '',
-        role: UserRole.TRABAJADOR,
-        isActive: true,
-    });
-    const [passwordForm, setPasswordForm] = useState({
-        password: '',
-        confirmPassword: '',
-    });
-    const [openCreateDialog, setOpenCreateDialog] = useState(false);
-    const [userForm, setUserForm] = useState({
-        nombre: '',
+    const [formData, setFormData] = useState({
         username: '',
         password: '',
-        confirmPassword: '',
         role: UserRole.TRABAJADOR,
     });
+    const { token } = useAuthStore();
 
-    // Obtener el token (ahora confiamos en que ProtectedRoute ya lo validó)
-    const token = localStorage.getItem('token') ||
-        localStorage.getItem('gestion-terranova') ||
-        localStorage.getItem('access_token');
-
-    // Manejo seguro del token para obtener el rol del usuario
-    let currentUserRole = UserRole.TRABAJADOR;
-    try {
-        if (token) {
-            const decoded = JSON.parse(atob(token.split('.')[1]));
-            currentUserRole = decoded.role;
-        }
-    } catch (error) {
-        console.error('Error decodificando token:', error);
-    }
-
-    const { data: users, isLoading, error } = useQuery({
-        queryKey: ['users'],
-        queryFn: async () => {
-            try {
-                const response = await axios.get('http://localhost:3000/users', {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
-                return response.data;
-            } catch (error) {
-                console.error('UsersList - Error fetching users:', error);
-                throw error;
-            }
-        },
-    });
-
-    const createUserMutation = useMutation({
-        mutationFn: async (newUser: any) => {
-            const response = await axios.post('http://localhost:3000/users/register', newUser, {
+    const fetchUsers = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/users`, {
                 headers: {
-                    Authorization: `Bearer ${token}`,
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
             });
-            return response.data;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['users'] });
-            // Forzar la recarga inmediata
-            queryClient.refetchQueries({ queryKey: ['users'] });
-            setOpenCreateDialog(false);
-            setUserForm({
-                nombre: '',
+
+            if (!response.ok) {
+                throw new Error('Error al cargar usuarios');
+            }
+
+            const data = await response.json();
+            setUsers(data);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error al cargar usuarios');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchUsers();
+    }, [token]);
+
+    const handleOpenDialog = (user?: User) => {
+        if (user) {
+            setSelectedUser(user);
+            setFormData({
+                username: user.username,
+                password: '',
+                role: user.role,
+            });
+        } else {
+            setSelectedUser(null);
+            setFormData({
                 username: '',
                 password: '',
-                confirmPassword: '',
                 role: UserRole.TRABAJADOR,
             });
-        },
-        onError: (error) => {
-            console.error('Error creando usuario:', error);
-        },
-    });
+        }
+        setOpenDialog(true);
+    };
 
-    const updateUserMutation = useMutation({
-        mutationFn: async (data: Partial<User>) => {
-            const response = await axios.put(
-                `http://localhost:3000/users/${selectedUser?._id}`,
-                data,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-            return response.data;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['users'] });
-            setEditDialogOpen(false);
-        },
-    });
-
-    const updatePasswordMutation = useMutation({
-        mutationFn: async (password: string) => {
-            const response = await axios.put(
-                `http://localhost:3000/users/${selectedUser?._id}/password`,
-                { password },
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-            return response.data;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['users'] });
-            setPasswordDialogOpen(false);
-        },
-    });
-
-    const handleEditClick = (user: User) => {
-        setSelectedUser(user);
-        setEditForm({
-            nombre: user.nombre,
-            username: user.username,
-            role: user.role,
-            isActive: user.isActive,
+    const handleCloseDialog = () => {
+        setOpenDialog(false);
+        setSelectedUser(null);
+        setFormData({
+            username: '',
+            password: '',
+            role: UserRole.TRABAJADOR,
         });
-        setEditDialogOpen(true);
     };
 
-    const handlePasswordClick = (user: User) => {
-        setSelectedUser(user);
-        setPasswordForm({ password: '', confirmPassword: '' });
-        setPasswordDialogOpen(true);
-    };
-
-    const handleEditSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        updateUserMutation.mutate(editForm);
-    };
+        try {
+            const url = selectedUser
+                ? `${API_BASE_URL}/users/${selectedUser._id}`
+                : `${API_BASE_URL}/users`;
 
-    const handlePasswordSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (passwordForm.password === passwordForm.confirmPassword) {
-            updatePasswordMutation.mutate(passwordForm.password);
+            const method = selectedUser ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData),
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al guardar usuario');
+            }
+
+            handleCloseDialog();
+            fetchUsers();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error al guardar usuario');
         }
     };
 
-    const handleCreateSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (userForm.password === userForm.confirmPassword) {
-            const userData = {
-                nombre: userForm.nombre,
-                username: userForm.username,
-                password: userForm.password,
-                role: userForm.role,
-            };
-            createUserMutation.mutate(userData);
+    const handleDelete = async (userId: string) => {
+        if (!window.confirm('¿Estás seguro de que deseas eliminar este usuario?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al eliminar usuario');
+            }
+
+            fetchUsers();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error al eliminar usuario');
         }
     };
 
-    const availableRoles = (() => {
-        switch (currentUserRole) {
-            case UserRole.ADMINISTRADOR:
-                return Object.values(UserRole);
-            case UserRole.JUNTA:
-                return [UserRole.JUNTA, UserRole.TRABAJADOR];
-            default:
-                return [UserRole.TRABAJADOR];
-        }
-    })();
-
-    if (isLoading) {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '500px' }}>
-                <CircularProgress />
-                <Typography variant="body1" sx={{ ml: 2 }}>
-                    Cargando usuarios...
-                </Typography>
-            </Box>
-        );
-    }
-
-    if (error) {
-        return (
-            <Box sx={{ p: 3 }}>
-                <Alert severity="error">
-                    Error al cargar los usuarios: {(error as any).message}
-                </Alert>
-            </Box>
-        );
+    if (loading) {
+        return <Typography>Cargando...</Typography>;
     }
 
     return (
-        <Box sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h4">Gestión de Usuarios</Typography>
-                <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={() => setOpenCreateDialog(true)}
-                    disabled={currentUserRole === UserRole.TRABAJADOR}
-                >
-                    Crear Usuario
-                </Button>
-            </Box>
+        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+            <Typography variant="h4" component="h1" gutterBottom>
+                Gestión de Usuarios
+            </Typography>
+
+            {error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                </Alert>
+            )}
+
+            <Button
+                variant="contained"
+                color="primary"
+                onClick={() => handleOpenDialog()}
+                sx={{ mb: 2 }}
+            >
+                Nuevo Usuario
+            </Button>
 
             <TableContainer component={Paper}>
                 <Table>
                     <TableHead>
                         <TableRow>
-                            <TableCell>Nombre</TableCell>
                             <TableCell>Usuario</TableCell>
                             <TableCell>Rol</TableCell>
-                            <TableCell>Estado</TableCell>
                             <TableCell>Acciones</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {users?.map((user: User) => (
+                        {users.map((user) => (
                             <TableRow key={user._id}>
-                                <TableCell>{user.nombre}</TableCell>
                                 <TableCell>{user.username}</TableCell>
                                 <TableCell>{user.role}</TableCell>
-                                <TableCell>{user.isActive ? 'Activo' : 'Inactivo'}</TableCell>
                                 <TableCell>
-                                    <Button onClick={() => handleEditClick(user)}>Editar</Button>
-                                    <Button onClick={() => handlePasswordClick(user)}>Cambiar Contraseña</Button>
+                                    <IconButton
+                                        onClick={() => handleOpenDialog(user)}
+                                        color="primary"
+                                    >
+                                        <EditIcon />
+                                    </IconButton>
+                                    <IconButton
+                                        onClick={() => handleDelete(user._id)}
+                                        color="error"
+                                    >
+                                        <DeleteIcon />
+                                    </IconButton>
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -266,169 +203,63 @@ const UsersList: React.FC = () => {
                 </Table>
             </TableContainer>
 
-            {/* Diálogo para crear usuario */}
-            <Dialog open={openCreateDialog} onClose={() => setOpenCreateDialog(false)}>
-                <DialogTitle>Crear Nuevo Usuario</DialogTitle>
-                <form onSubmit={handleCreateSubmit}>
-                    <DialogContent>
-                        <TextField
-                            label="Nombre"
-                            value={userForm.nombre}
-                            onChange={(e) => setUserForm({ ...userForm, nombre: e.target.value })}
-                            fullWidth
-                            margin="normal"
-                            required
-                        />
-                        <TextField
-                            label="Usuario"
-                            value={userForm.username}
-                            onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
-                            fullWidth
-                            margin="normal"
-                            required
-                        />
-                        <TextField
-                            label="Contraseña"
-                            type="password"
-                            value={userForm.password}
-                            onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                            fullWidth
-                            margin="normal"
-                            required
-                        />
-                        <TextField
-                            label="Confirmar Contraseña"
-                            type="password"
-                            value={userForm.confirmPassword}
-                            onChange={(e) => setUserForm({ ...userForm, confirmPassword: e.target.value })}
-                            fullWidth
-                            margin="normal"
-                            required
-                            error={userForm.password !== userForm.confirmPassword && userForm.confirmPassword !== ''}
-                            helperText={
-                                userForm.password !== userForm.confirmPassword && userForm.confirmPassword !== ''
-                                    ? 'Las contraseñas no coinciden'
-                                    : ''
-                            }
-                        />
-                        <FormControl fullWidth margin="normal">
-                            <InputLabel>Rol</InputLabel>
-                            <Select
-                                value={userForm.role}
-                                onChange={(e) => setUserForm({ ...userForm, role: e.target.value as UserRole })}
-                                label="Rol"
-                                required
-                            >
-                                {availableRoles.map((role) => (
-                                    <MenuItem key={role} value={role}>
-                                        {role}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setOpenCreateDialog(false)}>Cancelar</Button>
-                        <Button
-                            type="submit"
-                            variant="contained"
-                            color="primary"
-                            disabled={userForm.password !== userForm.confirmPassword}
-                        >
-                            Crear
-                        </Button>
-                    </DialogActions>
-                </form>
+            <Dialog open={openDialog} onClose={handleCloseDialog}>
+                <DialogTitle>
+                    {selectedUser ? 'Editar Usuario' : 'Nuevo Usuario'}
+                </DialogTitle>
+                <DialogContent>
+                    <TextField
+                        autoFocus
+                        margin="dense"
+                        label="Usuario"
+                        type="text"
+                        fullWidth
+                        value={formData.username}
+                        onChange={(e) =>
+                            setFormData({ ...formData, username: e.target.value })
+                        }
+                    />
+                    <TextField
+                        margin="dense"
+                        label="Contraseña"
+                        type="password"
+                        fullWidth
+                        value={formData.password}
+                        onChange={(e) =>
+                            setFormData({ ...formData, password: e.target.value })
+                        }
+                    />
+                    <TextField
+                        select
+                        margin="dense"
+                        label="Rol"
+                        fullWidth
+                        value={formData.role}
+                        onChange={(e) =>
+                            setFormData({
+                                ...formData,
+                                role: e.target.value as UserRole,
+                            })
+                        }
+                        SelectProps={{
+                            native: true,
+                        }}
+                    >
+                        {Object.values(UserRole).map((role) => (
+                            <option key={role} value={role}>
+                                {role}
+                            </option>
+                        ))}
+                    </TextField>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseDialog}>Cancelar</Button>
+                    <Button onClick={handleSubmit} variant="contained" color="primary">
+                        Guardar
+                    </Button>
+                </DialogActions>
             </Dialog>
-
-            {/* Diálogo para editar usuario */}
-            <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
-                <DialogTitle>Editar Usuario</DialogTitle>
-                <form onSubmit={handleEditSubmit}>
-                    <DialogContent>
-                        <TextField
-                            label="Nombre"
-                            value={editForm.nombre}
-                            onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })}
-                            fullWidth
-                            margin="normal"
-                        />
-                        <TextField
-                            label="Usuario"
-                            value={editForm.username}
-                            onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                            fullWidth
-                            margin="normal"
-                        />
-                        <FormControl fullWidth margin="normal">
-                            <InputLabel>Rol</InputLabel>
-                            <Select
-                                value={editForm.role}
-                                onChange={(e) => setEditForm({ ...editForm, role: e.target.value as UserRole })}
-                                label="Rol"
-                            >
-                                {availableRoles.map((role) => (
-                                    <MenuItem key={role} value={role}>
-                                        {role}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                        <FormControlLabel
-                            control={
-                                <Switch
-                                    checked={editForm.isActive}
-                                    onChange={(e) => setEditForm({ ...editForm, isActive: e.target.checked })}
-                                />
-                            }
-                            label="Activo"
-                        />
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
-                        <Button type="submit" variant="contained" color="primary">
-                            Guardar
-                        </Button>
-                    </DialogActions>
-                </form>
-            </Dialog>
-
-            {/* Diálogo para cambiar contraseña */}
-            <Dialog open={passwordDialogOpen} onClose={() => setPasswordDialogOpen(false)}>
-                <DialogTitle>Cambiar Contraseña</DialogTitle>
-                <form onSubmit={handlePasswordSubmit}>
-                    <DialogContent>
-                        <TextField
-                            label="Nueva Contraseña"
-                            type="password"
-                            value={passwordForm.password}
-                            onChange={(e) => setPasswordForm({ ...passwordForm, password: e.target.value })}
-                            fullWidth
-                            margin="normal"
-                        />
-                        <TextField
-                            label="Confirmar Contraseña"
-                            type="password"
-                            value={passwordForm.confirmPassword}
-                            onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                            fullWidth
-                            margin="normal"
-                        />
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setPasswordDialogOpen(false)}>Cancelar</Button>
-                        <Button
-                            type="submit"
-                            variant="contained"
-                            color="primary"
-                            disabled={passwordForm.password !== passwordForm.confirmPassword}
-                        >
-                            Guardar
-                        </Button>
-                    </DialogActions>
-                </form>
-            </Dialog>
-        </Box>
+        </Container>
     );
 };
 

@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Box, Card, CardContent, CardActionArea, Typography, Container } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { UserRole } from '../../types/user';
+import { useAuthStore } from '../../stores/authStore';
 
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
-    const [userRole, setUserRole] = useState<string | null>(null);
+    const { userRole } = useAuthStore();
 
     const modules = [
         { title: 'Deudas', path: '/deudas', description: 'Gestión de deudas' },
@@ -20,23 +21,6 @@ const Dashboard: React.FC = () => {
             roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA]
         },
     ];
-
-    useEffect(() => {
-        // Obtener el token
-        const token = localStorage.getItem('token') ||
-            localStorage.getItem('gestion-terranova') ||
-            localStorage.getItem('access_token');
-
-        // Decodificar el token para obtener el rol
-        try {
-            if (token) {
-                const decoded = JSON.parse(atob(token.split('.')[1]));
-                setUserRole(decoded.role);
-            }
-        } catch (error) {
-            console.error('Error decodificando token:', error);
-        }
-    }, []);
 
     // Filtrar módulos según el rol del usuario
     const filteredModules = modules.filter(module => {
