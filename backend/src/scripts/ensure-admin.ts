@@ -1,45 +1,56 @@
-import { MongoClient } from 'mongodb';
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { User } from '../modules/users/schemas/user.schema';
 import * as bcrypt from 'bcrypt';
-import { config } from 'dotenv';
-import { UserRole } from '../modules/users/types/user-roles.enum';
 
-config();
+@Injectable()
+export class EnsureAdminService {
+    private readonly logger = new Logger(EnsureAdminService.name);
 
-export async function ensureAdmin() {
-    const client = new MongoClient(process.env.MONGODB_URI || 'mongodb://localhost:27017');
+    constructor(
+        @InjectModel(User.name) private userModel: Model<User>,
+    ) { }
 
-    try {
-        await client.connect();
-        const db = client.db('terranova');
-        const usersCollection = db.collection('users');
+    async ensureAdmin() {
+        try {
+            // Verificar si ya existe un usuario admin
+            const existingAdmin = await this.userModel.findOne({ username: 'admin' });
 
-        // Verificar si ya existe un administrador
-        const adminExists = await usersCollection.findOne({ rol: UserRole.ADMINISTRADOR });
+            if (existingAdmin) {
+                this.logger.log('Usuario admin ya existe');
+                return;
+            }
 
-        if (!adminExists) {
-            // Crear el administrador por defecto
+            // Si no existe, crear el usuario admin
             const hashedPassword = await bcrypt.hash('admin123', 10);
-
-            await usersCollection.insertOne({
+            const adminUser = new this.userModel({
                 username: 'admin',
                 password: hashedPassword,
-                nombre: 'Administrador',
-                apellidos: 'Sistema',
                 email: 'admin@terranova.com',
-                rol: UserRole.ADMINISTRADOR,
-                activo: true,
-                createdAt: new Date(),
-                updatedAt: new Date()
+                role: 'admin',
+                isActive: true,
             });
 
-            console.log('Administrador creado exitosamente');
-        } else {
-            console.log('El administrador ya existe');
+            await adminUser.save();
+            this.logger.log('Usuario admin creado correctamente');
+        } catch (error) {
+            this.logger.error('Error al crear usuario admin:', error);
         }
+    }
+}
+
+export async function ensureAdmin() {
+    const logger = new Logger('EnsureAdmin');
+    try {
+        const { AppModule } = await import('../app.module');
+        const { NestFactory } = await import('@nestjs/core');
+        const app = await NestFactory.createApplicationContext(AppModule);
+        const ensureAdminService = app.get(EnsureAdminService);
+        await ensureAdminService.ensureAdmin();
+        await app.close();
     } catch (error) {
-        console.error('Error:', error);
-    } finally {
-        await client.close();
+        logger.error('Error al ejecutar ensureAdmin:', error);
     }
 }
 

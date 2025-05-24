@@ -6,6 +6,11 @@ import { ensureAdmin } from './scripts/ensure-admin';
 import { Logger } from '@nestjs/common';
 import { Connection } from 'mongoose';
 import { getConnectionToken } from '@nestjs/mongoose';
+import { json } from 'express';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
+import * as express from 'express';
 
 async function dropEmailIndex(connection: Connection) {
   const logger = new Logger('DropEmailIndex');
@@ -44,19 +49,28 @@ async function dropEmailIndex(connection: Connection) {
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // Configurar el prefijo global para todas las rutas
-  app.setGlobalPrefix('api');
+  // Configurar límite de tamaño para peticiones
+  app.use(json({ limit: '50mb' }));
 
-  // Habilitar CORS
-  app.enableCors();
+  // Configurar CORS
+  app.enableCors({
+    origin: ['http://localhost:5173', 'http://localhost:3000'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    exposedHeaders: ['Content-Disposition'],
+  });
 
   // Configurar validación global
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
     transform: true,
   }));
+
+  // Configurar prefijo global
+  app.setGlobalPrefix('api');
 
   // Obtener la conexión a MongoDB
   const connection = app.get(getConnectionToken());
@@ -67,22 +81,30 @@ async function bootstrap() {
   // Verificar/crear usuario administrador
   await ensureAdmin();
 
-  // Log de las rutas registradas
-  const server = app.getHttpServer();
-  const router = server._events.request._router;
-  const availableRoutes = router.stack
-    .map(layer => {
-      if (layer.route) {
-        const path = layer.route?.path;
-        const method = Object.keys(layer.route.methods)[0].toUpperCase();
-        return `${method} ${path}`;
-      }
-    })
-    .filter(item => item !== undefined);
+  // Configurar Swagger
+  const config = new DocumentBuilder()
+    .setTitle('Gestión Terranova API')
+    .setDescription('API para la gestión de la asociación de vecinos')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document);
 
-  logger.log('=== RUTAS REGISTRADAS ===');
-  availableRoutes.forEach(route => logger.log(route));
-  logger.log('========================');
+  // Configurar archivos estáticos
+  const uploadsPath = join(process.cwd(), 'uploads');
+  logger.log(`Configurando archivos estáticos en: ${uploadsPath}`);
+
+  // Configurar archivos estáticos sin el prefijo /api
+  app.use('/uploads', express.static(uploadsPath, {
+    setHeaders: (res) => {
+      res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.set('Access-Control-Allow-Origin', '*');
+      res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.set('Cache-Control', 'public, max-age=31536000');
+    },
+  }));
 
   const port = process.env.PORT || 3000;
   await app.listen(port);
