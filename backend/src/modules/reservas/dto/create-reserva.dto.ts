@@ -57,4 +57,8 @@ export class CreateReservaDto {
     @IsString()
     @IsOptional()
     observaciones?: string;
+
+    @IsString()
+    @IsOptional()
+    usuarioCreacion?: string;
 } 

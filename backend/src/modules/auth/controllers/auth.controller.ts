@@ -2,6 +2,7 @@ import { Controller, Post, Body, UseGuards, Get, Request, UnauthorizedException,
 import { AuthService } from '../services/auth.service';
 import { LocalAuthGuard } from '../guards/local-auth.guard';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { LoginUserDto } from '../../users/dto/login-user.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -10,7 +11,7 @@ export class AuthController {
     constructor(private authService: AuthService) { }
 
     @Post('login')
-    async login(@Body() loginDto: { username: string; password: string }) {
+    async login(@Body() loginDto: LoginUserDto) {
         this.logger.debug(`Attempting login for user: ${loginDto.username}`);
 
         const user = await this.authService.validateUser(loginDto.username, loginDto.password);

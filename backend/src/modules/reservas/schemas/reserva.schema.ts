@@ -7,40 +7,67 @@ export enum EstadoReserva {
     PENDIENTE = 'PENDIENTE',
     CONFIRMADA = 'CONFIRMADA',
     CANCELADA = 'CANCELADA',
-    COMPLETADA = 'COMPLETADA'
+    COMPLETADA = 'COMPLETADA',
+    LISTA_ESPERA = 'LISTA_ESPERA',
+    LIQUIDADA = 'LIQUIDADA'
 }
 
 @Schema({ timestamps: true })
 export class Reserva extends Document {
-    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
-    socio: User;
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Socio', required: true })
+    socio: string;
 
     @Prop({ required: true })
-    tipoInstalacion: string;
+    fechaInicio: Date;
 
     @Prop({ required: true })
-    fecha: Date;
+    fechaFin: Date;
 
-    @Prop({ required: true })
-    hora: string;
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Instalacion', required: true })
+    instalacion: string;
 
     @Prop({ required: true })
     precio: number;
+
+    @Prop()
+    observaciones?: string;
+
+    @Prop([{
+        servicio: { type: MongooseSchema.Types.ObjectId, ref: 'Servicio' },
+        cantidad: Number,
+        precio: Number
+    }])
+    servicios?: Array<{
+        servicio: string;
+        cantidad: number;
+        precio: number;
+    }>;
+
+    @Prop([{
+        suplemento: { type: MongooseSchema.Types.ObjectId, ref: 'Suplemento' },
+        cantidad: Number,
+        precio: Number
+    }])
+    suplementos?: Array<{
+        suplemento: string;
+        cantidad: number;
+        precio: number;
+    }>;
+
+    @Prop({ default: 'PENDIENTE' })
+    estado: 'PENDIENTE' | 'CONFIRMADA' | 'CANCELADA' | 'LIQUIDADA';
+
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+    usuarioCreacion: string;
+
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+    usuarioActualizacion?: string;
 
     @Prop({ default: 0 })
     montoAbonado: number;
 
     @Prop()
     metodoPago: string;
-
-    @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Suplemento' }] })
-    suplementos: Suplemento[];
-
-    @Prop({ default: 'PENDIENTE' })
-    estado: string;
-
-    @Prop()
-    observaciones: string;
 
     @Prop({ type: String, enum: EstadoReserva, default: EstadoReserva.PENDIENTE })
     estadoReserva: EstadoReserva;

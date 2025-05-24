@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsEnum, IsOptional } from 'class-validator';
+import { IsString, IsNumber, IsEnum, IsOptional, IsBoolean } from 'class-validator';
 
 export enum TipoSuplemento {
     FIJO = 'FIJO',
@@ -9,15 +9,15 @@ export class CreateSuplementoDto {
     @IsString()
     nombre: string;
 
+    @IsString()
+    descripcion: string;
+
     @IsNumber()
     precio: number;
 
-    @IsEnum(TipoSuplemento)
-    tipo: TipoSuplemento;
-
-    @IsNumber()
+    @IsBoolean()
     @IsOptional()
-    cantidad?: number;
+    activo?: boolean;
 }
 
 export class UpdateSuplementoDto {
@@ -25,15 +25,15 @@ export class UpdateSuplementoDto {
     @IsOptional()
     nombre?: string;
 
+    @IsString()
+    @IsOptional()
+    descripcion?: string;
+
     @IsNumber()
     @IsOptional()
     precio?: number;
 
-    @IsEnum(TipoSuplemento)
+    @IsBoolean()
     @IsOptional()
-    tipo?: TipoSuplemento;
-
-    @IsNumber()
-    @IsOptional()
-    cantidad?: number;
+    activo?: boolean;
 } 

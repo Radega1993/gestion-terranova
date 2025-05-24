@@ -1,62 +1,242 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Reserva } from '../schemas/reserva.schema';
-import { CreateReservaDto } from '../dto/create-reserva.dto';
-import { UpdateReservaDto } from '../dto/update-reserva.dto';
+import { CreateReservaDto, UpdateReservaDto } from '../dto/reserva.dto';
+import { LiquidarReservaDto } from '../dto/liquidar-reserva.dto';
+import { CancelarReservaDto } from '../dto/cancelar-reserva.dto';
 
 @Injectable()
 export class ReservasService {
+    private readonly logger = new Logger(ReservasService.name);
+
     constructor(
         @InjectModel(Reserva.name) private reservaModel: Model<Reserva>
     ) { }
 
+    async create(createReservaDto: CreateReservaDto, usuarioId: string): Promise<Reserva> {
+        try {
+            const reserva = new this.reservaModel({
+                ...createReservaDto,
+                usuarioCreacion: usuarioId,
+                estado: 'PENDIENTE'
+            });
+            return await reserva.save();
+        } catch (error) {
+            this.logger.error('Error al crear reserva:', error);
+            throw new BadRequestException('Error al crear la reserva');
+        }
+    }
+
     async findAll(): Promise<Reserva[]> {
-        return this.reservaModel.find()
-            .populate('socio', 'nombre apellidos')
-            .populate('suplementos')
-            .exec();
+        try {
+            return await this.reservaModel.find()
+                .populate('socio', 'nombre')
+                .populate('instalacion', 'nombre')
+                .populate('servicios.servicio', 'nombre')
+                .populate('suplementos.suplemento', 'nombre')
+                .exec();
+        } catch (error) {
+            this.logger.error('Error al obtener reservas:', error);
+            throw new BadRequestException('Error al obtener las reservas');
+        }
     }
 
     async findOne(id: string): Promise<Reserva> {
-        const reserva = await this.reservaModel.findById(id)
-            .populate('socio', 'nombre apellidos')
-            .populate('suplementos')
-            .exec();
+        try {
+            const reserva = await this.reservaModel.findById(id)
+                .populate('socio', 'nombre')
+                .populate('instalacion', 'nombre')
+                .populate('servicios.servicio', 'nombre')
+                .populate('suplementos.suplemento', 'nombre')
+                .exec();
 
-        if (!reserva) {
-            throw new NotFoundException(`Reserva con ID ${id} no encontrada`);
+            if (!reserva) {
+                throw new NotFoundException(`Reserva con ID ${id} no encontrada`);
+            }
+
+            return reserva;
+        } catch (error) {
+            if (error instanceof NotFoundException) {
+                throw error;
+            }
+            this.logger.error(`Error al obtener reserva con ID ${id}:`, error);
+            throw new BadRequestException('Error al obtener la reserva');
         }
-
-        return reserva;
     }
 
-    async create(createReservaDto: CreateReservaDto): Promise<Reserva> {
-        const reserva = new this.reservaModel(createReservaDto);
-        return reserva.save();
-    }
+    async update(id: string, updateReservaDto: UpdateReservaDto, usuarioId: string): Promise<Reserva> {
+        try {
+            const reserva = await this.reservaModel.findById(id);
 
-    async update(id: string, updateReservaDto: UpdateReservaDto): Promise<Reserva> {
-        const reserva = await this.reservaModel.findByIdAndUpdate(
-            id,
-            updateReservaDto,
-            { new: true }
-        )
-            .populate('socio', 'nombre apellidos')
-            .populate('suplementos')
-            .exec();
+            if (!reserva) {
+                throw new NotFoundException(`Reserva con ID ${id} no encontrada`);
+            }
 
-        if (!reserva) {
-            throw new NotFoundException(`Reserva con ID ${id} no encontrada`);
+            if (reserva.estado === 'LIQUIDADA') {
+                throw new BadRequestException('No se puede modificar una reserva liquidada');
+            }
+
+            const reservaActualizada = await this.reservaModel.findByIdAndUpdate(
+                id,
+                {
+                    ...updateReservaDto,
+                    usuarioActualizacion: usuarioId
+                },
+                { new: true }
+            )
+                .populate('socio', 'nombre')
+                .populate('instalacion', 'nombre')
+                .populate('servicios.servicio', 'nombre')
+                .populate('suplementos.suplemento', 'nombre')
+                .exec();
+
+            return reservaActualizada;
+        } catch (error) {
+            if (error instanceof NotFoundException || error instanceof BadRequestException) {
+                throw error;
+            }
+            this.logger.error(`Error al actualizar reserva con ID ${id}:`, error);
+            throw new BadRequestException('Error al actualizar la reserva');
         }
-
-        return reserva;
     }
 
     async remove(id: string): Promise<void> {
-        const result = await this.reservaModel.deleteOne({ _id: id }).exec();
-        if (result.deletedCount === 0) {
-            throw new NotFoundException(`Reserva con ID ${id} no encontrada`);
+        try {
+            const reserva = await this.reservaModel.findById(id);
+
+            if (!reserva) {
+                throw new NotFoundException(`Reserva con ID ${id} no encontrada`);
+            }
+
+            if (reserva.estado === 'LIQUIDADA') {
+                throw new BadRequestException('No se puede eliminar una reserva liquidada');
+            }
+
+            await this.reservaModel.findByIdAndDelete(id);
+        } catch (error) {
+            if (error instanceof NotFoundException || error instanceof BadRequestException) {
+                throw error;
+            }
+            this.logger.error(`Error al eliminar reserva con ID ${id}:`, error);
+            throw new BadRequestException('Error al eliminar la reserva');
+        }
+    }
+
+    async liquidar(id: string, liquidarReservaDto: LiquidarReservaDto, usuarioId: string): Promise<Reserva> {
+        try {
+            const reserva = await this.reservaModel.findById(id);
+
+            if (!reserva) {
+                throw new NotFoundException(`Reserva con ID ${id} no encontrada`);
+            }
+
+            if (reserva.estado === 'LIQUIDADA') {
+                throw new BadRequestException('La reserva ya está liquidada');
+            }
+
+            if (reserva.estado === 'CANCELADA') {
+                throw new BadRequestException('No se puede liquidar una reserva cancelada');
+            }
+
+            const reservaLiquidada = await this.reservaModel.findByIdAndUpdate(
+                id,
+                {
+                    estado: 'LIQUIDADA',
+                    usuarioActualizacion: usuarioId
+                },
+                { new: true }
+            )
+                .populate('socio', 'nombre')
+                .populate('instalacion', 'nombre')
+                .populate('servicios.servicio', 'nombre')
+                .populate('suplementos.suplemento', 'nombre')
+                .exec();
+
+            return reservaLiquidada;
+        } catch (error) {
+            if (error instanceof NotFoundException || error instanceof BadRequestException) {
+                throw error;
+            }
+            this.logger.error(`Error al liquidar reserva con ID ${id}:`, error);
+            throw new BadRequestException('Error al liquidar la reserva');
+        }
+    }
+
+    async cancelar(id: string, cancelarReservaDto: CancelarReservaDto, usuarioId: string): Promise<Reserva> {
+        try {
+            const reserva = await this.reservaModel.findById(id);
+
+            if (!reserva) {
+                throw new NotFoundException(`Reserva con ID ${id} no encontrada`);
+            }
+
+            if (reserva.estado === 'CANCELADA') {
+                throw new BadRequestException('La reserva ya está cancelada');
+            }
+
+            if (reserva.estado === 'LIQUIDADA') {
+                throw new BadRequestException('No se puede cancelar una reserva liquidada');
+            }
+
+            const reservaCancelada = await this.reservaModel.findByIdAndUpdate(
+                id,
+                {
+                    estado: 'CANCELADA',
+                    observaciones: cancelarReservaDto.observaciones,
+                    usuarioActualizacion: usuarioId
+                },
+                { new: true }
+            )
+                .populate('socio', 'nombre')
+                .populate('instalacion', 'nombre')
+                .populate('servicios.servicio', 'nombre')
+                .populate('suplementos.suplemento', 'nombre')
+                .exec();
+
+            return reservaCancelada;
+        } catch (error) {
+            if (error instanceof NotFoundException || error instanceof BadRequestException) {
+                throw error;
+            }
+            this.logger.error(`Error al cancelar reserva con ID ${id}:`, error);
+            throw new BadRequestException('Error al cancelar la reserva');
+        }
+    }
+
+    async findByUsuario(usuarioId: string): Promise<Reserva[]> {
+        try {
+            return await this.reservaModel.find({ socio: usuarioId })
+                .populate('socio', 'nombre')
+                .populate('instalacion', 'nombre')
+                .populate('servicios.servicio', 'nombre')
+                .populate('suplementos.suplemento', 'nombre')
+                .exec();
+        } catch (error) {
+            this.logger.error(`Error al buscar reservas para el usuario ${usuarioId}:`, error);
+            throw new BadRequestException('Error al buscar las reservas del usuario');
+        }
+    }
+
+    async findByFecha(fecha: Date): Promise<Reserva[]> {
+        try {
+            const inicioDia = new Date(fecha);
+            inicioDia.setHours(0, 0, 0, 0);
+
+            const finDia = new Date(fecha);
+            finDia.setHours(23, 59, 59, 999);
+
+            return await this.reservaModel.find({
+                fechaInicio: { $gte: inicioDia, $lte: finDia }
+            })
+                .populate('socio', 'nombre')
+                .populate('instalacion', 'nombre')
+                .populate('servicios.servicio', 'nombre')
+                .populate('suplementos.suplemento', 'nombre')
+                .exec();
+        } catch (error) {
+            this.logger.error(`Error al buscar reservas para la fecha ${fecha}:`, error);
+            throw new BadRequestException('Error al buscar las reservas por fecha');
         }
     }
 } 

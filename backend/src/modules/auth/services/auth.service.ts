@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException, Inject, forwardRef, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { UsersService } from '../../users/services/users.service';
+import { UsersService } from '../../users/users.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -20,10 +20,12 @@ export class AuthService {
         try {
             const user = await this.usersService.findOneByUsername(username);
             this.logger.debug('Usuario encontrado en base de datos');
+            this.logger.debug(`Datos del usuario: ${JSON.stringify(user.toObject(), null, 2)}`);
 
             if (user && await bcrypt.compare(password, user.password)) {
                 this.logger.debug('Contraseña válida');
                 const { password, ...result } = user.toObject();
+                this.logger.debug(`Resultado de validación: ${JSON.stringify(result, null, 2)}`);
                 this.logger.debug('=== FIN DE VALIDACIÓN EXITOSA ===');
                 return result;
             }
@@ -41,17 +43,21 @@ export class AuthService {
     async login(user: any) {
         this.logger.debug('=== INICIO DE GENERACIÓN DE TOKEN ===');
         this.logger.debug(`Generando token para usuario: ${user.username}`);
+        this.logger.debug(`Datos del usuario: ${JSON.stringify(user, null, 2)}`);
 
         try {
             const payload = {
-                username: user.username,
                 sub: user._id,
-                rol: user.rol
+                username: user.username,
+                nombre: user.nombre,
+                role: user.role,
+                isActive: user.isActive
             };
             this.logger.debug('Payload generado:', JSON.stringify(payload, null, 2));
 
             const token = this.jwtService.sign(payload);
             this.logger.debug('Token generado exitosamente');
+            this.logger.debug('Token decodificado:', JSON.stringify(this.jwtService.decode(token), null, 2));
             this.logger.debug('=== FIN DE GENERACIÓN DE TOKEN ===');
 
             return {
@@ -60,8 +66,8 @@ export class AuthService {
                     _id: user._id,
                     username: user.username,
                     nombre: user.nombre,
-                    apellidos: user.apellidos,
-                    rol: user.rol
+                    role: user.role,
+                    isActive: user.isActive
                 }
             };
         } catch (error) {

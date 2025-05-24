@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { UsersService } from './users.service';
+import { UsersService } from '../users.service';
 import { UserRole } from '../types/user-roles.enum';
 
 @Injectable()
@@ -15,10 +15,8 @@ export class InitService implements OnModuleInit {
                 username: 'admin',
                 password: 'admin',
                 nombre: 'Administrador',
-                apellidos: 'Sistema',
-                email: 'admin@terranova.com',
-                rol: UserRole.ADMINISTRADOR,
-                activo: true
+                apellido: 'Sistema',
+                role: UserRole.ADMINISTRADOR
             });
             console.log('Usuario administrador creado');
         }

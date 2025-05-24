@@ -1,24 +1,10 @@
-import { IsString, IsEnum, IsNumber, IsOptional, IsBoolean } from 'class-validator';
-
-export enum MotivoCancelacion {
-    CLIMA = 'CLIMA',
-    ANTICIPADA = 'ANTICIPADA',
-    OTRO = 'OTRO'
-}
+import { IsString, IsOptional } from 'class-validator';
 
 export class CancelarReservaDto {
-    @IsEnum(MotivoCancelacion)
-    motivo: MotivoCancelacion;
+    @IsString()
+    motivo: string;
 
     @IsString()
     @IsOptional()
     observaciones?: string;
-
-    @IsNumber()
-    @IsOptional()
-    montoDevuelto?: number;
-
-    @IsBoolean()
-    @IsOptional()
-    pendienteRevisionJunta?: boolean;
 } 

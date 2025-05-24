@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '../../users/types/user-roles.enum';
 import { ROLES_KEY } from '../decorators/roles.decorator';
@@ -15,34 +15,23 @@ export class RolesGuard implements CanActivate {
             context.getClass(),
         ]);
 
+        this.logger.debug(`Required roles: ${requiredRoles}`);
+
         if (!requiredRoles) {
             this.logger.debug('No roles required, access granted');
             return true;
         }
 
-        this.logger.debug(`Required roles: ${requiredRoles.join(', ')}`);
+        const { user } = context.switchToHttp().getRequest();
+        this.logger.debug(`User from request: ${JSON.stringify(user)}`);
 
-        const request = context.switchToHttp().getRequest();
-        const user = request.user;
-
-        if (!user) {
-            this.logger.warn('No user found in request');
-            throw new UnauthorizedException('Usuario no autenticado');
+        if (!user || !user.role) {
+            this.logger.warn(`No role found for user: ${JSON.stringify(user)}`);
+            return false;
         }
 
-        if (!user.roles || !Array.isArray(user.roles)) {
-            this.logger.warn(`Invalid roles format: ${JSON.stringify(user.roles)}`);
-            throw new UnauthorizedException('Formato de roles inválido');
-        }
-
-        const hasRole = requiredRoles.some((role) => user.roles.includes(role));
-
-        this.logger.debug(`User roles: ${user.roles.join(', ')}, Has required role: ${hasRole}`);
-
-        if (!hasRole) {
-            this.logger.warn(`Access denied - User roles [${user.roles.join(', ')}] do not include any of required roles: [${requiredRoles.join(', ')}]`);
-            throw new UnauthorizedException('No tiene los permisos necesarios');
-        }
+        const hasRole = requiredRoles.includes(user.role);
+        this.logger.debug(`User role: ${user.role}, Has required role: ${hasRole}`);
 
         return hasRole;
     }

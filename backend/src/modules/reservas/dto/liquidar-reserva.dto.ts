@@ -1,37 +1,11 @@
-import { IsArray, IsNumber, IsOptional, IsString, IsIn, ValidateNested, IsDateString } from 'class-validator';
-import { Type } from 'class-transformer';
-
-class SuplementoLiquidacionDto {
-    @IsString()
-    id: string;
-
-    @IsNumber()
-    @IsOptional()
-    cantidad?: number;
-}
-
-class PagoDto {
-    @IsNumber()
-    monto: number;
-
-    @IsString()
-    @IsIn(['efectivo', 'tarjeta'])
-    metodoPago: 'efectivo' | 'tarjeta';
-
-    @IsDateString()
-    fecha: string;
-}
+import { IsString, IsNumber, IsOptional } from 'class-validator';
 
 export class LiquidarReservaDto {
-    @IsArray()
-    @ValidateNested({ each: true })
-    @Type(() => SuplementoLiquidacionDto)
-    suplementos: SuplementoLiquidacionDto[];
+    @IsString()
+    metodoPago: string;
 
-    @IsArray()
-    @ValidateNested({ each: true })
-    @Type(() => PagoDto)
-    pagos: PagoDto[];
+    @IsNumber()
+    monto: number;
 
     @IsString()
     @IsOptional()

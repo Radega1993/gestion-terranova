@@ -7,19 +7,13 @@ export class Servicio extends Document {
     nombre: string;
 
     @Prop({ required: true })
+    descripcion: string;
+
+    @Prop({ required: true })
     precio: number;
-
-    @Prop({ required: true })
-    color: string;
-
-    @Prop({ required: true })
-    colorConObservaciones: string;
 
     @Prop({ default: true })
     activo: boolean;
-
-    @Prop()
-    descripcion?: string;
 }
 
 export const ServicioSchema = SchemaFactory.createForClass(Servicio); 

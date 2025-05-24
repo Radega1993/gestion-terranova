@@ -1,29 +1,18 @@
-import { IsString, IsNumber, IsBoolean, IsOptional, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsBoolean } from 'class-validator';
 
 export class CreateServicioDto {
     @IsString()
-    id: string;
-
-    @IsString()
     nombre: string;
 
+    @IsString()
+    descripcion: string;
+
     @IsNumber()
-    @Min(0)
     precio: number;
-
-    @IsString()
-    color: string;
-
-    @IsString()
-    colorConObservaciones: string;
 
     @IsBoolean()
     @IsOptional()
     activo?: boolean;
-
-    @IsString()
-    @IsOptional()
-    descripcion?: string;
 }
 
 export class UpdateServicioDto {
@@ -31,24 +20,15 @@ export class UpdateServicioDto {
     @IsOptional()
     nombre?: string;
 
+    @IsString()
+    @IsOptional()
+    descripcion?: string;
+
     @IsNumber()
-    @Min(0)
     @IsOptional()
     precio?: number;
-
-    @IsString()
-    @IsOptional()
-    color?: string;
-
-    @IsString()
-    @IsOptional()
-    colorConObservaciones?: string;
 
     @IsBoolean()
     @IsOptional()
     activo?: boolean;
-
-    @IsString()
-    @IsOptional()
-    descripcion?: string;
 } 

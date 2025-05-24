@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Param, Put, Delete, UnauthorizedException, UseGuards, BadRequestException, Logger } from '@nestjs/common';
-import { UsersService } from '../services/users.service';
+import { UsersService } from '../users.service';
 import { User } from '../schemas/user.schema';
 import { UserRole } from '../types/user-roles.enum';
 import * as bcrypt from 'bcrypt';
@@ -23,82 +23,28 @@ export class UsersController {
         private readonly authService: AuthService
     ) { }
 
-    @Post('login')
-    async login(@Body() loginUserDto: LoginUserDto) {
-        this.logger.debug('=== INICIO DE LOGIN ===');
-        this.logger.debug(`Intento de login para usuario: ${loginUserDto.username}`);
-        this.logger.debug('Datos recibidos:', JSON.stringify(loginUserDto, null, 2));
-
+    @Post('register')
+    async register(@Body() createUserDto: CreateUserDto) {
         try {
-            const user = await this.authService.validateUser(loginUserDto.username, loginUserDto.password);
-            this.logger.debug('Resultado de validación:', user ? 'Usuario válido' : 'Usuario inválido');
-
-            if (!user) {
-                this.logger.warn('Credenciales inválidas');
-                throw new UnauthorizedException('Credenciales inválidas');
-            }
-
-            const result = await this.authService.login(user);
-            this.logger.debug('Login exitoso, token generado');
-            this.logger.debug('=== FIN DE LOGIN ===');
-
-            return {
-                ...result,
-                rol: user.rol,
-                username: user.username
-            };
+            const user = await this.usersService.create(createUserDto);
+            return { message: 'Usuario creado exitosamente', user };
         } catch (error) {
-            this.logger.error('Error en login:', error);
-            this.logger.debug('=== FIN DE LOGIN CON ERROR ===');
-            throw error;
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
+            throw new BadRequestException('Error al crear el usuario');
         }
     }
 
-    @Post('register')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMINISTRADOR)
-    async register(@Body() createUserDto: CreateUserDto) {
+    @Post('login')
+    async login(@Body() loginUserDto: LoginUserDto) {
         try {
-            this.logger.debug(`Datos recibidos para crear usuario: ${JSON.stringify({
-                ...createUserDto,
-                password: createUserDto.password ? '***' : undefined
-            })}`);
-
-            // Validaciones básicas
-            if (!createUserDto.nombre || !createUserDto.username || !createUserDto.password) {
-                throw new BadRequestException('Nombre, username y contraseña son campos obligatorios');
-            }
-
-            // Validar que el rol sea válido
-            if (!Object.values(UserRole).includes(createUserDto.rol)) {
-                throw new BadRequestException('Rol no válido');
-            }
-
-            // Limpiamos campos vacíos para evitar problemas con índices únicos
-            const cleanedData = { ...createUserDto };
-            Object.keys(cleanedData).forEach(key => {
-                if (cleanedData[key] === '' || cleanedData[key] === null || cleanedData[key] === undefined) {
-                    delete cleanedData[key];
-                }
-            });
-
-            // Creamos el usuario con los datos limpios
-            const newUser = await this.usersService.create(cleanedData);
-
-            // Versión segura sin contraseña para los logs
-            const safeUser = { ...newUser.toObject(), password: undefined };
-            this.logger.debug(`Usuario creado exitosamente: ${JSON.stringify(safeUser)}`);
-
-            return safeUser;
+            return await this.usersService.login(loginUserDto);
         } catch (error) {
-            this.logger.error(`Error creating user: ${error.message}`);
-            if (error.code === 11000) {
-                // Error de clave duplicada (probablemente username)
-                throw new BadRequestException(
-                    `El usuario ya existe. ${Object.keys(error.keyPattern || {}).join(', ')} debe ser único.`
-                );
+            if (error instanceof UnauthorizedException) {
+                throw error;
             }
-            throw error;
+            throw new UnauthorizedException('Error al iniciar sesión');
         }
     }
 
@@ -112,12 +58,9 @@ export class UsersController {
             _id: user._id,
             username: user.username,
             nombre: user.nombre,
-            apellidos: user.apellidos,
-            email: user.email,
-            rol: user.rol,
-            activo: user.activo,
-            telefono: user.telefono,
-            direccion: user.direccion,
+            apellidos: user.apellido,
+            role: user.role,
+            activo: user.isActive,
             lastLogin: user.lastLogin
         }));
     }
@@ -126,7 +69,6 @@ export class UsersController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     async findOne(@Param('id') id: string) {
-        this.logger.debug(`Fetching user with ID: ${id}`);
         return this.usersService.findOne(id);
     }
 
@@ -134,31 +76,13 @@ export class UsersController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMINISTRADOR)
     async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-        this.logger.debug(`Updating user with ID: ${id}`);
         return this.usersService.update(id, updateUserDto);
-    }
-
-    @Put(':id/password')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMINISTRADOR)
-    async updatePassword(@Param('id') id: string, @Body() updatePasswordDto: UpdatePasswordDto) {
-        this.logger.debug(`Updating password for user with ID: ${id}`);
-        return this.usersService.updatePassword(id, updatePasswordDto);
     }
 
     @Delete(':id')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMINISTRADOR)
     async remove(@Param('id') id: string) {
-        this.logger.debug(`Removing user with ID: ${id}`);
         return this.usersService.remove(id);
-    }
-
-    @Put(':id/toggle-active')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMINISTRADOR)
-    async toggleActive(@Param('id') id: string) {
-        const user = await this.usersService.findOne(id);
-        return this.usersService.update(id, { activo: !user.activo });
     }
 } 
