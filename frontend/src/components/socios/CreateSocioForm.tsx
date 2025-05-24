@@ -15,19 +15,21 @@ import {
     IconButton,
     Alert,
     CircularProgress,
+    Card,
+    CardContent,
+    Avatar,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import PhotoCamera from '@mui/icons-material/PhotoCamera';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import { AxiosError } from 'axios';
 import { CreateSocioInput, Nombre, Direccion, Banco, Contacto, Asociado, Socio } from '../../types/socio';
 import RemoveIcon from '@mui/icons-material/Remove';
-
-// Componentes personalizados para solucionar los errores de TypeScript con Grid
-const GridItem = (props: any) => <Grid item component="div" {...props} />;
-const GridContainer = (props: any) => <Grid container component="div" {...props} />;
+import { useAuth } from '../../hooks/useAuth';
+import axiosInstance from '../../config/axios';
 
 // Pasos del formulario - Reorganizados para mejor flujo
 const steps = ['Datos Personales', 'Dirección y Contacto', 'Datos Económicos', 'Miembros Asociados'];
@@ -44,11 +46,15 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     const [activeStep, setActiveStep] = useState(0);
     const [formError, setFormError] = useState<string | null>(null);
     const [isAddMemberMode, setIsAddMemberMode] = useState(false);
+    const [expandedAsociados, setExpandedAsociados] = useState<{ [key: number]: boolean }>({});
+    const { token, checkAuth } = useAuth();
 
-    // Obtener el token
-    const token = localStorage.getItem('token') ||
-        localStorage.getItem('gestion-terranova') ||
-        localStorage.getItem('access_token');
+    // Verificar autenticación al montar el componente
+    useEffect(() => {
+        if (!checkAuth()) {
+            return;
+        }
+    }, [checkAuth]);
 
     // Verificar si se debe ir directamente a la sección de miembros
     useEffect(() => {
@@ -100,6 +106,7 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
         asociados: [],
         especiales: [],
         notas: '',
+        fotografia: '',
     });
 
     // Cargar datos del socio si estamos en modo edición
@@ -109,11 +116,7 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
             if (!editMode || !id) return null;
 
             console.log('Cargando datos del socio:', id);
-            const response = await axios.get(`http://localhost:3000/socios/${id}`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
+            const response = await axiosInstance.get(`/socios/${id}`);
             console.log('Datos del socio cargados:', response.data);
             return response.data;
         },
@@ -171,6 +174,7 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                 especiales: socio.especiales?.length
                     ? [...socio.especiales]
                     : [],
+                fotografia: socio.fotografia || '',
             };
 
             setFormData(formattedData);
@@ -180,21 +184,17 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     // Mutación para crear/actualizar socio
     const socioMutation = useMutation({
         mutationFn: async (data: CreateSocioInput) => {
+            if (!token) {
+                throw new Error('No hay token de autenticación');
+            }
+
             if (editMode && id) {
                 console.log('Actualizando socio:', id, data);
-                const response = await axios.put(`http://localhost:3000/socios/${id}`, data, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
+                const response = await axiosInstance.put(`/socios/${id}`, data);
                 return response.data;
             } else {
                 console.log('Creando socio:', data);
-                const response = await axios.post('http://localhost:3000/socios', data, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
+                const response = await axiosInstance.post('/socios', data);
                 return response.data;
             }
         },
@@ -202,9 +202,14 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
             console.log(editMode ? 'Socio actualizado exitosamente:' : 'Socio creado exitosamente:', data);
             navigate('/socios');
         },
-        onError: (error) => {
+        onError: (error: AxiosError) => {
             console.error(editMode ? 'Error al actualizar socio:' : 'Error al crear socio:', error);
-            setFormError(`Error al ${editMode ? 'actualizar' : 'crear'} socio. Por favor intenta nuevamente.`);
+            if (error.response?.status === 401) {
+                setFormError('Sesión expirada. Por favor, vuelve a iniciar sesión.');
+                navigate('/login');
+            } else {
+                setFormError(`Error al ${editMode ? 'actualizar' : 'crear'} socio. Por favor intenta nuevamente.`);
+            }
         },
     });
 
@@ -219,6 +224,108 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
             setFormData({ ...formData, [name]: parseFloat(value) || 0 });
         } else {
             setFormData({ ...formData, [name]: value });
+        }
+    };
+
+    // Manejo de carga de foto del socio
+    const handleFotoSocioChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            // Verificar el tamaño del archivo (máximo 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                setFormError('La imagen no puede ser mayor a 5MB');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                // Comprimir la imagen antes de guardarla
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 800;
+                    const MAX_HEIGHT = 800;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx?.drawImage(img, 0, 0, width, height);
+
+                    const compressedImage = canvas.toDataURL('image/jpeg', 0.7);
+                    setFormData({
+                        ...formData,
+                        fotografia: compressedImage
+                    });
+                };
+                img.src = reader.result as string;
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    // Manejo de carga de foto de miembro asociado
+    const handleFotoAsociadoChange = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            // Verificar el tamaño del archivo (máximo 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                setFormError('La imagen no puede ser mayor a 5MB');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                // Comprimir la imagen antes de guardarla
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 800;
+                    const MAX_HEIGHT = 800;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx?.drawImage(img, 0, 0, width, height);
+
+                    const compressedImage = canvas.toDataURL('image/jpeg', 0.7);
+                    const asociados = [...(formData.asociados || [])];
+                    asociados[index] = {
+                        ...asociados[index],
+                        fotografia: compressedImage
+                    };
+                    setFormData({ ...formData, asociados });
+                };
+                img.src = reader.result as string;
+            };
+            reader.readAsDataURL(file);
         }
     };
 
@@ -300,29 +407,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
         setFormData({ ...formData, asociados });
     };
 
-    // Agregar miembro especial
-    const handleAddEspecial = () => {
-        const especiales = [
-            ...(formData.especiales || []),
-            { nombre: '', fechaNacimiento: '' },
-        ];
-        setFormData({ ...formData, especiales });
-    };
-
-    // Actualizar miembro especial
-    const handleEspecialChange = (index: number, field: keyof Asociado, value: string) => {
-        const especiales = [...(formData.especiales || [])];
-        especiales[index] = { ...especiales[index], [field]: value };
-        setFormData({ ...formData, especiales });
-    };
-
-    // Eliminar miembro especial
-    const handleDeleteEspecial = (index: number) => {
-        const especiales = [...(formData.especiales || [])];
-        especiales.splice(index, 1);
-        setFormData({ ...formData, especiales });
-    };
-
     // Cambiar al siguiente paso con validación
     const handleNext = () => {
         // Validación de datos según el paso actual
@@ -370,57 +454,70 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     };
 
     // Enviar formulario
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        try {
+            const formData = new FormData(e.target as HTMLFormElement);
+            const socioData = {
+                // ... existing form data ...
+            };
 
-        // Validar datos obligatorios
-        if (!formData.rgpd) {
-            setFormError('Debes aceptar el tratamiento de datos según RGPD.');
-            setActiveStep(0);
-            return;
+            if (id) {
+                // Actualizar socio existente
+                const response = await fetch(`${API_BASE_URL}/socios/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(socioData)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Error al actualizar el socio');
+                }
+
+                // Si hay una nueva foto, actualizarla por separado
+                const fotoFile = formData.get('foto') as File;
+                if (fotoFile && fotoFile.size > 0) {
+                    const fotoFormData = new FormData();
+                    fotoFormData.append('foto', fotoFile);
+
+                    const fotoResponse = await fetch(`${API_BASE_URL}/socios/${id}/foto`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: fotoFormData
+                    });
+
+                    if (!fotoResponse.ok) {
+                        throw new Error('Error al actualizar la foto');
+                    }
+                }
+
+                navigate('/socios');
+            } else {
+                // Crear nuevo socio
+                const response = await fetch(`${API_BASE_URL}/socios`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(socioData)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Error al crear el socio');
+                }
+
+                navigate('/socios');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            // Mostrar mensaje de error al usuario
         }
-
-        if (!formData.nombre.nombre || !formData.nombre.primerApellido) {
-            setFormError('Por favor completa los campos obligatorios de nombre.');
-            setActiveStep(0);
-            return;
-        }
-
-        if (!formData.direccion.calle || !formData.direccion.poblacion) {
-            setFormError('Por favor completa los campos obligatorios de dirección.');
-            setActiveStep(1);
-            return;
-        }
-
-        if (!formData.direccion.numero || formData.direccion.numero === '0') {
-            setFormError('El número de casa debe ser mayor que cero.');
-            setActiveStep(1);
-            return;
-        }
-
-        if (!formData.contacto?.telefonos?.[0]) {
-            setFormError('Al menos un teléfono de contacto es obligatorio.');
-            setActiveStep(1);
-            return;
-        }
-
-        if (!formData.cuota || formData.cuota <= 0) {
-            setFormError('La cuota debe ser mayor que cero.');
-            setActiveStep(2);
-            return;
-        }
-
-        // Actualizar total de miembros
-        const totalMiembros = (formData.asociados?.length || 0) + 1; // +1 por el socio principal
-        const socioData = {
-            ...formData,
-            casa: parseInt(formData.direccion.numero) || 1,
-            numPersonas: totalMiembros,
-            totalSocios: totalMiembros,
-        };
-
-        // Enviar datos
-        socioMutation.mutate(socioData);
     };
 
     // Volver a la lista de socios
@@ -438,106 +535,96 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
         }
     }, [formData.especiales]);
 
-    // Función para renderizar el paso activo del formulario
     const renderStepContent = (step: number) => {
         switch (step) {
             case 0:
                 return (
-                    <>
+                    <Box>
                         <Alert severity="info" sx={{ mb: 2 }}>
-                            Los campos marcados con * son obligatorios.
+                            Los campos marcados con * son obligatorios
                         </Alert>
-
-                        <Typography variant="h6" sx={{ bgcolor: 'primary.light', p: 1, color: 'white', borderRadius: 1 }}>
-                            RGPD
-                        </Typography>
-
-                        <GridItem xs={12}>
-                            <FormControlLabel
-                                control={
-                                    <Checkbox
-                                        checked={formData.rgpd}
-                                        onChange={handleInputChange}
-                                        name="rgpd"
-                                        color="primary"
-                                    />
-                                }
-                                label="Acepto el tratamiento de datos según RGPD *"
-                            />
-                        </GridItem>
-
-                        <Box sx={{ width: '100%', height: 20 }} />
-
-                        <Typography variant="h6" sx={{ bgcolor: 'primary.light', p: 1, color: 'white', borderRadius: 1 }}>
-                            DATOS PERSONALES
-                        </Typography>
-
-                        <Box sx={{ width: '100%', height: 20 }} />
-
                         <Grid container spacing={2}>
-                            <GridItem xs={12} sm={4}>
+                            <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+                                <Box sx={{ position: 'relative' }}>
+                                    <Avatar
+                                        src={formData.fotografia}
+                                        sx={{ width: 120, height: 120 }}
+                                    />
+                                    {!editMode && (
+                                        <>
+                                            <input
+                                                accept="image/*"
+                                                style={{ display: 'none' }}
+                                                id="foto-socio"
+                                                type="file"
+                                                onChange={handleFotoSocioChange}
+                                            />
+                                            <label htmlFor="foto-socio">
+                                                <IconButton
+                                                    color="primary"
+                                                    component="span"
+                                                    sx={{
+                                                        position: 'absolute',
+                                                        bottom: 0,
+                                                        right: 0,
+                                                        bgcolor: 'background.paper'
+                                                    }}
+                                                >
+                                                    <PhotoCamera />
+                                                </IconButton>
+                                            </label>
+                                        </>
+                                    )}
+                                </Box>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
                                 <TextField
+                                    required
                                     fullWidth
-                                    label="Nombre *"
+                                    label="Nombre"
                                     name="nombre.nombre"
                                     value={formData.nombre.nombre}
                                     onChange={(e) => handleNestedChange('nombre', 'nombre', e.target.value)}
-                                    variant="outlined"
-                                    required
+                                    error={!!formError}
+                                    helperText={formError}
                                 />
-                            </GridItem>
-                            <GridItem xs={12} sm={4}>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
                                 <TextField
+                                    required
                                     fullWidth
-                                    label="Primer Apellido *"
+                                    label="Primer Apellido"
                                     name="nombre.primerApellido"
                                     value={formData.nombre.primerApellido}
                                     onChange={(e) => handleNestedChange('nombre', 'primerApellido', e.target.value)}
-                                    variant="outlined"
-                                    required
+                                    error={!!formError}
+                                    helperText={formError}
                                 />
-                            </GridItem>
-                            <GridItem xs={12} sm={4}>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
                                 <TextField
                                     fullWidth
                                     label="Segundo Apellido"
                                     name="nombre.segundoApellido"
                                     value={formData.nombre.segundoApellido}
                                     onChange={(e) => handleNestedChange('nombre', 'segundoApellido', e.target.value)}
-                                    variant="outlined"
                                 />
-                            </GridItem>
+                            </Grid>
+                            <Grid item xs={12}>
+                                <FormControlLabel
+                                    control={
+                                        <Checkbox
+                                            checked={formData.rgpd}
+                                            onChange={handleInputChange}
+                                            name="rgpd"
+                                            color="primary"
+                                        />
+                                    }
+                                    label="Acepto la política de protección de datos"
+                                />
+                            </Grid>
                         </Grid>
-
-                        <Box sx={{ width: '100%', height: 20 }} />
-
-                        <Grid container spacing={2}>
-                            <GridItem xs={12} sm={6}>
-                                <TextField
-                                    fullWidth
-                                    label="DNI/NIE"
-                                    name="dni"
-                                    value={formData.dni || ''}
-                                    onChange={(e) => handleInputChange(e)}
-                                    variant="outlined"
-                                />
-                            </GridItem>
-                            <GridItem xs={12} sm={6}>
-                                <TextField
-                                    fullWidth
-                                    label="Menores de 3 años"
-                                    name="menor3Años"
-                                    type="number"
-                                    value={formData.menor3Años}
-                                    onChange={(e) => handleInputChange(e)}
-                                    variant="outlined"
-                                    InputProps={{ inputProps: { min: 0 } }}
-                                />
-                            </GridItem>
-                        </Grid>
-
-
-                    </>
+                    </Box>
                 );
             case 1:
                 return renderDireccionContacto();
@@ -553,16 +640,16 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     // Renderizar paso 2: Dirección y Contacto
     const renderDireccionContacto = () => (
         <Grid container spacing={3}>
-            <GridItem xs={12}>
+            <Grid item xs={12}>
                 <Typography variant="h6" sx={{ bgcolor: 'primary.light', p: 1, color: 'white', borderRadius: 1 }}>
                     DIRECCIÓN
                 </Typography>
-            </GridItem>
+            </Grid>
 
             <Box sx={{ width: '100%', height: 20 }} />
 
-            <GridItem container spacing={2}>
-                <GridItem xs={12} sm={6}>
+            <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
                     <Typography variant="subtitle2" gutterBottom>
                         Número de casa *
                     </Typography>
@@ -577,9 +664,9 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                         }}
                         required
                     />
-                </GridItem>
+                </Grid>
 
-                <GridItem xs={12} sm={6}>
+                <Grid item xs={12} sm={6}>
                     <Typography variant="subtitle2" gutterBottom>
                         Calle *
                     </Typography>
@@ -590,13 +677,13 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                         onChange={(e) => handleNestedChange('direccion', 'calle', e.target.value)}
                         required
                     />
-                </GridItem>
-            </GridItem>
+                </Grid>
+            </Grid>
 
             <Box sx={{ width: '100%', height: 20 }} />
 
-            <GridItem container spacing={2}>
-                <GridItem xs={12} sm={6}>
+            <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
                     <Typography variant="subtitle2" gutterBottom>
                         Piso
                     </Typography>
@@ -606,9 +693,9 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                         value={formData.direccion.piso}
                         onChange={(e) => handleNestedChange('direccion', 'piso', e.target.value)}
                     />
-                </GridItem>
+                </Grid>
 
-                <GridItem xs={12} sm={6}>
+                <Grid item xs={12} sm={6}>
                     <Typography variant="subtitle2" gutterBottom>
                         Población *
                     </Typography>
@@ -619,13 +706,13 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                         onChange={(e) => handleNestedChange('direccion', 'poblacion', e.target.value)}
                         required
                     />
-                </GridItem>
-            </GridItem>
+                </Grid>
+            </Grid>
 
             <Box sx={{ width: '100%', height: 20 }} />
 
-            <GridItem container spacing={2}>
-                <GridItem xs={12} sm={3}>
+            <Grid container spacing={2}>
+                <Grid item xs={12} sm={3}>
                     <Typography variant="subtitle2" gutterBottom>
                         Código Postal
                     </Typography>
@@ -635,9 +722,9 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                         value={formData.direccion.cp}
                         onChange={(e) => handleNestedChange('direccion', 'cp', e.target.value)}
                     />
-                </GridItem>
+                </Grid>
 
-                <GridItem xs={12} sm={3}>
+                <Grid item xs={12} sm={3}>
                     <Typography variant="subtitle2" gutterBottom>
                         Provincia
                     </Typography>
@@ -647,21 +734,21 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                         value={formData.direccion.provincia}
                         onChange={(e) => handleNestedChange('direccion', 'provincia', e.target.value)}
                     />
-                </GridItem>
-            </GridItem>
+                </Grid>
+            </Grid>
 
             <Box sx={{ width: '100%', height: 20 }} />
 
-            <GridItem xs={12}>
+            <Grid item xs={12}>
                 <Divider sx={{ my: 2 }} />
                 <Typography variant="h6" sx={{ bgcolor: 'primary.light', p: 1, color: 'white', borderRadius: 1 }}>
                     INFORMACIÓN DE CONTACTO
                 </Typography>
-            </GridItem>
+            </Grid>
 
             <Box sx={{ width: '100%', height: 20 }} />
 
-            <GridItem xs={12}>
+            <Grid item xs={12}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                     Teléfonos
                 </Typography>
@@ -696,11 +783,11 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                 >
                     Añadir teléfono
                 </Button>
-            </GridItem>
+            </Grid>
 
             <Box sx={{ width: '100%', height: 20 }} />
 
-            <GridItem xs={12}>
+            <Grid item xs={12}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                     Correos electrónicos
                 </Typography>
@@ -731,23 +818,23 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                 >
                     Añadir correo
                 </Button>
-            </GridItem>
+            </Grid>
         </Grid>
     );
 
     // Renderizar paso 3: Datos Económicos (combinando cuota y datos bancarios)
     const renderDatosEconomicos = () => (
         <Grid container spacing={3}>
-            <GridItem xs={12}>
+            <Grid item xs={12}>
                 <Typography variant="h6" sx={{ bgcolor: 'primary.light', p: 1, color: 'white', borderRadius: 1 }}>
                     INFORMACIÓN ECONÓMICA
                 </Typography>
-            </GridItem>
+            </Grid>
 
             <Box sx={{ width: '100%', height: 20 }} />
 
-            <GridItem container spacing={2}>
-                <GridItem xs={12} sm={6}>
+            <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
                     <Typography variant="subtitle2" gutterBottom>
                         Cuota (€) *
                     </Typography>
@@ -763,13 +850,13 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                         }}
                         required
                     />
-                </GridItem>
+                </Grid>
 
-            </GridItem>
+            </Grid>
 
             <Box sx={{ width: '100%', height: 20 }} />
 
-            <GridItem xs={12}>
+            <Grid item xs={12}>
                 <Divider sx={{ my: 2 }} />
                 <Typography variant="h6" sx={{ bgcolor: 'primary.light', p: 1, color: 'white', borderRadius: 1 }}>
                     INFORMACIÓN BANCARIA
@@ -777,20 +864,20 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                 <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1, mb: 2 }}>
                     Esta información es opcional y se utilizará para domiciliaciones.
                 </Typography>
-            </GridItem>
+            </Grid>
 
             <Box sx={{ width: '100%', height: 20 }} />
 
-            <GridItem xs={12}>
+            <Grid item xs={12}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                     Cuenta bancaria
                 </Typography>
-            </GridItem>
+            </Grid>
 
             <Box sx={{ width: '100%', height: 10 }} />
 
-            <GridItem container spacing={2}>
-                <GridItem xs={6} md={2}>
+            <Grid container spacing={2}>
+                <Grid item xs={6} md={2}>
                     <Typography variant="subtitle2" gutterBottom>
                         IBAN
                     </Typography>
@@ -800,9 +887,9 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                         value={formData.banco?.iban || ''}
                         onChange={(e) => handleNestedChange('banco', 'iban', e.target.value)}
                     />
-                </GridItem>
+                </Grid>
 
-                <GridItem xs={6} md={2}>
+                <Grid item xs={6} md={2}>
                     <Typography variant="subtitle2" gutterBottom>
                         Entidad
                     </Typography>
@@ -812,9 +899,9 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                         value={formData.banco?.entidad || ''}
                         onChange={(e) => handleNestedChange('banco', 'entidad', e.target.value)}
                     />
-                </GridItem>
+                </Grid>
 
-                <GridItem xs={6} md={2}>
+                <Grid item xs={6} md={2}>
                     <Typography variant="subtitle2" gutterBottom>
                         Oficina
                     </Typography>
@@ -824,9 +911,9 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                         value={formData.banco?.oficina || ''}
                         onChange={(e) => handleNestedChange('banco', 'oficina', e.target.value)}
                     />
-                </GridItem>
+                </Grid>
 
-                <GridItem xs={6} md={2}>
+                <Grid item xs={6} md={2}>
                     <Typography variant="subtitle2" gutterBottom>
                         DC
                     </Typography>
@@ -836,9 +923,9 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                         value={formData.banco?.dc || ''}
                         onChange={(e) => handleNestedChange('banco', 'dc', e.target.value)}
                     />
-                </GridItem>
+                </Grid>
 
-                <GridItem xs={12} md={4}>
+                <Grid item xs={12} md={4}>
                     <Typography variant="subtitle2" gutterBottom>
                         Cuenta
                     </Typography>
@@ -848,18 +935,12 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                         value={formData.banco?.cuenta || ''}
                         onChange={(e) => handleNestedChange('banco', 'cuenta', e.target.value)}
                     />
-                </GridItem>
-            </GridItem>
+                </Grid>
+            </Grid>
         </Grid>
     );
 
-    // Renderizar paso 4: Miembros Asociados
     const renderMiembrosAsociados = () => {
-        // Estado local para controlar qué miembros están expandidos
-        const [expandedAsociados, setExpandedAsociados] = useState<{ [key: number]: boolean }>({});
-        const [expandedEspeciales, setExpandedEspeciales] = useState<{ [key: number]: boolean }>({});
-
-        // Función para alternar la expansión de un miembro
         const toggleAsociadoExpand = (index: number) => {
             setExpandedAsociados(prev => ({
                 ...prev,
@@ -867,34 +948,56 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
             }));
         };
 
-        // Función para alternar la expansión de un miembro especial
-        const toggleEspecialExpand = (index: number) => {
-            setExpandedEspeciales(prev => ({
-                ...prev,
-                [index]: !prev[index]
-            }));
-        };
-
         return (
             <Grid container spacing={3}>
-                <GridItem xs={12}>
+                <Grid>
                     <Typography variant="h6" sx={{ bgcolor: 'primary.light', p: 1, color: 'white', borderRadius: 1 }}>
                         MIEMBROS ASOCIADOS
                     </Typography>
                     <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1, mb: 2 }}>
                         Añade los miembros de la unidad familiar además del socio principal.
                     </Typography>
-                </GridItem>
+                </Grid>
 
                 {formData.asociados && formData.asociados.length > 0 ? (
                     formData.asociados.map((asociado, index) => (
-                        <GridItem xs={12} key={index}>
+                        <Grid key={index}>
                             <Paper elevation={1} sx={{ p: 2, mb: 2, border: '1px solid #e0e0e0' }}>
                                 <Grid container spacing={2}>
-                                    <GridItem xs={12} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Typography variant="subtitle1" fontWeight="bold">
-                                            Miembro {index + 1}: {asociado.nombre || 'Sin nombre'}
-                                        </Typography>
+                                    <Grid sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                            <Box sx={{ position: 'relative', mr: 2 }}>
+                                                <Avatar
+                                                    src={asociado.fotografia}
+                                                    sx={{ width: 60, height: 60 }}
+                                                />
+                                                <input
+                                                    accept="image/*"
+                                                    style={{ display: 'none' }}
+                                                    id={`foto-asociado-${index}`}
+                                                    type="file"
+                                                    onChange={(e) => handleFotoAsociadoChange(index, e)}
+                                                />
+                                                <label htmlFor={`foto-asociado-${index}`}>
+                                                    <IconButton
+                                                        color="primary"
+                                                        component="span"
+                                                        size="small"
+                                                        sx={{
+                                                            position: 'absolute',
+                                                            bottom: 0,
+                                                            right: 0,
+                                                            bgcolor: 'background.paper'
+                                                        }}
+                                                    >
+                                                        <PhotoCamera />
+                                                    </IconButton>
+                                                </label>
+                                            </Box>
+                                            <Typography variant="subtitle1" fontWeight="bold">
+                                                Miembro {index + 1}: {asociado.nombre || 'Sin nombre'}
+                                            </Typography>
+                                        </Box>
                                         <Box>
                                             <IconButton
                                                 color="info"
@@ -912,11 +1015,11 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                                                 <DeleteIcon />
                                             </IconButton>
                                         </Box>
-                                    </GridItem>
+                                    </Grid>
 
                                     {expandedAsociados[index] ? (
                                         <>
-                                            <GridItem xs={12}>
+                                            <Grid>
                                                 <Typography variant="subtitle2" gutterBottom>
                                                     Nombre completo *
                                                 </Typography>
@@ -927,9 +1030,9 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                                                     onChange={(e) => handleAsociadoChange(index, 'nombre', e.target.value)}
                                                     required
                                                 />
-                                            </GridItem>
+                                            </Grid>
 
-                                            <GridItem xs={12}>
+                                            <Grid>
                                                 <Typography variant="subtitle2" gutterBottom>
                                                     Fecha de nacimiento
                                                 </Typography>
@@ -940,10 +1043,10 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                                                     onChange={(e) => handleAsociadoChange(index, 'fechaNacimiento', e.target.value)}
                                                     InputLabelProps={{ shrink: true }}
                                                 />
-                                            </GridItem>
+                                            </Grid>
                                         </>
                                     ) : (
-                                        <GridItem xs={12}>
+                                        <Grid>
                                             <Box sx={{ display: 'flex', flexDirection: 'column', mt: 1 }}>
                                                 {asociado.fechaNacimiento && (
                                                     <Typography variant="body2" color="text.secondary">
@@ -954,21 +1057,21 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                                                     Haz clic en el botón + para editar los detalles
                                                 </Typography>
                                             </Box>
-                                        </GridItem>
+                                        </Grid>
                                     )}
                                 </Grid>
                             </Paper>
-                        </GridItem>
+                        </Grid>
                     ))
                 ) : (
-                    <GridItem xs={12}>
+                    <Grid>
                         <Typography variant="body1" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
                             No hay miembros asociados. Añade nuevos miembros usando el botón de abajo.
                         </Typography>
-                    </GridItem>
+                    </Grid>
                 )}
 
-                <GridItem xs={12}>
+                <Grid>
                     <Button
                         startIcon={<AddIcon />}
                         onClick={handleAddAsociado}
@@ -978,140 +1081,25 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                     >
                         Añadir miembro
                     </Button>
-                </GridItem>
-
-                <GridItem xs={12}>
-                    <Divider sx={{ my: 2 }} />
-                    <Typography variant="h6" sx={{ bgcolor: 'primary.light', p: 1, color: 'white', borderRadius: 1 }}>
-                        MIEMBROS ESPECIALES
-                    </Typography>
-                    <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1, mb: 2 }}>
-                        Añade otros miembros que no forman parte de la unidad familiar principal.
-                    </Typography>
-                </GridItem>
-
-                {formData.especiales && formData.especiales.length > 0 ? (
-                    formData.especiales.map((especial, index) => (
-                        <GridItem xs={12} key={index}>
-                            <Paper elevation={1} sx={{ p: 2, mb: 2, border: '1px solid #e0e0e0', bgcolor: '#f5f5f5' }}>
-                                <Grid container spacing={2}>
-                                    <GridItem xs={12} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Typography variant="subtitle1" fontWeight="bold">
-                                            Miembro especial {index + 1}: {especial.nombre || 'Sin nombre'}
-                                        </Typography>
-                                        <Box>
-                                            <IconButton
-                                                color="info"
-                                                size="small"
-                                                onClick={() => toggleEspecialExpand(index)}
-                                                sx={{ mr: 1 }}
-                                            >
-                                                {expandedEspeciales[index] ? <RemoveIcon /> : <AddIcon />}
-                                            </IconButton>
-                                            <IconButton
-                                                color="error"
-                                                size="small"
-                                                onClick={() => handleDeleteEspecial(index)}
-                                            >
-                                                <DeleteIcon />
-                                            </IconButton>
-                                        </Box>
-                                    </GridItem>
-
-                                    {expandedEspeciales[index] ? (
-                                        <>
-                                            <GridItem xs={12}>
-                                                <Typography variant="subtitle2" gutterBottom>
-                                                    Nombre completo *
-                                                </Typography>
-                                                <TextField
-                                                    fullWidth
-                                                    placeholder="Nombre y apellidos"
-                                                    value={especial.nombre}
-                                                    onChange={(e) => handleEspecialChange(index, 'nombre', e.target.value)}
-                                                    required
-                                                />
-                                            </GridItem>
-
-                                            <GridItem xs={12}>
-                                                <Typography variant="subtitle2" gutterBottom>
-                                                    Fecha de nacimiento
-                                                </Typography>
-                                                <TextField
-                                                    fullWidth
-                                                    type="date"
-                                                    value={especial.fechaNacimiento || ''}
-                                                    onChange={(e) => handleEspecialChange(index, 'fechaNacimiento', e.target.value)}
-                                                    InputLabelProps={{ shrink: true }}
-                                                />
-                                            </GridItem>
-                                        </>
-                                    ) : (
-                                        <GridItem xs={12}>
-                                            <Box sx={{ display: 'flex', flexDirection: 'column', mt: 1 }}>
-                                                {especial.fechaNacimiento && (
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        Fecha de nacimiento: {new Date(especial.fechaNacimiento).toLocaleDateString()}
-                                                    </Typography>
-                                                )}
-                                                <Typography variant="body2" color="info.main" sx={{ mt: 1, fontStyle: 'italic' }}>
-                                                    Haz clic en el botón + para editar los detalles
-                                                </Typography>
-                                            </Box>
-                                        </GridItem>
-                                    )}
-                                </Grid>
-                            </Paper>
-                        </GridItem>
-                    ))
-                ) : (
-                    <GridItem xs={12}>
-                        <Typography variant="body1" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
-                            No hay miembros especiales. Añade nuevos miembros usando el botón de abajo.
-                        </Typography>
-                    </GridItem>
-                )}
-
-                <GridItem xs={12}>
-                    <Button
-                        startIcon={<AddIcon />}
-                        onClick={handleAddEspecial}
-                        variant="outlined"
-                        color="secondary"
-                        sx={{ mt: 1 }}
-                    >
-                        Añadir miembro especial
-                    </Button>
-                </GridItem>
+                </Grid>
             </Grid>
         );
     };
 
     return (
-        <Box sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                <IconButton onClick={handleCancel}>
-                    <ArrowBackIcon />
-                </IconButton>
-                <Typography variant="h4" sx={{ ml: 2 }}>
-                    {editMode ? 'Editar Socio' : 'Crear Nuevo Socio'}
-                </Typography>
-            </Box>
+        <Card>
+            <CardContent>
+                <Box sx={{ p: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                        <IconButton onClick={handleCancel}>
+                            <ArrowBackIcon />
+                        </IconButton>
+                        <Typography variant="h5" sx={{ ml: 2 }}>
+                            {editMode ? 'Editar Socio' : 'Nuevo Socio'}
+                        </Typography>
+                    </Box>
 
-            {formError && (
-                <Alert severity="error" sx={{ mb: 3 }}>
-                    {formError}
-                </Alert>
-            )}
-
-            {isLoadingSocio ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
-                    <CircularProgress />
-                    <Typography sx={{ ml: 2 }}>Cargando datos del socio...</Typography>
-                </Box>
-            ) : (
-                <>
-                    <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+                    <Stepper activeStep={activeStep} alternativeLabel>
                         {steps.map((label) => (
                             <Step key={label}>
                                 <StepLabel>{label}</StepLabel>
@@ -1119,47 +1107,28 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                         ))}
                     </Stepper>
 
-                    <Paper elevation={3} sx={{ p: 3 }}>
-                        <form onSubmit={handleSubmit}>
-                            {renderStepContent(activeStep)}
+                    <Box sx={{ mt: 4 }}>
+                        {renderStepContent(activeStep)}
+                    </Box>
 
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
-                                <Button
-                                    variant="outlined"
-                                    onClick={activeStep === 0 ? handleCancel : handleBack}
-                                    disabled={isAddMemberMode}
-                                >
-                                    {activeStep === 0 ? 'Cancelar' : 'Anterior'}
-                                </Button>
-                                <Box>
-                                    {activeStep === steps.length - 1 ? (
-                                        <Button
-                                            variant="contained"
-                                            color="primary"
-                                            type="submit"
-                                            disabled={socioMutation.isPending}
-                                        >
-                                            {socioMutation.isPending ? (
-                                                <>
-                                                    <CircularProgress size={24} sx={{ mr: 1 }} />
-                                                    Guardando...
-                                                </>
-                                            ) : (
-                                                editMode ? 'Guardar Cambios' : 'Guardar Socio'
-                                            )}
-                                        </Button>
-                                    ) : (
-                                        <Button variant="contained" onClick={handleNext}>
-                                            Siguiente
-                                        </Button>
-                                    )}
-                                </Box>
-                            </Box>
-                        </form>
-                    </Paper>
-                </>
-            )}
-        </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
+                        <Button
+                            variant="outlined"
+                            onClick={handleBack}
+                            disabled={activeStep === 0}
+                        >
+                            Atrás
+                        </Button>
+                        <Button
+                            variant="contained"
+                            onClick={activeStep === steps.length - 1 ? handleSubmit : handleNext}
+                        >
+                            {activeStep === steps.length - 1 ? 'Guardar' : 'Siguiente'}
+                        </Button>
+                    </Box>
+                </Box>
+            </CardContent>
+        </Card>
     );
 };
 

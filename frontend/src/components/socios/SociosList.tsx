@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
     Box,
     Typography,
@@ -22,6 +22,7 @@ import {
     Alert,
     Tooltip,
     Collapse,
+    Avatar,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
@@ -34,6 +35,9 @@ import { useAuthStore } from '../../stores/authStore';
 import { API_BASE_URL } from '../../config';
 import { Socio } from '../../types/socio';
 import { useNavigate } from 'react-router-dom';
+import { PhotoCamera } from '@mui/icons-material';
+import { GridRenderCellParams } from '@mui/x-data-grid';
+import Swal from 'sweetalert2';
 
 const SociosList: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -55,6 +59,7 @@ const SociosList: React.FC = () => {
     });
     const navigate = useNavigate();
     const { token } = useAuthStore();
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const fetchSocios = async () => {
         try {
@@ -86,12 +91,12 @@ const SociosList: React.FC = () => {
         if (socio) {
             setSelectedSocio(socio);
             setFormData({
-                nombre: socio.nombre,
-                apellidos: socio.apellidos,
-                email: socio.email,
-                telefono: socio.telefono,
-                direccion: socio.direccion,
-                fechaAlta: new Date(socio.fechaAlta).toISOString().split('T')[0],
+                nombre: socio.nombre.nombre,
+                apellidos: `${socio.nombre.primerApellido} ${socio.nombre.segundoApellido || ''}`,
+                email: socio.contacto?.emails?.[0] || '',
+                telefono: socio.contacto?.telefonos?.[0] || '',
+                direccion: `${socio.direccion.calle} ${socio.direccion.numero}${socio.direccion.piso ? `, ${socio.direccion.piso}` : ''}`,
+                fechaAlta: new Date().toISOString().split('T')[0],
                 isActive: socio.isActive,
             });
         } else {
@@ -176,16 +181,113 @@ const SociosList: React.FC = () => {
         }
     };
 
+    const handleFotoUpdate = async (socioId: string, file: File) => {
+        try {
+            const formData = new FormData();
+            formData.append('foto', file);
+
+            const response = await fetch(`${API_BASE_URL}/socios/${socioId}/foto`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Error al actualizar la foto');
+            }
+
+            const data = await response.json();
+            if (data.success) {
+                // Actualizar la lista de socios
+                fetchSocios();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Foto actualizada',
+                    text: 'La foto del socio ha sido actualizada correctamente'
+                });
+            } else {
+                throw new Error('Error al actualizar la foto');
+            }
+        } catch (error) {
+            console.error('Error al actualizar la foto:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'No se pudo actualizar la foto del socio'
+            });
+        }
+    };
+
+    const renderFotoButton = (socio: Socio) => {
+        const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('foto', file);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/socios/${socio._id}/foto`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Error updating foto');
+                }
+
+                // Actualizar la lista de socios
+                fetchSocios();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Foto actualizada',
+                    text: 'La foto del socio ha sido actualizada correctamente'
+                });
+            } catch (error) {
+                console.error('Error al actualizar la foto:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'No se pudo actualizar la foto del socio'
+                });
+            }
+        };
+
+        return (
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <IconButton
+                    onClick={() => fileInputRef.current?.click()}
+                    size="small"
+                    color="primary"
+                    title="Cambiar foto"
+                >
+                    <PhotoCamera />
+                </IconButton>
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                />
+            </Box>
+        );
+    };
+
     // Filtrar socios según término de búsqueda
     const filteredSocios = socios?.filter((socio: Socio) => {
         const nombreCompleto = `${socio.nombre.nombre} ${socio.nombre.primerApellido} ${socio.nombre.segundoApellido || ''}`.toLowerCase();
-        const codigoSocio = socio.socio.toLowerCase();
         const dni = socio.dni?.toLowerCase() || '';
         const searchTermLower = searchTerm.toLowerCase();
 
         return (
             nombreCompleto.includes(searchTermLower) ||
-            codigoSocio.includes(searchTermLower) ||
             dni.includes(searchTermLower)
         );
     });
@@ -256,7 +358,8 @@ const SociosList: React.FC = () => {
     };
 
     // Alternar expansión de filas para mostrar miembros
-    const toggleRowExpand = (id: string) => {
+    const toggleRowExpand = (id: string | undefined) => {
+        if (!id) return;
         setExpandedRows(prev => ({
             ...prev,
             [id]: !prev[id]
@@ -292,7 +395,7 @@ const SociosList: React.FC = () => {
                 <TextField
                     fullWidth
                     variant="outlined"
-                    label="Buscar por nombre, código o DNI"
+                    label="Buscar por nombre o DNI"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     InputProps={{
@@ -310,7 +413,6 @@ const SociosList: React.FC = () => {
                     <TableHead>
                         <TableRow>
                             <TableCell sx={{ width: '56px' }} />
-                            <TableCell>Código</TableCell>
                             <TableCell>Nombre</TableCell>
                             <TableCell>Casa</TableCell>
                             <TableCell>DNI</TableCell>
@@ -322,11 +424,11 @@ const SociosList: React.FC = () => {
                     <TableBody>
                         {filteredSocios?.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={8} align="center">
+                                <TableCell colSpan={7} align="center">
                                     No se encontraron socios
                                 </TableCell>
                             </TableRow>
-                        ) : (
+                        ) :
                             filteredSocios?.map((socio: Socio, index: number) => (
                                 <React.Fragment key={socio._id}>
                                     <TableRow>
@@ -338,20 +440,37 @@ const SociosList: React.FC = () => {
                                                 {expandedRows[socio._id || `row-${index}`] ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
                                             </IconButton>
                                         </TableCell>
-                                        <TableCell>{socio.socio}</TableCell>
                                         <TableCell>
-                                            {socio.nombre.nombre} {socio.nombre.primerApellido} {socio.nombre.segundoApellido}
+                                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                                <Avatar
+                                                    src={socio.foto ? `${API_BASE_URL.replace('/api', '')}/uploads/${socio.foto}` : undefined}
+                                                    sx={{ width: 40, height: 40, mr: 2 }}
+                                                    onError={(e) => {
+                                                        const target = e.target as HTMLImageElement;
+                                                        target.src = ''; // Esto hará que se muestre la inicial
+                                                        console.error('Error loading image:', socio.foto);
+                                                    }}
+                                                    imgProps={{
+                                                        crossOrigin: 'anonymous',
+                                                        loading: 'lazy',
+                                                        referrerPolicy: 'no-referrer'
+                                                    }}
+                                                >
+                                                    {!socio.foto && socio.nombre.nombre.charAt(0)}
+                                                </Avatar>
+                                                {socio.nombre.nombre} {socio.nombre.primerApellido} {socio.nombre.segundoApellido}
+                                            </Box>
                                         </TableCell>
-                                        <TableCell>{socio.casa}</TableCell>
+                                        <TableCell>{socio.casa || '-'}</TableCell>
                                         <TableCell>{socio.dni}</TableCell>
                                         <TableCell>
                                             <Chip
-                                                label={`${socio.numPersonas} ${socio.numPersonas === 1 ? 'miembro' : 'miembros'}`}
+                                                label={`${socio.numPersonas || 0} ${socio.numPersonas === 1 ? 'miembro' : 'miembros'}`}
                                                 color="primary"
                                                 size="small"
                                             />
                                         </TableCell>
-                                        <TableCell>{socio.cuota.toFixed(2)} €</TableCell>
+                                        <TableCell>{socio.cuota ? `${socio.cuota.toFixed(2)} €` : '-'}</TableCell>
                                         <TableCell align="center">
                                             <Tooltip title="Añadir miembro">
                                                 <IconButton onClick={() => handleAddMember(socio)} color="primary">
@@ -363,6 +482,9 @@ const SociosList: React.FC = () => {
                                                     <EditIcon />
                                                 </IconButton>
                                             </Tooltip>
+                                            <Tooltip title="Actualizar foto">
+                                                {renderFotoButton(socio)}
+                                            </Tooltip>
                                             <Tooltip title="Eliminar socio">
                                                 <IconButton onClick={() => handleDeleteClick(socio)} color="error">
                                                     <DeleteIcon />
@@ -371,7 +493,7 @@ const SociosList: React.FC = () => {
                                         </TableCell>
                                     </TableRow>
                                     <TableRow>
-                                        <TableCell sx={{ py: 0 }} colSpan={8}>
+                                        <TableCell sx={{ py: 0 }} colSpan={7}>
                                             <Collapse in={expandedRows[socio._id || `row-${index}`]} timeout="auto" unmountOnExit>
                                                 <Box sx={{ p: 3 }}>
                                                     <Typography variant="h6" gutterBottom component="div">
@@ -381,6 +503,7 @@ const SociosList: React.FC = () => {
                                                         <Table size="small">
                                                             <TableHead>
                                                                 <TableRow>
+                                                                    <TableCell>Foto</TableCell>
                                                                     <TableCell>Nombre</TableCell>
                                                                     <TableCell>Fecha de nacimiento</TableCell>
                                                                 </TableRow>
@@ -388,6 +511,24 @@ const SociosList: React.FC = () => {
                                                             <TableBody>
                                                                 {socio.asociados.map((asociado, index) => (
                                                                     <TableRow key={index}>
+                                                                        <TableCell>
+                                                                            <Avatar
+                                                                                src={asociado.foto ? `${API_BASE_URL.replace('/api', '')}/uploads/${asociado.foto}` : undefined}
+                                                                                sx={{ width: 32, height: 32 }}
+                                                                                onError={(e) => {
+                                                                                    const target = e.target as HTMLImageElement;
+                                                                                    target.src = ''; // Esto hará que se muestre la inicial
+                                                                                    console.error('Error loading image:', asociado.foto);
+                                                                                }}
+                                                                                imgProps={{
+                                                                                    crossOrigin: 'anonymous',
+                                                                                    loading: 'lazy',
+                                                                                    referrerPolicy: 'no-referrer'
+                                                                                }}
+                                                                            >
+                                                                                {!asociado.foto && asociado.nombre.charAt(0)}
+                                                                            </Avatar>
+                                                                        </TableCell>
                                                                         <TableCell>{asociado.nombre}</TableCell>
                                                                         <TableCell>
                                                                             {asociado.fechaNacimiento ?
@@ -403,43 +544,13 @@ const SociosList: React.FC = () => {
                                                             No hay miembros asociados
                                                         </Typography>
                                                     )}
-
-                                                    <Typography variant="h6" gutterBottom component="div" sx={{ mt: 2 }}>
-                                                        Miembros especiales
-                                                    </Typography>
-                                                    {socio.especiales && socio.especiales.length > 0 ? (
-                                                        <Table size="small">
-                                                            <TableHead>
-                                                                <TableRow>
-                                                                    <TableCell>Nombre</TableCell>
-                                                                    <TableCell>Fecha de nacimiento</TableCell>
-                                                                </TableRow>
-                                                            </TableHead>
-                                                            <TableBody>
-                                                                {socio.especiales.map((especial, index) => (
-                                                                    <TableRow key={index}>
-                                                                        <TableCell>{especial.nombre}</TableCell>
-                                                                        <TableCell>
-                                                                            {especial.fechaNacimiento ?
-                                                                                new Date(especial.fechaNacimiento).toLocaleDateString() :
-                                                                                '-'}
-                                                                        </TableCell>
-                                                                    </TableRow>
-                                                                ))}
-                                                            </TableBody>
-                                                        </Table>
-                                                    ) : (
-                                                        <Typography variant="body2" color="text.secondary">
-                                                            No hay miembros especiales
-                                                        </Typography>
-                                                    )}
                                                 </Box>
                                             </Collapse>
                                         </TableCell>
                                     </TableRow>
                                 </React.Fragment>
                             ))
-                        )}
+                        }
                     </TableBody>
                 </Table>
             </TableContainer>

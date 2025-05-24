@@ -8,7 +8,7 @@ export interface Nombre {
 export interface Direccion {
     calle: string;
     numero: string;
-    piso: string;
+    piso?: string;
     poblacion: string;
     cp: string;
     provincia: string;
@@ -37,13 +37,48 @@ export interface Asociado {
 // Interfaz principal para el Socio
 export interface Socio {
     _id: string;
-    nombre: string;
-    apellidos: string;
-    email: string;
-    telefono: string;
-    direccion: string;
+    nombre: {
+        nombre: string;
+        primerApellido: string;
+        segundoApellido?: string;
+    };
+    dni: string;
+    fechaNacimiento: string;
+    direccion: {
+        calle: string;
+        numero: string;
+        piso?: string;
+        puerta?: string;
+        codigoPostal: string;
+        localidad: string;
+        provincia: string;
+    };
+    contacto: {
+        emails: string[];
+        telefonos: string[];
+    };
+    banco: {
+        entidad: string;
+        oficina: string;
+        dc: string;
+        cuenta: string;
+        iban: string;
+    };
     fechaAlta: string;
+    fechaBaja?: string;
+    motivoBaja?: string;
+    observaciones?: string;
     isActive: boolean;
+    foto?: string;
+    casa?: number;
+    numPersonas?: number;
+    cuota?: number;
+    asociados?: Array<{
+        nombre: string;
+        fechaNacimiento?: string;
+        codigoSocio?: string;
+        foto?: string;
+    }>;
 }
 
 // Interfaz para crear un socio (algunos campos son opcionales)
@@ -65,4 +100,5 @@ export interface CreateSocioInput {
     especiales?: Asociado[];
     notas?: string;
     fotografia?: string;
+    isActive?: boolean;
 } 
