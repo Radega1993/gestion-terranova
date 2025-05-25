@@ -1,5 +1,6 @@
-import { IsString, IsNumber, IsBoolean, IsOptional, IsArray, ValidateNested, IsDate, Min, IsMongoId } from 'class-validator';
+import { IsString, IsNumber, IsBoolean, IsArray, ValidateNested, IsOptional, IsDate } from 'class-validator';
 import { Type } from 'class-transformer';
+import { Asociado } from '../schemas/socio.schema';
 
 export class NombreDto {
     @IsString()
@@ -61,27 +62,11 @@ export class BancoDto {
 export class ContactoDto {
     @IsArray()
     @IsString({ each: true })
-    @IsOptional()
-    telefonos?: string[];
+    telefonos: string[];
 
     @IsArray()
     @IsString({ each: true })
-    @IsOptional()
-    emails?: string[];
-}
-
-export class AsociadoDto {
-    @IsString()
-    nombre: string;
-
-    @IsDate()
-    @Type(() => Date)
-    @IsOptional()
-    fechaNacimiento?: Date;
-
-    @IsString()
-    @IsOptional()
-    fotografia?: string;
+    emails: string[];
 }
 
 export class CreateSocioDto {
@@ -94,34 +79,24 @@ export class CreateSocioDto {
     socio?: string;
 
     @IsNumber()
-    @Min(1)
-    @IsOptional()
-    casa?: number;
+    casa: number;
 
     @IsNumber()
-    @Min(1)
-    @IsOptional()
-    totalSocios?: number;
+    totalSocios: number;
 
     @IsNumber()
-    @Min(1)
-    @IsOptional()
-    numPersonas?: number;
+    numPersonas: number;
 
     @IsNumber()
-    @Min(0)
     @IsOptional()
     adheridos?: number;
 
     @IsNumber()
-    @Min(0)
     @IsOptional()
     menor3Años?: number;
 
     @IsNumber()
-    @Min(0)
-    @IsOptional()
-    cuota?: number;
+    cuota: number;
 
     @IsString()
     @IsOptional()
@@ -146,15 +121,15 @@ export class CreateSocioDto {
 
     @IsArray()
     @ValidateNested({ each: true })
-    @Type(() => AsociadoDto)
+    @Type(() => Asociado)
     @IsOptional()
-    asociados?: AsociadoDto[];
+    asociados?: Asociado[];
 
     @IsArray()
     @ValidateNested({ each: true })
-    @Type(() => AsociadoDto)
+    @Type(() => Asociado)
     @IsOptional()
-    especiales?: AsociadoDto[];
+    especiales?: Asociado[];
 
     @IsString()
     @IsOptional()
@@ -168,12 +143,20 @@ export class CreateSocioDto {
     @IsOptional()
     isActive?: boolean;
 
-    @IsMongoId()
+    @IsString()
     @IsOptional()
-    socioPrincipal?: string;
+    foto?: string;
 
-    @IsArray()
-    @IsMongoId({ each: true })
+    @IsDate()
+    @Type(() => Date)
     @IsOptional()
-    miembrosFamilia?: string[];
+    fechaBaja?: Date;
+
+    @IsString()
+    @IsOptional()
+    motivoBaja?: string;
+
+    @IsString()
+    @IsOptional()
+    observaciones?: string;
 } 

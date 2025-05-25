@@ -62,7 +62,10 @@ class Contacto {
 }
 
 @Schema({ _id: false })
-class Asociado {
+export class Asociado {
+    @Prop()
+    _id: MongooseSchema.Types.ObjectId;
+
     @Prop({ required: true })
     nombre: string;
 
@@ -70,7 +73,7 @@ class Asociado {
     fechaNacimiento: Date;
 
     @Prop()
-    fotografia: string;
+    foto: string;
 }
 
 @Schema({ timestamps: true })

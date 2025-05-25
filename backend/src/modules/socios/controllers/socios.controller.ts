@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, UseGuards, Logger, Put, HttpException, HttpStatus, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, UseGuards, Logger, Put, HttpException, HttpStatus, UseInterceptors, UploadedFile, BadRequestException, Query } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SociosService } from '../services/socios.service';
 import { CreateSocioDto } from '../dto/create-socio.dto';
@@ -8,6 +8,7 @@ import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { UserRole } from '../../users/types/user-roles.enum';
 import { UploadsService } from '../../uploads/uploads.service';
+import { Asociado } from '../schemas/socio.schema';
 
 @Controller('socios')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -31,6 +32,20 @@ export class SociosController {
     async findAll() {
         this.logger.debug('Fetching all socios');
         return this.sociosService.findAll();
+    }
+
+    @Get('last-number')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    async getLastNumber() {
+        this.logger.debug('Getting last socio number');
+        return this.sociosService.getLastNumber();
+    }
+
+    @Get('validate-number/:number')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    async validateNumber(@Param('number') number: string) {
+        this.logger.debug(`Validating socio number: ${number}`);
+        return this.sociosService.validateNumber(number);
     }
 
     @Get(':id')
@@ -114,5 +129,22 @@ export class SociosController {
     async toggleActive(@Param('id') id: string) {
         this.logger.debug(`Toggling active status for socio with ID: ${id}`);
         return this.sociosService.toggleActive(id);
+    }
+
+    @Put(':id/asociados')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    async updateAsociados(
+        @Param('id') id: string,
+        @Body('asociados') asociados: Asociado[]
+    ) {
+        this.logger.debug(`Updating asociados for socio ${id}`);
+        return this.sociosService.updateAsociados(id, asociados);
+    }
+
+    @Get(':id/asociados')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    async getAsociados(@Param('id') id: string) {
+        this.logger.debug(`Getting asociados for socio ${id}`);
+        return this.sociosService.getAsociados(id);
     }
 } 

@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, ConflictException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Socio } from '../schemas/socio.schema';
 import { CreateSocioDto } from '../dto/create-socio.dto';
 import { UpdateSocioDto } from '../dto/update-socio.dto';
 import { UploadsService } from '../../uploads/uploads.service';
+import { Asociado } from '../schemas/socio.schema';
 
 @Injectable()
 export class SociosService {
@@ -166,5 +167,91 @@ export class SociosService {
         );
 
         return socio.save();
+    }
+
+    async updateAsociados(id: string, asociados: Asociado[]): Promise<Socio> {
+        try {
+            this.logger.debug(`Updating asociados for socio ${id}`);
+            const socio = await this.socioModel.findById(id);
+            if (!socio) {
+                throw new NotFoundException(`Socio con ID ${id} no encontrado`);
+            }
+
+            // Eliminar fotos de asociados que ya no existen
+            const oldAsociados = socio.asociados || [];
+            const newAsociadosIds = asociados.map(a => a._id?.toString()).filter(Boolean);
+            const deletedAsociados = oldAsociados.filter(a => a._id && !newAsociadosIds.includes(a._id.toString()));
+
+            for (const asociado of deletedAsociados) {
+                if (asociado.foto) {
+                    try {
+                        await this.uploadsService.deleteFile(asociado.foto);
+                    } catch (error) {
+                        this.logger.warn(`No se pudo eliminar la foto del asociado: ${error.message}`);
+                    }
+                }
+            }
+
+            socio.asociados = asociados;
+            return await socio.save();
+        } catch (error) {
+            this.logger.error(`Error updating asociados for socio ${id}:`, error);
+            throw error;
+        }
+    }
+
+    async getAsociados(id: string): Promise<Asociado[]> {
+        try {
+            this.logger.debug(`Getting asociados for socio ${id}`);
+            const socio = await this.socioModel.findById(id);
+            if (!socio) {
+                throw new NotFoundException(`Socio con ID ${id} no encontrado`);
+            }
+            return socio.asociados || [];
+        } catch (error) {
+            this.logger.error(`Error getting asociados for socio ${id}:`, error);
+            throw error;
+        }
+    }
+
+    async getLastNumber(): Promise<string> {
+        try {
+            // Buscar el último socio ordenado por número descendente
+            const lastSocio = await this.socioModel
+                .findOne({}, { socio: 1 })
+                .sort({ socio: -1 })
+                .exec();
+
+            if (!lastSocio || !lastSocio.socio) {
+                return 'AET000';
+            }
+
+            // Extraer el número del último socio
+            const lastNumber = parseInt(lastSocio.socio.replace('AET', ''));
+            if (isNaN(lastNumber)) {
+                return 'AET000';
+            }
+            const nextNumber = (lastNumber + 1).toString().padStart(3, '0');
+            return `AET${nextNumber}`;
+        } catch (error) {
+            this.logger.error('Error getting last socio number:', error);
+            throw error;
+        }
+    }
+
+    async validateNumber(number: string): Promise<{ available: boolean }> {
+        try {
+            // Validar formato
+            if (!/^AET\d{3}$/.test(number)) {
+                throw new BadRequestException('El número de socio debe tener el formato AET000');
+            }
+
+            // Buscar si el número ya existe
+            const existingSocio = await this.socioModel.findOne({ socio: number }).exec();
+            return { available: !existingSocio };
+        } catch (error) {
+            this.logger.error(`Error validating socio number ${number}:`, error);
+            throw error;
+        }
     }
 } 

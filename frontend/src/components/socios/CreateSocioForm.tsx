@@ -30,9 +30,10 @@ import { CreateSocioInput, Nombre, Direccion, Banco, Contacto, Asociado, Socio }
 import RemoveIcon from '@mui/icons-material/Remove';
 import { useAuth } from '../../hooks/useAuth';
 import axiosInstance from '../../config/axios';
+import { API_BASE_URL } from '../../config';
 
 // Pasos del formulario - Reorganizados para mejor flujo
-const steps = ['Datos Personales', 'Dirección y Contacto', 'Datos Económicos', 'Miembros Asociados'];
+const steps = ['Datos Personales', 'Dirección y Contacto', 'Datos Económicos'];
 
 interface CreateSocioFormProps {
     viewOnly?: boolean;
@@ -70,44 +71,49 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
         }
     }, [location.search, editMode]);
 
-    // Estado inicial del formulario
-    const [formData, setFormData] = useState<CreateSocioInput>({
-        rgpd: false,
-        casa: 1,
-        totalSocios: 1,
-        numPersonas: 1,
-        adheridos: 0,
-        menor3Años: 0,
-        cuota: 0,
+    const initialFormState: CreateSocioInput = {
+        socio: '',
         nombre: {
             nombre: '',
             primerApellido: '',
-            segundoApellido: '',
+            segundoApellido: ''
         },
         direccion: {
             calle: '',
-            numero: '1',
+            numero: '',
             piso: '',
             poblacion: '',
             cp: '',
-            provincia: '',
+            provincia: ''
         },
         banco: {
             iban: '',
             entidad: '',
             oficina: '',
             dc: '',
-            cuenta: '',
+            cuenta: ''
         },
         contacto: {
             telefonos: [''],
-            emails: [''],
+            emails: ['']
         },
-        asociados: [],
-        especiales: [],
+        casa: 0,
+        totalSocios: 0,
+        numPersonas: 0,
+        adheridos: 0,
+        menor3Años: 0,
+        cuota: 0,
+        rgpd: false,
+        dni: '',
         notas: '',
         fotografia: '',
-    });
+        foto: '',
+        asociados: [],
+        especiales: [],
+        isActive: true
+    };
+
+    const [formData, setFormData] = useState<CreateSocioInput>(initialFormState);
 
     // Cargar datos del socio si estamos en modo edición
     const { data: socioData, isLoading: isLoadingSocio } = useQuery({
@@ -123,63 +129,88 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
         enabled: editMode && !!id && !!token,
     });
 
+    // Obtener el último número de socio
+    const { data: lastSocioNumber, isLoading: isLoadingLastNumber } = useQuery({
+        queryKey: ['lastSocioNumber'],
+        queryFn: async () => {
+            const response = await axiosInstance.get('/socios/last-number');
+            return response.data;
+        },
+        enabled: !editMode && !!token,
+    });
+
+    // Validar número de socio
+    const validateSocioNumber = async (number: string) => {
+        try {
+            const response = await axiosInstance.get(`/socios/validate-number/${number}`);
+            return response.data.available;
+        } catch (error) {
+            console.error('Error validating socio number:', error);
+            return false;
+        }
+    };
+
     // Actualizar el formulario con los datos del socio cuando se cargan
     useEffect(() => {
         if (editMode && socioData) {
-            const socio = socioData as Socio;
-
-            // Normalizar los datos del socio al formato del formulario
-            const formattedData: CreateSocioInput = {
-                rgpd: true, // Asumimos que ya aceptó RGPD
-                casa: socio.casa || 1,
-                totalSocios: socio.totalSocios || 1,
-                numPersonas: socio.numPersonas || 1,
-                adheridos: socio.adheridos || 0,
-                menor3Años: socio.menor3Años || 0,
-                cuota: socio.cuota || 0,
-                dni: socio.dni || '',
-                socio: socio.socio || '',
-                notas: socio.notas || '',
-                nombre: {
-                    nombre: socio.nombre?.nombre || '',
-                    primerApellido: socio.nombre?.primerApellido || '',
-                    segundoApellido: socio.nombre?.segundoApellido || '',
+            setFormData(initialFormState);
+            setFormData({
+                socio: socioData.socio,
+                nombre: socioData.nombre,
+                direccion: socioData.direccion,
+                banco: socioData.banco || {
+                    iban: '',
+                    entidad: '',
+                    oficina: '',
+                    dc: '',
+                    cuenta: ''
                 },
-                direccion: {
-                    calle: socio.direccion?.calle || '',
-                    numero: socio.direccion?.numero || '1',
-                    piso: socio.direccion?.piso || '',
-                    poblacion: socio.direccion?.poblacion || '',
-                    cp: socio.direccion?.cp || '',
-                    provincia: socio.direccion?.provincia || '',
-                },
-                banco: {
-                    iban: socio.banco?.iban || '',
-                    entidad: socio.banco?.entidad || '',
-                    oficina: socio.banco?.oficina || '',
-                    dc: socio.banco?.dc || '',
-                    cuenta: socio.banco?.cuenta || '',
-                },
-                contacto: {
-                    telefonos: socio.contacto?.telefonos?.length
-                        ? [...socio.contacto.telefonos]
-                        : [''],
-                    emails: socio.contacto?.emails?.length
-                        ? [...socio.contacto.emails]
-                        : [''],
-                },
-                asociados: socio.asociados?.length
-                    ? [...socio.asociados]
-                    : [],
-                especiales: socio.especiales?.length
-                    ? [...socio.especiales]
-                    : [],
-                fotografia: socio.fotografia || '',
-            };
-
-            setFormData(formattedData);
+                contacto: socioData.contacto,
+                casa: socioData.casa,
+                totalSocios: socioData.totalSocios,
+                numPersonas: socioData.numPersonas,
+                adheridos: socioData.adheridos,
+                menor3Años: socioData.menor3Años,
+                cuota: socioData.cuota,
+                rgpd: socioData.rgpd,
+                dni: socioData.dni || '',
+                notas: socioData.notas || '',
+                fotografia: socioData.fotografia || '',
+                foto: socioData.foto || '',
+                asociados: socioData.asociados || [],
+                especiales: socioData.especiales || [],
+                isActive: socioData.isActive
+            });
+        } else if (!editMode && lastSocioNumber) {
+            setFormData(prev => ({
+                ...prev,
+                socio: lastSocioNumber
+            }));
         }
-    }, [editMode, socioData]);
+    }, [editMode, socioData, lastSocioNumber]);
+
+    // Manejo de cambios en el número de socio
+    const handleSocioNumberChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value.toUpperCase();
+        if (!/^AET\d{0,3}$/.test(value)) {
+            return;
+        }
+
+        setFormData(prev => ({
+            ...prev,
+            socio: value
+        } as CreateSocioInput));
+
+        // Validar si el número está completo
+        if (value.length === 6) {
+            const isValid = await validateSocioNumber(value);
+            if (!isValid) {
+                setFormError('Este número de socio ya está en uso');
+            } else {
+                setFormError(null);
+            }
+        }
+    };
 
     // Mutación para crear/actualizar socio
     const socioMutation = useMutation({
@@ -408,7 +439,7 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     };
 
     // Cambiar al siguiente paso con validación
-    const handleNext = () => {
+    const handleNext = async () => {
         // Validación de datos según el paso actual
         if (activeStep === 0) {
             if (!formData.rgpd) {
@@ -417,6 +448,17 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
             }
             if (!formData.nombre.nombre || !formData.nombre.primerApellido) {
                 setFormError('Por favor completa los campos obligatorios de nombre.');
+                return;
+            }
+            // Validar el número de socio
+            if (!formData.socio || !/^AET\d{3}$/.test(formData.socio)) {
+                setFormError('El número de socio debe tener el formato AET000');
+                return;
+            }
+            // Verificar si el número está disponible
+            const isValid = await validateSocioNumber(formData.socio);
+            if (!isValid) {
+                setFormError('Este número de socio ya está en uso');
                 return;
             }
         } else if (activeStep === 1) {
@@ -457,63 +499,7 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const formData = new FormData(e.target as HTMLFormElement);
-            const socioData = {
-                // ... existing form data ...
-            };
-
-            if (id) {
-                // Actualizar socio existente
-                const response = await fetch(`${API_BASE_URL}/socios/${id}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify(socioData)
-                });
-
-                if (!response.ok) {
-                    throw new Error('Error al actualizar el socio');
-                }
-
-                // Si hay una nueva foto, actualizarla por separado
-                const fotoFile = formData.get('foto') as File;
-                if (fotoFile && fotoFile.size > 0) {
-                    const fotoFormData = new FormData();
-                    fotoFormData.append('foto', fotoFile);
-
-                    const fotoResponse = await fetch(`${API_BASE_URL}/socios/${id}/foto`, {
-                        method: 'PUT',
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: fotoFormData
-                    });
-
-                    if (!fotoResponse.ok) {
-                        throw new Error('Error al actualizar la foto');
-                    }
-                }
-
-                navigate('/socios');
-            } else {
-                // Crear nuevo socio
-                const response = await fetch(`${API_BASE_URL}/socios`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify(socioData)
-                });
-
-                if (!response.ok) {
-                    throw new Error('Error al crear el socio');
-                }
-
-                navigate('/socios');
-            }
+            await socioMutation.mutateAsync(formData);
         } catch (error) {
             console.error('Error:', error);
             // Mostrar mensaje de error al usuario
@@ -544,38 +530,21 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                             Los campos marcados con * son obligatorios
                         </Alert>
                         <Grid container spacing={2}>
-                            <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-                                <Box sx={{ position: 'relative' }}>
-                                    <Avatar
-                                        src={formData.fotografia}
-                                        sx={{ width: 120, height: 120 }}
-                                    />
-                                    {!editMode && (
-                                        <>
-                                            <input
-                                                accept="image/*"
-                                                style={{ display: 'none' }}
-                                                id="foto-socio"
-                                                type="file"
-                                                onChange={handleFotoSocioChange}
-                                            />
-                                            <label htmlFor="foto-socio">
-                                                <IconButton
-                                                    color="primary"
-                                                    component="span"
-                                                    sx={{
-                                                        position: 'absolute',
-                                                        bottom: 0,
-                                                        right: 0,
-                                                        bgcolor: 'background.paper'
-                                                    }}
-                                                >
-                                                    <PhotoCamera />
-                                                </IconButton>
-                                            </label>
-                                        </>
-                                    )}
-                                </Box>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    required
+                                    fullWidth
+                                    label="Identificador de Socio"
+                                    name="socio"
+                                    value={formData.socio}
+                                    onChange={handleSocioNumberChange}
+                                    error={!!formError}
+                                    helperText={formError || "Formato: AET000"}
+                                    inputProps={{
+                                        maxLength: 6,
+                                        pattern: "^AET\\d{3}$"
+                                    }}
+                                />
                             </Grid>
                             <Grid item xs={12} sm={6}>
                                 <TextField
@@ -630,8 +599,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                 return renderDireccionContacto();
             case 2:
                 return renderDatosEconomicos();
-            case 3:
-                return renderMiembrosAsociados();
             default:
                 return 'Unknown step';
         }
@@ -939,152 +906,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
             </Grid>
         </Grid>
     );
-
-    const renderMiembrosAsociados = () => {
-        const toggleAsociadoExpand = (index: number) => {
-            setExpandedAsociados(prev => ({
-                ...prev,
-                [index]: !prev[index]
-            }));
-        };
-
-        return (
-            <Grid container spacing={3}>
-                <Grid>
-                    <Typography variant="h6" sx={{ bgcolor: 'primary.light', p: 1, color: 'white', borderRadius: 1 }}>
-                        MIEMBROS ASOCIADOS
-                    </Typography>
-                    <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1, mb: 2 }}>
-                        Añade los miembros de la unidad familiar además del socio principal.
-                    </Typography>
-                </Grid>
-
-                {formData.asociados && formData.asociados.length > 0 ? (
-                    formData.asociados.map((asociado, index) => (
-                        <Grid key={index}>
-                            <Paper elevation={1} sx={{ p: 2, mb: 2, border: '1px solid #e0e0e0' }}>
-                                <Grid container spacing={2}>
-                                    <Grid sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                            <Box sx={{ position: 'relative', mr: 2 }}>
-                                                <Avatar
-                                                    src={asociado.fotografia}
-                                                    sx={{ width: 60, height: 60 }}
-                                                />
-                                                <input
-                                                    accept="image/*"
-                                                    style={{ display: 'none' }}
-                                                    id={`foto-asociado-${index}`}
-                                                    type="file"
-                                                    onChange={(e) => handleFotoAsociadoChange(index, e)}
-                                                />
-                                                <label htmlFor={`foto-asociado-${index}`}>
-                                                    <IconButton
-                                                        color="primary"
-                                                        component="span"
-                                                        size="small"
-                                                        sx={{
-                                                            position: 'absolute',
-                                                            bottom: 0,
-                                                            right: 0,
-                                                            bgcolor: 'background.paper'
-                                                        }}
-                                                    >
-                                                        <PhotoCamera />
-                                                    </IconButton>
-                                                </label>
-                                            </Box>
-                                            <Typography variant="subtitle1" fontWeight="bold">
-                                                Miembro {index + 1}: {asociado.nombre || 'Sin nombre'}
-                                            </Typography>
-                                        </Box>
-                                        <Box>
-                                            <IconButton
-                                                color="info"
-                                                size="small"
-                                                onClick={() => toggleAsociadoExpand(index)}
-                                                sx={{ mr: 1 }}
-                                            >
-                                                {expandedAsociados[index] ? <RemoveIcon /> : <AddIcon />}
-                                            </IconButton>
-                                            <IconButton
-                                                color="error"
-                                                size="small"
-                                                onClick={() => handleDeleteAsociado(index)}
-                                            >
-                                                <DeleteIcon />
-                                            </IconButton>
-                                        </Box>
-                                    </Grid>
-
-                                    {expandedAsociados[index] ? (
-                                        <>
-                                            <Grid>
-                                                <Typography variant="subtitle2" gutterBottom>
-                                                    Nombre completo *
-                                                </Typography>
-                                                <TextField
-                                                    fullWidth
-                                                    placeholder="Nombre y apellidos"
-                                                    value={asociado.nombre}
-                                                    onChange={(e) => handleAsociadoChange(index, 'nombre', e.target.value)}
-                                                    required
-                                                />
-                                            </Grid>
-
-                                            <Grid>
-                                                <Typography variant="subtitle2" gutterBottom>
-                                                    Fecha de nacimiento
-                                                </Typography>
-                                                <TextField
-                                                    fullWidth
-                                                    type="date"
-                                                    value={asociado.fechaNacimiento || ''}
-                                                    onChange={(e) => handleAsociadoChange(index, 'fechaNacimiento', e.target.value)}
-                                                    InputLabelProps={{ shrink: true }}
-                                                />
-                                            </Grid>
-                                        </>
-                                    ) : (
-                                        <Grid>
-                                            <Box sx={{ display: 'flex', flexDirection: 'column', mt: 1 }}>
-                                                {asociado.fechaNacimiento && (
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        Fecha de nacimiento: {new Date(asociado.fechaNacimiento).toLocaleDateString()}
-                                                    </Typography>
-                                                )}
-                                                <Typography variant="body2" color="info.main" sx={{ mt: 1, fontStyle: 'italic' }}>
-                                                    Haz clic en el botón + para editar los detalles
-                                                </Typography>
-                                            </Box>
-                                        </Grid>
-                                    )}
-                                </Grid>
-                            </Paper>
-                        </Grid>
-                    ))
-                ) : (
-                    <Grid>
-                        <Typography variant="body1" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
-                            No hay miembros asociados. Añade nuevos miembros usando el botón de abajo.
-                        </Typography>
-                    </Grid>
-                )}
-
-                <Grid>
-                    <Button
-                        startIcon={<AddIcon />}
-                        onClick={handleAddAsociado}
-                        variant="outlined"
-                        color="primary"
-                        sx={{ mt: 1 }}
-                    >
-                        Añadir miembro
-                    </Button>
-                </Grid>
-            </Grid>
-        );
-    };
 
     return (
         <Card>
