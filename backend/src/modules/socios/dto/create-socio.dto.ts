@@ -125,27 +125,22 @@ export class CreateSocioDto {
     @IsOptional()
     asociados?: Asociado[];
 
-    @IsArray()
-    @ValidateNested({ each: true })
-    @Type(() => Asociado)
-    @IsOptional()
-    especiales?: Asociado[];
-
     @IsString()
     @IsOptional()
     notas?: string;
 
     @IsString()
     @IsOptional()
-    fotografia?: string;
+    foto?: string;
 
     @IsBoolean()
     @IsOptional()
     isActive?: boolean;
 
-    @IsString()
+    @IsDate()
+    @Type(() => Date)
     @IsOptional()
-    foto?: string;
+    fechaNacimiento?: Date;
 
     @IsDate()
     @Type(() => Date)

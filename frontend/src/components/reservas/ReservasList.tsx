@@ -45,6 +45,7 @@ import { ReservaPDF } from './ReservaPDF';
 import { LiquidacionPDF } from './LiquidacionPDF';
 import { GestionServicios } from './GestionServicios';
 import { GestionSuplementos } from './GestionSuplementos';
+import axiosInstance from '../../config/axios';
 
 interface Servicio {
     id: string;
@@ -237,11 +238,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
 
     const fetchSocios = async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/socios`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            const response = await axiosInstance.get('/socios');
             const data = response.data || [];
 
             if (!Array.isArray(data)) {
@@ -274,11 +271,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
 
     const fetchReservas = async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/reservas`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            const response = await axiosInstance.get('/reservas');
             const data = response.data || [];
             if (!Array.isArray(data)) {
                 console.error('La respuesta de reservas no es un array:', data);
@@ -295,11 +288,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
     const fetchServicios = async () => {
         try {
             console.log('Fetching servicios...');
-            const response = await axios.get(`${API_BASE_URL}/servicios`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            const response = await axiosInstance.get('/servicios');
             const data = response.data || [];
             if (!Array.isArray(data)) {
                 console.error('La respuesta de servicios no es un array:', data);
@@ -317,11 +306,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
     const fetchSuplementos = async () => {
         try {
             console.log('Fetching suplementos...');
-            const response = await axios.get(`${API_BASE_URL}/servicios/suplementos`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            const response = await axiosInstance.get('/servicios/suplementos');
             const data = response.data || [];
             if (!Array.isArray(data)) {
                 console.error('La respuesta de suplementos no es un array:', data);

@@ -28,10 +28,13 @@ export interface Contacto {
 }
 
 export interface Asociado {
+    _id: string;
     nombre: string;
     fechaNacimiento?: string;
     foto?: string;
     fotografia?: string;
+    parentesco: string;
+    socio?: string;
 }
 
 // Interfaz principal para el Socio
@@ -54,13 +57,13 @@ export interface Socio {
     fotografia?: string;
     foto?: string;
     asociados: Asociado[];
-    especiales: Asociado[];
     isActive?: boolean;
     createdAt?: Date;
     updatedAt?: Date;
     fechaBaja?: Date;
     motivoBaja?: string;
     observaciones?: string;
+    fechaNacimiento: string;
 }
 
 // Interfaz para crear un socio (algunos campos son opcionales)

@@ -24,13 +24,15 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PhotoCamera from '@mui/icons-material/PhotoCamera';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { CreateSocioInput, Nombre, Direccion, Banco, Contacto, Asociado, Socio } from '../../types/socio';
 import RemoveIcon from '@mui/icons-material/Remove';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthStore } from '../../stores/authStore';
 import axiosInstance from '../../config/axios';
 import { API_BASE_URL } from '../../config';
+import { createSocio, updateSocio } from '../../services/socios';
+import Swal from 'sweetalert2';
 
 // Pasos del formulario - Reorganizados para mejor flujo
 const steps = ['Datos Personales', 'Dirección y Contacto', 'Datos Económicos'];
@@ -48,14 +50,16 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     const [formError, setFormError] = useState<string | null>(null);
     const [isAddMemberMode, setIsAddMemberMode] = useState(false);
     const [expandedAsociados, setExpandedAsociados] = useState<{ [key: number]: boolean }>({});
-    const { token, checkAuth } = useAuth();
+    const { token } = useAuthStore();
+    const queryClient = useQueryClient();
 
     // Verificar autenticación al montar el componente
     useEffect(() => {
-        if (!checkAuth()) {
+        if (!token) {
+            navigate('/login');
             return;
         }
-    }, [checkAuth]);
+    }, [token, navigate]);
 
     // Verificar si se debe ir directamente a la sección de miembros
     useEffect(() => {
@@ -109,8 +113,8 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
         fotografia: '',
         foto: '',
         asociados: [],
-        especiales: [],
-        isActive: true
+        isActive: true,
+        fechaNacimiento: new Date().toISOString().split('T')[0]
     };
 
     const [formData, setFormData] = useState<CreateSocioInput>(initialFormState);
@@ -122,7 +126,11 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
             if (!editMode || !id) return null;
 
             console.log('Cargando datos del socio:', id);
-            const response = await axiosInstance.get(`/socios/${id}`);
+            const response = await axiosInstance.get(`/socios/${id}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
             console.log('Datos del socio cargados:', response.data);
             return response.data;
         },
@@ -133,7 +141,11 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     const { data: lastSocioNumber, isLoading: isLoadingLastNumber } = useQuery({
         queryKey: ['lastSocioNumber'],
         queryFn: async () => {
-            const response = await axiosInstance.get('/socios/last-number');
+            const response = await axiosInstance.get('/socios/last-number', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
             return response.data;
         },
         enabled: !editMode && !!token,
@@ -141,8 +153,17 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
 
     // Validar número de socio
     const validateSocioNumber = async (number: string) => {
+        // Si estamos en modo edición y el número es el mismo que ya tiene el socio, retornamos true
+        if (editMode && socioData && number === socioData.socio) {
+            return true;
+        }
+
         try {
-            const response = await axiosInstance.get(`/socios/validate-number/${number}`);
+            const response = await axiosInstance.get(`/socios/validate-number/${number}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
             return response.data.available;
         } catch (error) {
             console.error('Error validating socio number:', error);
@@ -150,22 +171,138 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
         }
     };
 
+    // Mutación para crear/actualizar socio
+    const mutation = useMutation({
+        mutationFn: async (data: CreateSocioInput) => {
+            const socioData = {
+                ...data,
+                nombre: {
+                    nombre: data.nombre.nombre || '',
+                    primerApellido: data.nombre.primerApellido || '',
+                    segundoApellido: data.nombre.segundoApellido || '',
+                },
+                direccion: {
+                    calle: data.direccion.calle || '',
+                    numero: data.direccion.numero || '',
+                    piso: data.direccion.piso || '',
+                    poblacion: data.direccion.poblacion || '',
+                    cp: data.direccion.cp || '',
+                    provincia: data.direccion.provincia || '',
+                },
+                contacto: {
+                    telefonos: data.contacto.telefonos.filter(t => t.trim() !== ''),
+                    emails: data.contacto.emails.filter(e => e.trim() !== ''),
+                },
+                banco: data.banco ? {
+                    entidad: data.banco.entidad || '',
+                    oficina: data.banco.oficina || '',
+                    dc: data.banco.dc || '',
+                    cuenta: data.banco.cuenta || '',
+                    iban: data.banco.iban || '',
+                } : undefined,
+                fechaNacimiento: data.fechaNacimiento || undefined,
+                cuota: data.cuota || 0,
+                rgpd: data.rgpd || false,
+                isActive: data.isActive || false,
+            };
+
+            // Limpiar campos vacíos
+            const cleanData = Object.fromEntries(
+                Object.entries(socioData).filter(([_, value]) => {
+                    if (value === null || value === undefined || value === '') return false;
+                    if (typeof value === 'object' && !Array.isArray(value)) {
+                        return Object.values(value).some(v => v !== null && v !== undefined && v !== '');
+                    }
+                    return true;
+                })
+            );
+
+            console.log('Datos originales del formulario:', data);
+            console.log('Datos preparados antes de limpiar:', socioData);
+            console.log('Datos limpios a enviar:', cleanData);
+
+            if (editMode && id) {
+                console.log('Enviando actualización al backend:', id, cleanData);
+                const response = await axiosInstance.put(`/socios/${id}`, cleanData, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                console.log('Respuesta del backend:', response.data);
+                return response.data;
+            } else {
+                console.log('Enviando creación al backend:', cleanData);
+                const response = await axiosInstance.post('/socios', cleanData, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                console.log('Respuesta del backend:', response.data);
+                return response.data;
+            }
+        },
+        onSuccess: (data) => {
+            console.log('Respuesta del servidor:', data);
+            Swal.fire({
+                icon: 'success',
+                title: id ? 'Socio actualizado correctamente' : 'Socio creado correctamente',
+                showConfirmButton: false,
+                timer: 1500
+            });
+            queryClient.invalidateQueries({ queryKey: ['socios'] });
+            navigate('/socios');
+        },
+        onError: (error: any) => {
+            console.error('Error completo:', error);
+            if (error.response?.status === 401) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Sesión expirada',
+                    text: 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.',
+                    showConfirmButton: false,
+                    timer: 2000
+                }).then(() => {
+                    window.location.href = '/login';
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error.response?.data?.message || 'Error al guardar el socio'
+                });
+            }
+        }
+    });
+
     // Actualizar el formulario con los datos del socio cuando se cargan
     useEffect(() => {
         if (editMode && socioData) {
-            setFormData(initialFormState);
             setFormData({
                 socio: socioData.socio,
-                nombre: socioData.nombre,
-                direccion: socioData.direccion,
-                banco: socioData.banco || {
-                    iban: '',
-                    entidad: '',
-                    oficina: '',
-                    dc: '',
-                    cuenta: ''
+                nombre: {
+                    nombre: socioData.nombre.nombre,
+                    primerApellido: socioData.nombre.primerApellido,
+                    segundoApellido: socioData.nombre.segundoApellido || ''
                 },
-                contacto: socioData.contacto,
+                direccion: {
+                    calle: socioData.direccion.calle,
+                    numero: socioData.direccion.numero,
+                    piso: socioData.direccion.piso || '',
+                    poblacion: socioData.direccion.poblacion,
+                    cp: socioData.direccion.cp || '',
+                    provincia: socioData.direccion.provincia || ''
+                },
+                banco: {
+                    iban: socioData.banco?.iban || '',
+                    entidad: socioData.banco?.entidad || '',
+                    oficina: socioData.banco?.oficina || '',
+                    dc: socioData.banco?.dc || '',
+                    cuenta: socioData.banco?.cuenta || ''
+                },
+                contacto: {
+                    telefonos: socioData.contacto?.telefonos || [''],
+                    emails: socioData.contacto?.emails || ['']
+                },
                 casa: socioData.casa,
                 totalSocios: socioData.totalSocios,
                 numPersonas: socioData.numPersonas,
@@ -177,9 +314,9 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                 notas: socioData.notas || '',
                 fotografia: socioData.fotografia || '',
                 foto: socioData.foto || '',
-                asociados: socioData.asociados || [],
-                especiales: socioData.especiales || [],
-                isActive: socioData.isActive
+                isActive: socioData.isActive,
+                fechaNacimiento: socioData.fechaNacimiento || new Date().toISOString().split('T')[0],
+                asociados: []
             });
         } else if (!editMode && lastSocioNumber) {
             setFormData(prev => ({
@@ -211,38 +348,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
             }
         }
     };
-
-    // Mutación para crear/actualizar socio
-    const socioMutation = useMutation({
-        mutationFn: async (data: CreateSocioInput) => {
-            if (!token) {
-                throw new Error('No hay token de autenticación');
-            }
-
-            if (editMode && id) {
-                console.log('Actualizando socio:', id, data);
-                const response = await axiosInstance.put(`/socios/${id}`, data);
-                return response.data;
-            } else {
-                console.log('Creando socio:', data);
-                const response = await axiosInstance.post('/socios', data);
-                return response.data;
-            }
-        },
-        onSuccess: (data) => {
-            console.log(editMode ? 'Socio actualizado exitosamente:' : 'Socio creado exitosamente:', data);
-            navigate('/socios');
-        },
-        onError: (error: AxiosError) => {
-            console.error(editMode ? 'Error al actualizar socio:' : 'Error al crear socio:', error);
-            if (error.response?.status === 401) {
-                setFormError('Sesión expirada. Por favor, vuelve a iniciar sesión.');
-                navigate('/login');
-            } else {
-                setFormError(`Error al ${editMode ? 'actualizar' : 'crear'} socio. Por favor intenta nuevamente.`);
-            }
-        },
-    });
 
     // Manejo de cambios en el formulario para campos simples
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -419,7 +524,14 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     const handleAddAsociado = () => {
         const asociados = [
             ...(formData.asociados || []),
-            { nombre: '', fechaNacimiento: '' },
+            {
+                _id: new Date().getTime().toString(), // Generamos un ID temporal
+                nombre: '',
+                fechaNacimiento: '',
+                parentesco: '',
+                fotografia: '',
+                foto: ''
+            },
         ];
         setFormData({ ...formData, asociados });
     };
@@ -499,7 +611,7 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await socioMutation.mutateAsync(formData);
+            await mutation.mutateAsync(formData);
         } catch (error) {
             console.error('Error:', error);
             // Mostrar mensaje de error al usuario
@@ -510,16 +622,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     const handleCancel = () => {
         navigate('/socios');
     };
-
-    useEffect(() => {
-        // Calcular automáticamente el número de adheridos basado en los miembros especiales
-        if (formData.especiales && formData.especiales.length > 0) {
-            setFormData({
-                ...formData,
-                adheridos: formData.especiales.length
-            });
-        }
-    }, [formData.especiales]);
 
     const renderStepContent = (step: number) => {
         switch (step) {
@@ -543,6 +645,20 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                                     inputProps={{
                                         maxLength: 6,
                                         pattern: "^AET\\d{3}$"
+                                    }}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    required
+                                    fullWidth
+                                    label="Fecha de Nacimiento"
+                                    name="fechaNacimiento"
+                                    type="date"
+                                    value={formData.fechaNacimiento || ''}
+                                    onChange={handleInputChange}
+                                    InputLabelProps={{
+                                        shrink: true,
                                     }}
                                 />
                             </Grid>
@@ -623,7 +739,7 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                     <TextField
                         fullWidth
                         placeholder="1"
-                        value={formData.direccion.numero}
+                        value={formData.direccion.numero || ''}
                         onChange={(e) => handleNestedChange('direccion', 'numero', e.target.value)}
                         type="number"
                         InputProps={{

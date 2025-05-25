@@ -29,22 +29,28 @@ import EditIcon from '@mui/icons-material/Edit';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import GroupIcon from '@mui/icons-material/Group';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { useAuthStore } from '../../stores/authStore';
 import { API_BASE_URL } from '../../config';
 import { Socio } from '../../types/socio';
 import { useNavigate } from 'react-router-dom';
-import { PhotoCamera } from '@mui/icons-material';
-import { GridRenderCellParams } from '@mui/x-data-grid';
+import { PhotoCamera, FamilyRestroom, Block } from '@mui/icons-material';
 import Swal from 'sweetalert2';
+
+interface SocioWithId extends Omit<Socio, 'createdAt'> {
+    _id: string;
+    createdAt: string;
+    isActive: boolean;
+}
 
 const SociosList: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-    const [selectedSocio, setSelectedSocio] = useState<Socio | null>(null);
+    const [selectedSocio, setSelectedSocio] = useState<SocioWithId | null>(null);
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: boolean }>({});
-    const [socios, setSocios] = useState<Socio[]>([]);
+    const [socios, setSocios] = useState<SocioWithId[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
@@ -55,7 +61,7 @@ const SociosList: React.FC = () => {
         telefono: '',
         direccion: '',
         fechaAlta: new Date().toISOString().split('T')[0],
-        isActive: true,
+        isActive: true as boolean,
     });
     const navigate = useNavigate();
     const { token } = useAuthStore();
@@ -87,7 +93,7 @@ const SociosList: React.FC = () => {
         fetchSocios();
     }, [token]);
 
-    const handleOpenDialog = (socio?: Socio) => {
+    const handleOpenDialog = (socio?: SocioWithId) => {
         if (socio) {
             setSelectedSocio(socio);
             setFormData({
@@ -195,170 +201,42 @@ const SociosList: React.FC = () => {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Error al actualizar la foto');
-            }
-
-            const data = await response.json();
-            if (data.success) {
-                // Actualizar la lista de socios
-                fetchSocios();
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Foto actualizada',
-                    text: 'La foto del socio ha sido actualizada correctamente'
-                });
-            } else {
                 throw new Error('Error al actualizar la foto');
             }
-        } catch (error) {
-            console.error('Error al actualizar la foto:', error);
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'No se pudo actualizar la foto del socio'
-            });
+
+            fetchSocios();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error al actualizar la foto');
         }
     };
 
-    const renderFotoButton = (socio: Socio) => {
-        const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-
-            const formData = new FormData();
-            formData.append('foto', file);
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/socios/${socio._id}/foto`, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    throw new Error('Error updating foto');
-                }
-
-                // Actualizar la lista de socios
-                fetchSocios();
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Foto actualizada',
-                    text: 'La foto del socio ha sido actualizada correctamente'
-                });
-            } catch (error) {
-                console.error('Error al actualizar la foto:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: 'No se pudo actualizar la foto del socio'
-                });
-            }
-        };
-
-        return (
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <IconButton
-                    onClick={() => fileInputRef.current?.click()}
-                    size="small"
-                    color="primary"
-                    title="Cambiar foto"
-                >
-                    <PhotoCamera />
-                </IconButton>
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                />
-            </Box>
-        );
-    };
-
-    // Filtrar socios según término de búsqueda
-    const filteredSocios = socios?.filter((socio: Socio) => {
-        const nombreCompleto = `${socio.nombre.nombre} ${socio.nombre.primerApellido} ${socio.nombre.segundoApellido || ''}`.toLowerCase();
-        const dni = socio.dni?.toLowerCase() || '';
-        const searchTermLower = searchTerm.toLowerCase();
-
-        return (
-            nombreCompleto.includes(searchTermLower) ||
-            dni.includes(searchTermLower)
-        );
-    });
-
-    // Navegar a la página de creación de socio
     const handleCreateSocio = () => {
         navigate('/socios/crear');
     };
 
-    // Navegar a la página para añadir miembro a un socio existente
-    const handleAddMember = (socio: Socio) => {
-        console.log("Añadir miembro al socio:", socio._id);
-        console.log("Token disponible:", !!token);
-
-        // Verificar que el token esté disponible
-        if (!token) {
-            console.error("No hay token disponible");
-            // Guardar el ID del socio para redirigir después del login
-            localStorage.setItem('redirect_after_login', `/socios/editar/${socio._id}?addMember=true`);
-            navigate('/login');
-            return;
-        }
-
-        // Redirigir a la página de edición con parámetro para abrir directamente la sección de miembros
-        navigate(`/socios/editar/${socio._id}?addMember=true`);
-    };
-
-    // Navegar a la página de edición de socio
-    const handleEditSocio = (socio: Socio) => {
-        console.log("Editar socio:", socio._id);
-        console.log("Token disponible:", !!token);
-
-        // Verificar que el token esté disponible
-        if (!token) {
-            console.error("No hay token disponible");
-            // Guardar el ID del socio para redirigir después del login
-            localStorage.setItem('redirect_after_login', `/socios/editar/${socio._id}`);
-            navigate('/login');
-            return;
-        }
-
+    const handleEditSocio = (socio: SocioWithId) => {
         navigate(`/socios/editar/${socio._id}`);
     };
 
-    // Abrir diálogo para confirmar eliminación
-    const handleDeleteClick = (socio: Socio) => {
+    const handleDeleteClick = (socio: SocioWithId) => {
         setSelectedSocio(socio);
         setOpenDeleteDialog(true);
     };
 
-    // Cancelar eliminación
     const handleCancelDelete = () => {
         setOpenDeleteDialog(false);
         setSelectedSocio(null);
     };
 
-    // Confirmar eliminación
     const handleConfirmDelete = async () => {
-        if (!selectedSocio) return;
-
-        try {
+        if (selectedSocio?._id) {
             await handleDelete(selectedSocio._id);
             setOpenDeleteDialog(false);
             setSelectedSocio(null);
-        } catch (error) {
-            console.error('Error al eliminar socio:', error);
         }
     };
 
-    // Alternar expansión de filas para mostrar miembros
-    const toggleRowExpand = (id: string | undefined) => {
+    const toggleRowExpand = (id: string) => {
         if (!id) return;
         setExpandedRows(prev => ({
             ...prev,
@@ -366,36 +244,103 @@ const SociosList: React.FC = () => {
         }));
     };
 
+    const handleManageAsociados = (socio: SocioWithId) => {
+        navigate(`/socios/${socio._id}/asociados`);
+    };
+
+    const handleToggleActive = async (socio: SocioWithId) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/socios/${socio._id}`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ isActive: !socio.isActive }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al actualizar el estado del socio');
+            }
+
+            fetchSocios();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error al actualizar el estado del socio');
+        }
+    };
+
+    const renderFotoButton = (socio: SocioWithId) => {
+        const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+            const file = event.target.files?.[0];
+            if (file) {
+                await handleFotoUpdate(socio._id, file);
+            }
+        };
+
+        return (
+            <Box>
+                <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                />
+                <IconButton
+                    color="primary"
+                    onClick={() => fileInputRef.current?.click()}
+                >
+                    <PhotoCamera />
+                </IconButton>
+            </Box>
+        );
+    };
+
+    const renderFoto = (foto: string) => {
+        if (!foto) return null;
+        return (
+            <Avatar
+                src={`${API_BASE_URL.replace('/api', '')}/uploads/${foto}`}
+                alt="Foto socio"
+                sx={{ width: 40, height: 40 }}
+            />
+        );
+    };
+
+    const renderFotoAsociado = (foto: string) => {
+        if (!foto) return null;
+        return (
+            <Avatar
+                src={`${API_BASE_URL.replace('/api', '')}/uploads/${foto}`}
+                alt="Foto asociado"
+                sx={{ width: 30, height: 30 }}
+            />
+        );
+    };
+
     if (loading) {
         return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '500px' }}>
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
                 <CircularProgress />
-                <Typography variant="body1" sx={{ ml: 2 }}>
-                    Cargando socios...
-                </Typography>
             </Box>
         );
     }
 
-    return (
-        <Box sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h4">Gestión de Socios</Typography>
-                <Button
-                    variant="contained"
-                    color="primary"
-                    startIcon={<AddIcon />}
-                    onClick={handleCreateSocio}
-                >
-                    Nuevo Socio
-                </Button>
-            </Box>
+    if (error) {
+        return (
+            <Alert severity="error" sx={{ mt: 2 }}>
+                {error}
+            </Alert>
+        );
+    }
 
-            <Box sx={{ mb: 3 }}>
+    return (
+        <Box sx={{ width: '100%' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                 <TextField
-                    fullWidth
+                    label="Buscar socio"
                     variant="outlined"
-                    label="Buscar por nombre o DNI"
+                    size="small"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     InputProps={{
@@ -406,249 +351,137 @@ const SociosList: React.FC = () => {
                         ),
                     }}
                 />
+                <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={<AddIcon />}
+                    onClick={handleCreateSocio}
+                >
+                    Nuevo Socio
+                </Button>
             </Box>
 
             <TableContainer component={Paper}>
                 <Table>
                     <TableHead>
                         <TableRow>
-                            <TableCell sx={{ width: '56px' }} />
-                            <TableCell>Nombre</TableCell>
-                            <TableCell>Casa</TableCell>
-                            <TableCell>DNI</TableCell>
-                            <TableCell>Miembros</TableCell>
-                            <TableCell>Cuota</TableCell>
-                            <TableCell align="center">Acciones</TableCell>
+                            <TableCell />
+                            <TableCell>Foto</TableCell>
+                            <TableCell>Nombre Completo</TableCell>
+                            <TableCell>Código</TableCell>
+                            <TableCell>Fecha Nacimiento</TableCell>
+                            <TableCell>Contacto</TableCell>
+                            <TableCell>Acciones</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {filteredSocios?.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={7} align="center">
-                                    No se encontraron socios
-                                </TableCell>
-                            </TableRow>
-                        ) :
-                            filteredSocios?.map((socio: Socio, index: number) => (
+                        {socios
+                            .filter(socio =>
+                                socio.nombre.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                socio.nombre.primerApellido.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                socio.socio.toLowerCase().includes(searchTerm.toLowerCase())
+                            )
+                            .map((socio) => (
                                 <React.Fragment key={socio._id}>
                                     <TableRow>
                                         <TableCell>
                                             <IconButton
                                                 size="small"
-                                                onClick={() => toggleRowExpand(socio._id || `row-${index}`)}
+                                                onClick={() => toggleRowExpand(socio._id)}
                                             >
-                                                {expandedRows[socio._id || `row-${index}`] ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                                                {expandedRows[socio._id] ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
                                             </IconButton>
                                         </TableCell>
                                         <TableCell>
-                                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                                <Avatar
-                                                    src={socio.foto ? `${API_BASE_URL.replace('/api', '')}/uploads/${socio.foto}` : undefined}
-                                                    sx={{ width: 40, height: 40, mr: 2 }}
-                                                    onError={(e) => {
-                                                        const target = e.target as HTMLImageElement;
-                                                        target.src = ''; // Esto hará que se muestre la inicial
-                                                        console.error('Error loading image:', socio.foto);
-                                                    }}
-                                                    imgProps={{
-                                                        crossOrigin: 'anonymous',
-                                                        loading: 'lazy',
-                                                        referrerPolicy: 'no-referrer'
-                                                    }}
-                                                >
-                                                    {!socio.foto && socio.nombre.nombre.charAt(0)}
-                                                </Avatar>
-                                                {socio.nombre.nombre} {socio.nombre.primerApellido} {socio.nombre.segundoApellido}
+                                            {renderFoto(socio.foto)}
+                                        </TableCell>
+                                        <TableCell>
+                                            {`${socio.nombre.nombre} ${socio.nombre.primerApellido} ${socio.nombre.segundoApellido || ''}`}
+                                        </TableCell>
+                                        <TableCell>{socio.socio}</TableCell>
+                                        <TableCell>{new Date(socio.fechaNacimiento).toLocaleDateString()}</TableCell>
+                                        <TableCell>
+                                            <Box>
+                                                <Typography variant="body2">{socio.contacto?.telefonos?.[0] || 'No disponible'}</Typography>
+                                                <Typography variant="body2">{socio.contacto?.emails?.[0] || 'No disponible'}</Typography>
                                             </Box>
                                         </TableCell>
-                                        <TableCell>{socio.casa || '-'}</TableCell>
-                                        <TableCell>{socio.dni}</TableCell>
                                         <TableCell>
-                                            <Chip
-                                                label={`${socio.numPersonas || 0} ${socio.numPersonas === 1 ? 'miembro' : 'miembros'}`}
-                                                color="primary"
-                                                size="small"
-                                            />
-                                        </TableCell>
-                                        <TableCell>{socio.cuota ? `${socio.cuota.toFixed(2)} €` : '-'}</TableCell>
-                                        <TableCell align="center">
-                                            <Tooltip title="Añadir miembro">
-                                                <IconButton onClick={() => handleAddMember(socio)} color="primary">
-                                                    <PersonAddIcon />
-                                                </IconButton>
-                                            </Tooltip>
-                                            <Tooltip title="Editar socio">
-                                                <IconButton onClick={() => handleEditSocio(socio)} color="secondary">
-                                                    <EditIcon />
-                                                </IconButton>
-                                            </Tooltip>
-                                            <Tooltip title="Actualizar foto">
+                                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                                <Tooltip title="Editar">
+                                                    <IconButton onClick={() => handleEditSocio(socio)}>
+                                                        <EditIcon />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Gestionar Miembros">
+                                                    <IconButton onClick={() => handleManageAsociados(socio)}>
+                                                        <GroupIcon />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Ver Familia">
+                                                    <IconButton>
+                                                        <FamilyRestroom />
+                                                    </IconButton>
+                                                </Tooltip>
                                                 {renderFotoButton(socio)}
-                                            </Tooltip>
-                                            <Tooltip title="Eliminar socio">
-                                                <IconButton onClick={() => handleDeleteClick(socio)} color="error">
-                                                    <DeleteIcon />
-                                                </IconButton>
-                                            </Tooltip>
+                                                <Tooltip title={socio.isActive ? "Desactivar" : "Activar"}>
+                                                    <IconButton onClick={() => handleToggleActive(socio)}>
+                                                        <Block color={socio.isActive ? "error" : "success"} />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </Box>
                                         </TableCell>
                                     </TableRow>
                                     <TableRow>
-                                        <TableCell sx={{ py: 0 }} colSpan={7}>
-                                            <Collapse in={expandedRows[socio._id || `row-${index}`]} timeout="auto" unmountOnExit>
-                                                <Box sx={{ p: 3 }}>
+                                        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={7}>
+                                            <Collapse in={expandedRows[socio._id]} timeout="auto" unmountOnExit>
+                                                <Box sx={{ margin: 1 }}>
                                                     <Typography variant="h6" gutterBottom component="div">
-                                                        Miembros asociados
+                                                        Miembros Asociados
                                                     </Typography>
-                                                    {socio.asociados && socio.asociados.length > 0 ? (
-                                                        <Table size="small">
-                                                            <TableHead>
-                                                                <TableRow>
-                                                                    <TableCell>Foto</TableCell>
-                                                                    <TableCell>Nombre</TableCell>
-                                                                    <TableCell>Fecha de nacimiento</TableCell>
+                                                    <Table size="small">
+                                                        <TableHead>
+                                                            <TableRow>
+                                                                <TableCell>Foto</TableCell>
+                                                                <TableCell>Nombre Completo</TableCell>
+                                                                <TableCell>Fecha Nacimiento</TableCell>
+                                                                <TableCell>Código Socio</TableCell>
+                                                            </TableRow>
+                                                        </TableHead>
+                                                        <TableBody>
+                                                            {socio.asociados?.map((asociado) => (
+                                                                <TableRow key={asociado._id}>
+                                                                    <TableCell>
+                                                                        {renderFotoAsociado(asociado.foto)}
+                                                                    </TableCell>
+                                                                    <TableCell>{asociado.nombre}</TableCell>
+                                                                    <TableCell>{asociado.fechaNacimiento ? new Date(asociado.fechaNacimiento).toLocaleDateString() : 'No disponible'}</TableCell>
+                                                                    <TableCell>{asociado.socio || 'No disponible'}</TableCell>
                                                                 </TableRow>
-                                                            </TableHead>
-                                                            <TableBody>
-                                                                {socio.asociados.map((asociado, index) => (
-                                                                    <TableRow key={index}>
-                                                                        <TableCell>
-                                                                            <Avatar
-                                                                                src={asociado.foto ? `${API_BASE_URL.replace('/api', '')}/uploads/${asociado.foto}` : undefined}
-                                                                                sx={{ width: 32, height: 32 }}
-                                                                                onError={(e) => {
-                                                                                    const target = e.target as HTMLImageElement;
-                                                                                    target.src = ''; // Esto hará que se muestre la inicial
-                                                                                    console.error('Error loading image:', asociado.foto);
-                                                                                }}
-                                                                                imgProps={{
-                                                                                    crossOrigin: 'anonymous',
-                                                                                    loading: 'lazy',
-                                                                                    referrerPolicy: 'no-referrer'
-                                                                                }}
-                                                                            >
-                                                                                {!asociado.foto && asociado.nombre.charAt(0)}
-                                                                            </Avatar>
-                                                                        </TableCell>
-                                                                        <TableCell>{asociado.nombre}</TableCell>
-                                                                        <TableCell>
-                                                                            {asociado.fechaNacimiento ?
-                                                                                new Date(asociado.fechaNacimiento).toLocaleDateString() :
-                                                                                '-'}
-                                                                        </TableCell>
-                                                                    </TableRow>
-                                                                ))}
-                                                            </TableBody>
-                                                        </Table>
-                                                    ) : (
-                                                        <Typography variant="body2" color="text.secondary">
-                                                            No hay miembros asociados
-                                                        </Typography>
-                                                    )}
+                                                            ))}
+                                                        </TableBody>
+                                                    </Table>
                                                 </Box>
                                             </Collapse>
                                         </TableCell>
                                     </TableRow>
                                 </React.Fragment>
-                            ))
-                        }
+                            ))}
                     </TableBody>
                 </Table>
             </TableContainer>
 
-            {/* Diálogo de confirmación para eliminar */}
             <Dialog open={openDeleteDialog} onClose={handleCancelDelete}>
                 <DialogTitle>Confirmar eliminación</DialogTitle>
                 <DialogContent>
-                    <Typography variant="body1">
-                        ¿Estás seguro de que deseas eliminar al socio {selectedSocio?.nombre.nombre}{' '}
-                        {selectedSocio?.nombre.primerApellido}?
-                    </Typography>
-                    <Typography variant="body2" color="error" sx={{ mt: 2 }}>
-                        Esta acción no se puede deshacer.
+                    <Typography>
+                        ¿Estás seguro de que deseas eliminar este socio? Esta acción no se puede deshacer.
                     </Typography>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleCancelDelete}>Cancelar</Button>
                     <Button onClick={handleConfirmDelete} color="error">
                         Eliminar
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            <Dialog open={openDialog} onClose={handleCloseDialog}>
-                <DialogTitle>
-                    {selectedSocio ? 'Editar Socio' : 'Nuevo Socio'}
-                </DialogTitle>
-                <DialogContent>
-                    <TextField
-                        autoFocus
-                        margin="dense"
-                        label="Nombre"
-                        type="text"
-                        fullWidth
-                        value={formData.nombre}
-                        onChange={(e) =>
-                            setFormData({ ...formData, nombre: e.target.value })
-                        }
-                    />
-                    <TextField
-                        margin="dense"
-                        label="Apellidos"
-                        type="text"
-                        fullWidth
-                        value={formData.apellidos}
-                        onChange={(e) =>
-                            setFormData({ ...formData, apellidos: e.target.value })
-                        }
-                    />
-                    <TextField
-                        margin="dense"
-                        label="Email"
-                        type="email"
-                        fullWidth
-                        value={formData.email}
-                        onChange={(e) =>
-                            setFormData({ ...formData, email: e.target.value })
-                        }
-                    />
-                    <TextField
-                        margin="dense"
-                        label="Teléfono"
-                        type="tel"
-                        fullWidth
-                        value={formData.telefono}
-                        onChange={(e) =>
-                            setFormData({ ...formData, telefono: e.target.value })
-                        }
-                    />
-                    <TextField
-                        margin="dense"
-                        label="Dirección"
-                        type="text"
-                        fullWidth
-                        value={formData.direccion}
-                        onChange={(e) =>
-                            setFormData({ ...formData, direccion: e.target.value })
-                        }
-                    />
-                    <TextField
-                        margin="dense"
-                        label="Fecha Alta"
-                        type="date"
-                        fullWidth
-                        value={formData.fechaAlta}
-                        onChange={(e) =>
-                            setFormData({ ...formData, fechaAlta: e.target.value })
-                        }
-                        InputLabelProps={{
-                            shrink: true,
-                        }}
-                    />
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseDialog}>Cancelar</Button>
-                    <Button onClick={handleSubmit} variant="contained" color="primary">
-                        Guardar
                     </Button>
                 </DialogActions>
             </Dialog>

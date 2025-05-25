@@ -1,12 +1,11 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, CssBaseline, Box, AppBar, Toolbar, Typography, Container, Button } from '@mui/material';
+import { ThemeProvider, CssBaseline, Box, Container } from '@mui/material';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createTheme } from '@mui/material/styles';
 import LoginForm from './components/auth/LoginForm';
 import RegisterForm from './components/auth/RegisterForm';
 import Dashboard from './components/dashboard/Dashboard';
-import LogoutButton from './components/auth/LogoutButton';
 import UsersList from './components/users/UsersList';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { UserRole } from './types/user';
@@ -16,6 +15,7 @@ import AsociadosForm from './components/socios/AsociadosForm';
 import { InventoryView } from './components/inventory/InventoryView';
 import { Layout } from './components/layout/Layout';
 import { ReservasList } from './components/reservas/ReservasList';
+import { Navbar } from './components/layout/Navbar';
 import './styles/sweetalert.css';
 
 // Create a client
@@ -41,14 +41,7 @@ function App() {
         <CssBaseline />
         <Router>
           <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-            <AppBar position="sticky">
-              <Toolbar>
-                <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-                  Gestión Terranova
-                </Typography>
-                <LogoutButton />
-              </Toolbar>
-            </AppBar>
+            <Navbar />
             <Container sx={{ pt: 4, flexGrow: 1 }}>
               <Routes>
                 <Route path="/login" element={<LoginForm />} />

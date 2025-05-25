@@ -149,6 +149,9 @@ export class Socio extends Document {
 
     @Prop()
     observaciones: string;
+
+    @Prop()
+    fechaNacimiento: Date;
 }
 
 export const SocioSchema = SchemaFactory.createForClass(Socio); 

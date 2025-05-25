@@ -51,19 +51,19 @@ const LoginForm = () => {
             }
 
             // Verificar la estructura de la respuesta
-            if (!data.token || !data.username || !data.role) {
+            if (!data.access_token || !data.user) {
                 throw new Error('Formato de respuesta inválido');
             }
 
             // Extraer el ID del usuario del token JWT
-            const tokenPayload = JSON.parse(atob(data.token.split('.')[1]));
+            const tokenPayload = JSON.parse(atob(data.access_token.split('.')[1]));
             const userId = tokenPayload.sub;
 
             // Guardar el token y el usuario en el store
-            setAuth(data.token, {
+            setAuth(data.access_token, {
                 _id: userId,
-                username: data.username,
-                role: data.role
+                username: data.user.username,
+                role: data.user.rol
             });
 
             // La redirección se manejará en el useEffect cuando el token cambie

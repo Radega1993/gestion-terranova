@@ -1,0 +1,120 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# SaaS - Gestión de Asociación de Vecinos
+
+Este proyecto es una aplicación SaaS para la gestión integral de una asociación de vecinos. Permite controlar los accesos y acciones de distintos tipos de usuarios, gestionar socios, inventario del bar, ventas mediante TPV, reservas de instalaciones e invitaciones anuales.
+
+## 🧠 Tecnologías
+
+- **Frontend**: React + TypeScript
+- **Backend**: NestJS + TypeScript
+- **Base de Datos**: MongoDB
+
+## 👥 Tipos de usuario
+
+- `ADMINISTRADOR`: acceso total al sistema.
+- `JUNTA`: acceso limitado a gestión de socios, reservas e invitaciones.
+- `TRABAJADOR`: acceso a inventario, TPV y reservas.
+
+## 🔧 Módulos del sistema
+
+### 1. Autenticación (auth)
+
+Control de login, registro y autorización por roles.
+
+- Usuario: `username`, `password`, `role`
+- Funciones:
+  - Login
+  - Registro
+  - Recuperar contraseña
+  - Validación de token
+
+---
+
+### 2. Gestión de Socios (socios)
+
+Gestión CRUD de los socios activos de la asociación.
+
+- Socio:
+- Funciones:
+  - Crear, editar y eliminar socios
+  - Ver historial de actividad (reservas, invitaciones, compras)
+
+---
+
+### 3. Inventario (inventario)
+
+Módulo para registrar y mantener el stock del bar.
+
+- Producto:
+- Funciones:
+  - Añadir, editar y eliminar productos
+  - Ajustar stock
+  - Historial de movimientos
+
+---
+
+### 4. TPV (tpv)
+
+Registro de ventas realizadas en el bar por los trabajadores.
+
+- Venta:
+- Funciones:
+  - Crear venta (socio + productos)
+  - Historial de ventas por socio o trabajador
+
+---
+
+### 5. Reservas (reservas)
+
+Reservas de espacios como barbacoa, piscina, sala común, etc.
+
+- Reserva:
+- Funciones:
+  - Crear, modificar y cancelar reserva
+  - Ver disponibilidad
+- Reglas:
+  - Solo socios activos pueden reservar
+  - Algunas reservas requieren aprobación
+
+---
+
+### 6. Invitaciones (invitaciones)
+
+Cada socio dispone de 12 invitaciones por año.
+
+- Invitación: `socio_id`, `fecha_uso`, `nombre_invitado`
+- Funciones:
+  - Registrar uso de invitación
+  - Mostrar contador de invitaciones restantes
+- Reglas:
+  - Máximo de 12 invitaciones por año
+  - No se pueden usar más de las disponibles
+
+---
+
+## 🖥️ Interfaz de Usuario
+
+- `/login`: inicio de sesión
+- `/dashboard`: resumen general (cambia según rol)
+- `/socios`: listado y gestión
+- `/inventario`: stock del bar
+- `/tpv`: punto de venta para trabajadores
+- `/reservas`: formulario y calendario de reservas
+- `/invitaciones`: gestión de invitaciones por socio
+
+---
+
+## 🔐 Permisos por Rol
+
+| Módulo       | ADMINISTRADOR | JUNTA | TRABAJADOR |
+|--------------|---------------|-------|------------|
+| Auth         | ✅             | ✅    | ✅         |
+| Socios       | ✅             | ✅    | ❌         |
+| Inventario   | ✅             | ❌    | ✅         |
+| TPV          | ✅             | ❌    | ✅         |
+| Reservas     | ✅             | ✅    | ✅         |
+| Invitaciones | ✅             | ✅    | ❌         |

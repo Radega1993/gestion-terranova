@@ -1,105 +1,83 @@
 # Gestión Terranova
 
-Aplicación TPV offline para gestión integral de una asociación de vecinos con bar, servicios (BBQ/piscinas) y control de acceso por roles.
+Sistema de gestión para la Asociación de Vecinos Terranova.
 
-## Requisitos Previos
+## 🚀 Tecnologías
 
-- Node.js (v18 o superior)
-- MongoDB Community Edition
-- npm (v9 o superior)
+- **Frontend**: React + TypeScript
+- **Backend**: NestJS + TypeScript
+- **Base de Datos**: MongoDB
 
-## Estructura del Proyecto
+## 📋 Requisitos
 
-```
-gestion-terranova/
-├── frontend/          # Aplicación React + TypeScript
-│   ├── src/
-│   │   ├── components/
-│   │   ├── hooks/
-│   │   ├── services/
-│   │   └── utils/
-│   └── package.json
-└── backend/           # API NestJS
-    ├── src/
-    │   ├── modules/
-    │   ├── config/
-    │   └── utils/
-    └── package.json
-```
+- Node.js >= 18
+- MongoDB >= 6.0
+- npm o yarn
 
-## Instalación
+## 🔧 Instalación
 
 1. Clonar el repositorio:
 ```bash
-git clone [url-del-repositorio]
+git clone https://github.com/tu-usuario/gestion-terranova.git
 cd gestion-terranova
 ```
 
-2. Instalar dependencias del frontend:
+2. Instalar dependencias del backend:
 ```bash
-cd frontend
+cd backend
 npm install
 ```
 
-3. Instalar dependencias del backend:
+3. Instalar dependencias del frontend:
 ```bash
-cd ../backend
+cd ../frontend
 npm install
 ```
 
-## Configuración
+4. Configurar variables de entorno:
+   - Copiar `.env.example` a `.env` en el directorio backend
+   - Ajustar las variables según tu entorno
 
-1. Frontend:
-- No requiere configuración adicional para desarrollo
+## 🚀 Desarrollo
 
-2. Backend:
-- Copiar `.env.example` a `.env`
-- Configurar las variables de entorno según necesidad
-
-## Ejecución
-
-1. Iniciar MongoDB:
-```bash
-sudo systemctl start mongod
-```
-
-2. Iniciar el backend:
+1. Iniciar el backend:
 ```bash
 cd backend
 npm run start:dev
 ```
 
-3. Iniciar el frontend:
+2. Iniciar el frontend:
 ```bash
 cd frontend
 npm run dev
 ```
 
-## Módulos Principales
+## 📦 Producción
 
-- Deudas: Historial y gestión de pagos pendientes
-- Reservas: Sistema de booking para instalaciones
-- Ventas: TPV con tickets y cierre de caja
-- Socios: CRUD con campos personalizables
-- Stock: Inventario con alertas
-- Usuarios: Sistema de autenticación y perfiles
+1. Construir el frontend:
+```bash
+cd frontend
+npm run build
+```
 
-## Tecnologías Utilizadas
+2. Construir el backend:
+```bash
+cd backend
+npm run build
+```
 
-### Frontend
-- React.js + TypeScript
-- Material-UI
-- Dexie.js (IndexedDB)
-- React Query
-- React Router
+3. Iniciar en producción:
+```bash
+cd backend
+npm run start:prod
+```
 
-### Backend
-- NestJS
-- MongoDB
-- JWT Authentication
-- Zod Validation
-- Passport.js
+## 👥 Roles de Usuario
 
-## Licencia
+- **ADMINISTRADOR**: Acceso total al sistema
+- **JUNTA**: Acceso limitado a gestión de socios, reservas e invitaciones
+- **TRABAJADOR**: Acceso a inventario, TPV y reservas
 
-[MIT](LICENSE)
+## 📝 Licencia
+
+Este proyecto está bajo la Licencia MIT.

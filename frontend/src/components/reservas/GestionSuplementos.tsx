@@ -22,8 +22,10 @@ import {
 } from '@mui/material';
 import { Close as CloseIcon, Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import axios from 'axios';
+import axiosInstance from '../../config/axios';
 import { API_BASE_URL } from '../../config';
 import { useAuthStore } from '../../stores/authStore';
+import { AxiosError } from 'axios';
 
 interface Suplemento {
     _id?: string;
@@ -145,6 +147,38 @@ export const GestionSuplementos: React.FC<GestionSuplementosProps> = ({
 
         console.log('Suplemento actualizado:', suplemento);
         setSuplementosEdit(updatedSuplementos);
+    };
+
+    const handleSaveSuplementos = async (suplementos: Suplemento[]) => {
+        console.log('Guardando suplementos:', suplementos);
+        try {
+            for (const suplemento of suplementos) {
+                try {
+                    if (suplemento.id) {
+                        // Si tiene ID, intentar actualizar
+                        console.log('Actualizando suplemento:', suplemento);
+                        await axiosInstance.patch(`/servicios/suplementos/${suplemento.id}`, suplemento);
+                    } else {
+                        // Si no tiene ID, crear como nuevo
+                        console.log('Creando nuevo suplemento:', suplemento);
+                        await axiosInstance.post('/servicios/suplementos', suplemento);
+                    }
+                } catch (error) {
+                    if (error instanceof AxiosError && error.response?.status === 404) {
+                        // Si no existe, crear como nuevo
+                        console.log('Suplemento no encontrado, creando como nuevo:', suplemento);
+                        await axiosInstance.post('/servicios/suplementos', suplemento);
+                    } else {
+                        throw error;
+                    }
+                }
+            }
+            // Recargar suplementos después de guardar
+            await fetchSuplementos();
+        } catch (error) {
+            console.error('Error al guardar suplementos:', error);
+            throw error;
+        }
     };
 
     const handleSave = () => {

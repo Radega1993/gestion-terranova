@@ -18,7 +18,21 @@ export class SociosService {
 
     async create(createSocioDto: CreateSocioDto): Promise<Socio> {
         try {
-            this.logger.debug(`Creating new socio: ${JSON.stringify(createSocioDto)}`);
+            // Procesar la fecha de nacimiento si existe
+            if (createSocioDto.fechaNacimiento) {
+                try {
+                    const fechaNacimiento = new Date(createSocioDto.fechaNacimiento);
+                    if (!isNaN(fechaNacimiento.getTime())) {
+                        createSocioDto.fechaNacimiento = fechaNacimiento;
+                    } else {
+                        delete createSocioDto.fechaNacimiento;
+                    }
+                } catch (error) {
+                    this.logger.error(`Error procesando fecha de nacimiento: ${error.message}`);
+                    delete createSocioDto.fechaNacimiento;
+                }
+            }
+
             const createdSocio = new this.socioModel(createSocioDto);
             return await createdSocio.save();
         } catch (error) {
@@ -51,8 +65,6 @@ export class SociosService {
 
     async update(id: string, updateSocioDto: UpdateSocioDto): Promise<Socio> {
         try {
-            this.logger.debug(`Updating socio with ID: ${id}`);
-
             const socio = await this.socioModel.findById(id);
             if (!socio) {
                 throw new NotFoundException(`Socio con ID ${id} no encontrado`);
@@ -68,25 +80,79 @@ export class SociosService {
             }
 
             // Preparar los datos de actualización
-            const updateData = { ...updateSocioDto };
+            const updateData: any = {};
 
-            // Si se está actualizando la dirección, mantener los campos existentes que no se envían
+            // Manejar campos simples
+            const simpleFields = [
+                'socio', 'casa', 'totalSocios', 'numPersonas', 'adheridos', 'menor3Años',
+                'cuota', 'dni', 'notas', 'isActive', 'foto', 'fechaBaja',
+                'motivoBaja', 'observaciones', 'rgpd', 'fechaNacimiento'
+            ];
+
+            simpleFields.forEach(field => {
+                if (updateSocioDto[field] !== undefined) {
+                    if (field === 'fechaNacimiento' && updateSocioDto[field]) {
+                        try {
+                            const fechaNacimiento = new Date(updateSocioDto[field]);
+                            if (!isNaN(fechaNacimiento.getTime())) {
+                                updateData[field] = fechaNacimiento;
+                            }
+                        } catch (error) {
+                            this.logger.error(`Error procesando fecha de nacimiento: ${error.message}`);
+                        }
+                    } else {
+                        updateData[field] = updateSocioDto[field];
+                    }
+                }
+            });
+
+            // Manejar objetos anidados
             if (updateSocioDto.direccion) {
+                const direccionActual = (socio.direccion as any).toObject();
                 updateData.direccion = {
-                    ...socio.direccion,
+                    ...direccionActual,
                     ...updateSocioDto.direccion
                 };
             }
 
+            if (updateSocioDto.nombre) {
+                const nombreActual = (socio.nombre as any).toObject();
+                updateData.nombre = {
+                    ...nombreActual,
+                    ...updateSocioDto.nombre
+                };
+            }
+
+            if (updateSocioDto.banco) {
+                const bancoActual = (socio.banco as any)?.toObject() || {};
+                updateData.banco = {
+                    ...bancoActual,
+                    ...updateSocioDto.banco
+                };
+            }
+
+            if (updateSocioDto.contacto) {
+                const contactoActual = (socio.contacto as any).toObject();
+                updateData.contacto = {
+                    ...contactoActual,
+                    ...updateSocioDto.contacto
+                };
+            }
+
+            if (updateSocioDto.asociados) {
+                updateData.asociados = updateSocioDto.asociados;
+            }
+
+            // Actualizar el socio usando findByIdAndUpdate
             const socioActualizado = await this.socioModel.findByIdAndUpdate(
                 id,
-                updateData,
-                { new: true }
-            ).exec();
+                { $set: updateData },
+                { new: true, runValidators: true }
+            );
 
             return socioActualizado;
         } catch (error) {
-            this.logger.error(`Error updating socio with ID ${id}:`, error);
+            this.logger.error(`Error actualizando socio con ID ${id}:`, error);
             throw error;
         }
     }

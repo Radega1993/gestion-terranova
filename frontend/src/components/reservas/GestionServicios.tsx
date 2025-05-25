@@ -19,6 +19,8 @@ import {
 } from '@mui/material';
 import { Close as CloseIcon, Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { ChromePicker } from 'react-color';
+import axiosInstance from '../../config/axios';
+import { AxiosError } from 'axios';
 
 interface Servicio {
     id: string;
@@ -114,6 +116,38 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
         console.log('Servicios actualizados:', updatedServicios);
         setServiciosEdit(updatedServicios);
         setEditingServicio(null);
+    };
+
+    const handleSaveServicios = async (servicios: Servicio[]) => {
+        console.log('Guardando servicios:', servicios);
+        try {
+            for (const servicio of servicios) {
+                try {
+                    if (servicio.id) {
+                        // Si tiene ID, intentar actualizar
+                        console.log('Actualizando servicio:', servicio);
+                        await axiosInstance.patch(`/servicios/${servicio.id}`, servicio);
+                    } else {
+                        // Si no tiene ID, crear como nuevo
+                        console.log('Creando nuevo servicio:', servicio);
+                        await axiosInstance.post('/servicios', servicio);
+                    }
+                } catch (error) {
+                    if (error instanceof AxiosError && error.response?.status === 404) {
+                        // Si no existe, crear como nuevo
+                        console.log('Servicio no encontrado, creando como nuevo:', servicio);
+                        await axiosInstance.post('/servicios', servicio);
+                    } else {
+                        throw error;
+                    }
+                }
+            }
+            // Recargar servicios después de guardar
+            await fetchServicios();
+        } catch (error) {
+            console.error('Error al guardar servicios:', error);
+            throw error;
+        }
     };
 
     const handleSave = () => {
