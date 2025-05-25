@@ -110,7 +110,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
         rgpd: false,
         dni: '',
         notas: '',
-        fotografia: '',
         foto: '',
         asociados: [],
         isActive: true,
@@ -204,6 +203,7 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                 cuota: data.cuota || 0,
                 rgpd: data.rgpd || false,
                 isActive: data.isActive || false,
+                foto: data.foto || ''
             };
 
             // Limpiar campos vacíos
@@ -252,25 +252,9 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
             queryClient.invalidateQueries({ queryKey: ['socios'] });
             navigate('/socios');
         },
-        onError: (error: any) => {
-            console.error('Error completo:', error);
-            if (error.response?.status === 401) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Sesión expirada',
-                    text: 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.',
-                    showConfirmButton: false,
-                    timer: 2000
-                }).then(() => {
-                    window.location.href = '/login';
-                });
-            } else {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: error.response?.data?.message || 'Error al guardar el socio'
-                });
-            }
+        onError: (error: AxiosError) => {
+            console.error('Error en la mutación:', error);
+            setFormError(error.response?.data?.message || 'Error al guardar el socio');
         }
     });
 
@@ -278,45 +262,23 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     useEffect(() => {
         if (editMode && socioData) {
             setFormData({
-                socio: socioData.socio,
-                nombre: {
-                    nombre: socioData.nombre.nombre,
-                    primerApellido: socioData.nombre.primerApellido,
-                    segundoApellido: socioData.nombre.segundoApellido || ''
-                },
-                direccion: {
-                    calle: socioData.direccion.calle,
-                    numero: socioData.direccion.numero,
-                    piso: socioData.direccion.piso || '',
-                    poblacion: socioData.direccion.poblacion,
-                    cp: socioData.direccion.cp || '',
-                    provincia: socioData.direccion.provincia || ''
-                },
-                banco: {
-                    iban: socioData.banco?.iban || '',
-                    entidad: socioData.banco?.entidad || '',
-                    oficina: socioData.banco?.oficina || '',
-                    dc: socioData.banco?.dc || '',
-                    cuenta: socioData.banco?.cuenta || ''
+                ...socioData,
+                // Asegurarse de que los campos opcionales tengan valores por defecto
+                banco: socioData.banco || {
+                    iban: '',
+                    entidad: '',
+                    oficina: '',
+                    dc: '',
+                    cuenta: ''
                 },
                 contacto: {
                     telefonos: socioData.contacto?.telefonos || [''],
                     emails: socioData.contacto?.emails || ['']
                 },
-                casa: socioData.casa,
-                totalSocios: socioData.totalSocios,
-                numPersonas: socioData.numPersonas,
-                adheridos: socioData.adheridos,
-                menor3Años: socioData.menor3Años,
-                cuota: socioData.cuota,
-                rgpd: socioData.rgpd,
-                dni: socioData.dni || '',
-                notas: socioData.notas || '',
-                fotografia: socioData.fotografia || '',
-                foto: socioData.foto || '',
-                isActive: socioData.isActive,
-                fechaNacimiento: socioData.fechaNacimiento || new Date().toISOString().split('T')[0],
-                asociados: []
+                asociados: socioData.asociados || [],
+                especiales: socioData.especiales || [],
+                // Mantener la foto original
+                foto: socioData.foto || ''
             });
         } else if (!editMode && lastSocioNumber) {
             setFormData(prev => ({
@@ -373,43 +335,29 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                // Comprimir la imagen antes de guardarla
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 800;
-                    const MAX_HEIGHT = 800;
-                    let width = img.width;
-                    let height = img.height;
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
 
-                    if (width > height) {
-                        if (width > MAX_WIDTH) {
-                            height *= MAX_WIDTH / width;
-                            width = MAX_WIDTH;
-                        }
-                    } else {
-                        if (height > MAX_HEIGHT) {
-                            width *= MAX_HEIGHT / height;
-                            height = MAX_HEIGHT;
-                        }
+                console.log('Subiendo imagen para socio:', id);
+                const response = await axiosInstance.post('/uploads/image', formData, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'multipart/form-data'
                     }
+                });
 
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx?.drawImage(img, 0, 0, width, height);
-
-                    const compressedImage = canvas.toDataURL('image/jpeg', 0.7);
-                    setFormData({
-                        ...formData,
-                        fotografia: compressedImage
-                    });
-                };
-                img.src = reader.result as string;
-            };
-            reader.readAsDataURL(file);
+                if (response.data.filename) {
+                    console.log('Imagen subida exitosamente:', response.data.filename);
+                    setFormData(prev => ({
+                        ...prev,
+                        foto: response.data.filename
+                    }));
+                }
+            } catch (error) {
+                console.error('Error al subir la imagen:', error);
+                setFormError('Error al subir la imagen');
+            }
         }
     };
 

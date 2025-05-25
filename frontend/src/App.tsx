@@ -1,22 +1,17 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, CssBaseline, Box, Container } from '@mui/material';
+import { ThemeProvider, CssBaseline, Box, AppBar, Toolbar, Typography, Container, Button } from '@mui/material';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createTheme } from '@mui/material/styles';
 import LoginForm from './components/auth/LoginForm';
 import RegisterForm from './components/auth/RegisterForm';
 import Dashboard from './components/dashboard/Dashboard';
+import LogoutButton from './components/auth/LogoutButton';
 import UsersList from './components/users/UsersList';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { UserRole } from './types/user';
 import SociosList from './components/socios/SociosList';
 import CreateSocioForm from './components/socios/CreateSocioForm';
-import AsociadosForm from './components/socios/AsociadosForm';
-import { InventoryView } from './components/inventory/InventoryView';
-import { Layout } from './components/layout/Layout';
-import { ReservasList } from './components/reservas/ReservasList';
-import { Navbar } from './components/layout/Navbar';
-import './styles/sweetalert.css';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -41,7 +36,14 @@ function App() {
         <CssBaseline />
         <Router>
           <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-            <Navbar />
+            <AppBar position="sticky">
+              <Toolbar>
+                <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+                  Gestión Terranova
+                </Typography>
+                <LogoutButton />
+              </Toolbar>
+            </AppBar>
             <Container sx={{ pt: 4, flexGrow: 1 }}>
               <Routes>
                 <Route path="/login" element={<LoginForm />} />
@@ -50,9 +52,7 @@ function App() {
                   path="/"
                   element={
                     <ProtectedRoute>
-                      <Layout>
-                        <Dashboard />
-                      </Layout>
+                      <Dashboard />
                     </ProtectedRoute>
                   }
                 />
@@ -60,9 +60,7 @@ function App() {
                   path="/dashboard"
                   element={
                     <ProtectedRoute>
-                      <Layout>
-                        <Dashboard />
-                      </Layout>
+                      <Dashboard />
                     </ProtectedRoute>
                   }
                 />
@@ -70,9 +68,7 @@ function App() {
                   path="/deudas"
                   element={
                     <ProtectedRoute>
-                      <Layout>
-                        <div>Deudas Module</div>
-                      </Layout>
+                      <div>Deudas Module</div>
                     </ProtectedRoute>
                   }
                 />
@@ -80,9 +76,7 @@ function App() {
                   path="/reservas"
                   element={
                     <ProtectedRoute>
-                      <Layout>
-                        <ReservasList />
-                      </Layout>
+                      <div>Reservas Module</div>
                     </ProtectedRoute>
                   }
                 />
@@ -90,59 +84,39 @@ function App() {
                   path="/ventas"
                   element={
                     <ProtectedRoute>
-                      <Layout>
-                        <div>Ventas Module</div>
-                      </Layout>
+                      <div>Ventas Module</div>
                     </ProtectedRoute>
                   }
                 />
                 <Route
                   path="/socios"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
-                      <Layout>
-                        <SociosList />
-                      </Layout>
+                    <ProtectedRoute>
+                      <SociosList />
                     </ProtectedRoute>
                   }
                 />
                 <Route
                   path="/socios/crear"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
-                      <Layout>
-                        <CreateSocioForm />
-                      </Layout>
+                    <ProtectedRoute>
+                      <CreateSocioForm />
                     </ProtectedRoute>
                   }
                 />
                 <Route
                   path="/socios/editar/:id"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
-                      <Layout>
-                        <CreateSocioForm editMode={true} />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/socios/:id/asociados"
-                  element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
-                      <Layout>
-                        <AsociadosForm />
-                      </Layout>
+                    <ProtectedRoute>
+                      <CreateSocioForm editMode={true} />
                     </ProtectedRoute>
                   }
                 />
                 <Route
                   path="/stock"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]}>
-                      <Layout>
-                        <InventoryView />
-                      </Layout>
+                    <ProtectedRoute>
+                      <div>Stock Module</div>
                     </ProtectedRoute>
                   }
                 />
@@ -150,9 +124,7 @@ function App() {
                   path="/users"
                   element={
                     <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
-                      <Layout>
-                        <UsersList />
-                      </Layout>
+                      <UsersList />
                     </ProtectedRoute>
                   }
                 />

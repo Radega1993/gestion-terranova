@@ -23,57 +23,82 @@ export class UploadsService {
 
     async saveFile(file: Express.Multer.File): Promise<string> {
         try {
-            if (!file || !file.buffer) {
-                throw new Error('No file or buffer provided');
+            this.logger.debug(`Iniciando guardado de archivo: ${file?.originalname}`);
+            this.logger.debug(`Tamaño del archivo: ${file?.size} bytes`);
+            this.logger.debug(`Tipo MIME: ${file?.mimetype}`);
+
+            if (!file) {
+                this.logger.error('No file provided');
+                throw new Error('No file provided');
             }
 
             const timestamp = Date.now();
             const filename = `${timestamp}-${file.originalname}`;
             const filepath = join(this.uploadsDir, filename);
 
-            await fs.writeFile(filepath, file.buffer);
-            this.logger.debug(`File saved: ${filename} at ${filepath}`);
+            this.logger.debug(`Guardando archivo como: ${filename}`);
+            this.logger.debug(`Ruta completa: ${filepath}`);
+
+            // Usar el path del archivo temporal creado por Multer
+            await fs.copyFile(file.path, filepath);
+            this.logger.debug(`Archivo guardado exitosamente en: ${filepath}`);
 
             // Verificar que el archivo se guardó correctamente
             try {
                 const stats = await fs.stat(filepath);
+                this.logger.debug(`Verificación del archivo: ${filename}`);
+                this.logger.debug(`Tamaño del archivo guardado: ${stats.size} bytes`);
+
                 if (stats.size === 0) {
+                    this.logger.error(`Archivo guardado está vacío: ${filename}`);
                     throw new Error('File is empty');
                 }
-                this.logger.debug(`File verified: ${filename} (${stats.size} bytes)`);
+
+                this.logger.debug(`Verificación exitosa del archivo: ${filename}`);
             } catch (error) {
-                this.logger.error(`File verification failed: ${filename}`);
+                this.logger.error(`Error en la verificación del archivo: ${filename}`);
+                this.logger.error(`Error detallado: ${error.message}`);
                 throw new Error('File verification failed');
             }
 
             return filename;
         } catch (error) {
-            this.logger.error(`Error saving file: ${error.message}`);
+            this.logger.error(`Error al guardar el archivo: ${error.message}`);
+            this.logger.error(`Stack trace: ${error.stack}`);
             throw new Error('Error saving file');
         }
     }
 
     async deleteFile(filename: string): Promise<void> {
         try {
+            this.logger.debug(`Iniciando eliminación del archivo: ${filename}`);
             const filepath = join(this.uploadsDir, filename);
+
             try {
                 await fs.access(filepath);
+                this.logger.debug(`Archivo encontrado en: ${filepath}`);
+
                 await fs.unlink(filepath);
-                this.logger.debug(`File deleted: ${filename}`);
+                this.logger.debug(`Archivo eliminado exitosamente: ${filename}`);
             } catch (error) {
                 if (error.code === 'ENOENT') {
-                    this.logger.debug(`File not found, skipping deletion: ${filename}`);
+                    this.logger.debug(`Archivo no encontrado, omitiendo eliminación: ${filename}`);
                     return;
                 }
+                this.logger.error(`Error al acceder al archivo: ${error.message}`);
                 throw error;
             }
         } catch (error) {
-            this.logger.error(`Error deleting file: ${error.message}`);
+            this.logger.error(`Error al eliminar el archivo: ${error.message}`);
+            this.logger.error(`Stack trace: ${error.stack}`);
             throw new Error('Error deleting file');
         }
     }
 
     async getFilePath(filename: string): Promise<string> {
-        return join(this.uploadsDir, filename);
+        this.logger.debug(`Obteniendo ruta del archivo: ${filename}`);
+        const filepath = join(this.uploadsDir, filename);
+        this.logger.debug(`Ruta completa: ${filepath}`);
+        return filepath;
     }
 } 

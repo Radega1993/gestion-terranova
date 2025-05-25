@@ -56,11 +56,8 @@ async function bootstrap() {
 
   // Configurar CORS
   app.enableCors({
-    origin: ['http://localhost:5173', 'http://localhost:3000'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
     credentials: true,
-    exposedHeaders: ['Content-Disposition'],
   });
 
   // Configurar validación global
@@ -105,6 +102,11 @@ async function bootstrap() {
       res.set('Cache-Control', 'public, max-age=31536000');
     },
   }));
+
+  // Configurar directorio de uploads como estático
+  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+    prefix: '/uploads/',
+  });
 
   const port = process.env.PORT || 3000;
   await app.listen(port);

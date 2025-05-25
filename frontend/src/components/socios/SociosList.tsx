@@ -190,10 +190,10 @@ const SociosList: React.FC = () => {
     const handleFotoUpdate = async (socioId: string, file: File) => {
         try {
             const formData = new FormData();
-            formData.append('foto', file);
+            formData.append('file', file);
 
-            const response = await fetch(`${API_BASE_URL}/socios/${socioId}/foto`, {
-                method: 'PUT',
+            const response = await fetch(`${API_BASE_URL}/uploads/image`, {
+                method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`
                 },
@@ -201,12 +201,41 @@ const SociosList: React.FC = () => {
             });
 
             if (!response.ok) {
-                throw new Error('Error al actualizar la foto');
+                throw new Error('Error al subir la imagen');
             }
 
+            const data = await response.json();
+
+            // Actualizar el socio con la nueva foto usando PUT en lugar de PATCH
+            const updateResponse = await fetch(`${API_BASE_URL}/socios/${socioId}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ foto: data.filename })
+            });
+
+            if (!updateResponse.ok) {
+                throw new Error('Error al actualizar la foto del socio');
+            }
+
+            // Actualizar la lista de socios
             fetchSocios();
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Foto actualizada correctamente',
+                showConfirmButton: false,
+                timer: 1500
+            });
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Error al actualizar la foto');
+            console.error('Error al actualizar la foto:', err);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: err instanceof Error ? err.message : 'Error al actualizar la foto'
+            });
         }
     };
 
@@ -273,7 +302,60 @@ const SociosList: React.FC = () => {
         const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
             const file = event.target.files?.[0];
             if (file) {
-                await handleFotoUpdate(socio._id, file);
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    console.log('Subiendo imagen para socio:', socio._id, socio.nombre.nombre);
+                    const response = await fetch(`${API_BASE_URL}/uploads/image`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al subir la imagen');
+                    }
+
+                    const data = await response.json();
+                    console.log('Imagen subida exitosamente:', data.filename);
+
+                    // Actualizar el socio con la nueva foto
+                    const updateResponse = await fetch(`${API_BASE_URL}/socios/${socio._id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            ...socio,
+                            foto: data.filename
+                        })
+                    });
+
+                    if (!updateResponse.ok) {
+                        throw new Error('Error al actualizar la foto del socio');
+                    }
+
+                    // Actualizar la lista de socios
+                    fetchSocios();
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Foto actualizada correctamente',
+                        showConfirmButton: false,
+                        timer: 1500
+                    });
+                } catch (err) {
+                    console.error('Error al actualizar la foto:', err);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: err instanceof Error ? err.message : 'Error al actualizar la foto'
+                    });
+                }
             }
         };
 
@@ -283,12 +365,12 @@ const SociosList: React.FC = () => {
                     type="file"
                     accept="image/*"
                     style={{ display: 'none' }}
-                    ref={fileInputRef}
+                    id={`file-input-${socio._id}`}
                     onChange={handleFileChange}
                 />
                 <IconButton
                     color="primary"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => document.getElementById(`file-input-${socio._id}`)?.click()}
                 >
                     <PhotoCamera />
                 </IconButton>
@@ -296,7 +378,7 @@ const SociosList: React.FC = () => {
         );
     };
 
-    const renderFoto = (foto: string) => {
+    const renderFoto = (foto: string | undefined) => {
         if (!foto) return null;
         return (
             <Avatar
@@ -307,7 +389,7 @@ const SociosList: React.FC = () => {
         );
     };
 
-    const renderFotoAsociado = (foto: string) => {
+    const renderFotoAsociado = (foto: string | undefined) => {
         if (!foto) return null;
         return (
             <Avatar
