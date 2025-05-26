@@ -400,48 +400,104 @@ const SociosList: React.FC = () => {
             const response = await fetch(`${API_BASE_URL}/socios/import`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
+                    'Authorization': `Bearer ${token}`
                 },
-                body: formData,
+                body: formData
             });
 
-            if (!response.ok) {
-                throw new Error('Error al importar socios');
-            }
+            const data = await response.json();
 
-            const result = await response.json();
+            if (response.ok) {
+                if (data.updates && data.updates.length > 0) {
+                    // Mostrar diálogo de confirmación para actualizaciones
+                    const result = await Swal.fire({
+                        title: 'Socios existentes encontrados',
+                        html: `
+                            <p>Se encontraron ${data.updates.length} socios que necesitan actualización:</p>
+                            <ul style="text-align: left; margin: 1rem 0;">
+                                ${data.updates.map((update: any) => `
+                                    <li>
+                                        Socio ${update.socio}
+                                        ${update.changes.socio ? '<br>- Datos del socio modificados' : ''}
+                                        ${update.changes.asociados ? '<br>- Asociados modificados' : ''}
+                                    </li>
+                                `).join('')}
+                            </ul>
+                            <p>¿Desea actualizar estos socios?</p>
+                        `,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, actualizar',
+                        cancelButtonText: 'No, mantener actuales',
+                        confirmButtonColor: '#3085d6',
+                        cancelButtonColor: '#d33'
+                    });
 
-            if (result.errors.length > 0) {
-                Swal.fire({
-                    title: 'Importación con errores',
-                    html: `
-                        <p>Se importaron ${result.success.length} socios correctamente.</p>
-                        <p>Errores encontrados:</p>
-                        <ul>
-                            ${result.errors.map((error: any) =>
-                        `<li>Socio ${error.socio}: ${error.error}</li>`
-                    ).join('')}
-                        </ul>
-                    `,
-                    icon: 'warning'
-                });
+                    if (result.isConfirmed) {
+                        // Realizar la actualización
+                        const updateResponse = await fetch(`${API_BASE_URL}/socios/import/update`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: formData
+                        });
+
+                        const updateData = await updateResponse.json();
+
+                        if (updateResponse.ok) {
+                            Swal.fire({
+                                title: 'Actualización completada',
+                                text: `Se actualizaron ${updateData.success.length} socios correctamente`,
+                                icon: 'success'
+                            });
+                            fetchSocios(); // Actualizar la lista
+                        } else {
+                            throw new Error(updateData.message || 'Error al actualizar socios');
+                        }
+                    }
+                }
+
+                if (data.success.length > 0) {
+                    Swal.fire({
+                        title: 'Importación exitosa',
+                        text: `Se importaron ${data.success.length} socios correctamente`,
+                        icon: 'success'
+                    });
+                    fetchSocios(); // Actualizar la lista
+                }
+
+                if (data.errors.length > 0) {
+                    Swal.fire({
+                        title: 'Errores en la importación',
+                        html: `
+                            <p>Se encontraron los siguientes errores:</p>
+                            <ul style="text-align: left; margin: 1rem 0;">
+                                ${data.errors.map((error: any) => `
+                                    <li>
+                                        ${error.socio ? `Socio ${error.socio}: ` : ''}
+                                        ${error.asociado ? `Asociado ${error.asociado}: ` : ''}
+                                        ${error.error}
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        `,
+                        icon: 'error'
+                    });
+                }
             } else {
-                Swal.fire({
-                    title: 'Importación exitosa',
-                    text: `Se importaron ${result.success.length} socios correctamente.`,
-                    icon: 'success'
-                });
+                throw new Error(data.message || 'Error al importar socios');
             }
-
-            fetchSocios();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Error al importar socios');
+        } catch (error) {
+            Swal.fire({
+                title: 'Error',
+                text: error instanceof Error ? error.message : 'Error al importar socios',
+                icon: 'error'
+            });
         }
 
-        // Reset file input
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
+        // Limpiar el input de archivo
+        event.target.value = '';
     };
 
     const renderFotoButton = (socio: SocioWithId) => {
