@@ -1,11 +1,13 @@
 import { Injectable, NotFoundException, Logger, ConflictException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Socio } from '../schemas/socio.schema';
 import { CreateSocioDto } from '../dto/create-socio.dto';
 import { UpdateSocioDto } from '../dto/update-socio.dto';
 import { UploadsService } from '../../uploads/uploads.service';
-import { Asociado } from '../schemas/socio.schema';
+import { Asociado } from '../schemas/asociado.schema';
+import { CreateMiembroDto } from '../dto/create-miembro.dto';
+import { UpdateMiembroDto } from '../dto/update-miembro.dto';
 
 @Injectable()
 export class SociosService {
@@ -177,107 +179,87 @@ export class SociosService {
     }
 
     async toggleActive(id: string): Promise<Socio> {
-        this.logger.debug(`Toggling active status for socio with ID: ${id}`);
-        const socio = await this.socioModel.findById(id).exec();
+        const socio = await this.socioModel.findById(id);
         if (!socio) {
-            throw new NotFoundException(`Socio with ID ${id} not found`);
+            throw new NotFoundException(`Socio con ID ${id} no encontrado`);
         }
-        socio.isActive = !socio.isActive;
+        socio.activo = !socio.activo;
         return socio.save();
     }
 
-    async addMiembroFamilia(socioId: string, miembroId: string): Promise<Socio> {
-        this.logger.debug(`Adding miembro to socio with ID: ${socioId}`);
+    async addAsociado(socioId: string, createMiembroDto: CreateMiembroDto) {
         const socio = await this.socioModel.findById(socioId);
         if (!socio) {
-            throw new NotFoundException(`Socio con ID ${socioId} no encontrado`);
+            throw new NotFoundException('Socio no encontrado');
         }
 
-        const miembro = await this.socioModel.findById(miembroId);
-        if (!miembro) {
-            throw new NotFoundException(`Miembro con ID ${miembroId} no encontrado`);
+        // Obtener el último número de asociado
+        const ultimoAsociado = socio.asociados?.length || 0;
+        const nuevoNumero = (ultimoAsociado + 1).toString().padStart(2, '0');
+
+        // Crear el código del asociado basado en el código del socio
+        const codigoAsociado = `${socio.socio}_${nuevoNumero}`;
+
+        const asociado: Asociado = {
+            codigo: codigoAsociado,
+            nombre: createMiembroDto.nombre,
+            fechaNacimiento: createMiembroDto.fechaNacimiento || new Date(),
+            telefono: createMiembroDto.telefono || '',
+            foto: createMiembroDto.foto || ''
+        };
+
+        if (!socio.asociados) {
+            socio.asociados = [];
         }
 
-        // Actualizar el socio principal del miembro
-        miembro.socioPrincipal = socio;
-        await miembro.save();
+        socio.asociados.push(asociado);
+        await socio.save();
 
-        // Añadir el miembro a la lista de miembros de la familia
-        if (!socio.miembrosFamilia) {
-            socio.miembrosFamilia = [];
-        }
-        socio.miembrosFamilia.push(miembro);
-
-        return socio.save();
+        return asociado;
     }
 
-    async removeMiembroFamilia(socioId: string, miembroId: string): Promise<Socio> {
-        this.logger.debug(`Removing miembro from socio with ID: ${socioId}`);
+    async updateAsociado(socioId: string, asociadoId: string, updateMiembroDto: UpdateMiembroDto) {
         const socio = await this.socioModel.findById(socioId);
         if (!socio) {
-            throw new NotFoundException(`Socio con ID ${socioId} no encontrado`);
+            throw new NotFoundException('Socio no encontrado');
         }
 
-        const miembro = await this.socioModel.findById(miembroId);
-        if (!miembro) {
-            throw new NotFoundException(`Miembro con ID ${miembroId} no encontrado`);
+        const asociadoIndex = socio.asociados.findIndex(a => a.codigo === asociadoId);
+        if (asociadoIndex === -1) {
+            throw new NotFoundException('Asociado no encontrado');
         }
 
-        // Remover el socio principal del miembro
-        miembro.socioPrincipal = null;
-        await miembro.save();
+        // Actualizar solo los campos proporcionados
+        Object.assign(socio.asociados[asociadoIndex], updateMiembroDto);
+        await socio.save();
 
-        // Remover el miembro de la lista de miembros de la familia
-        socio.miembrosFamilia = socio.miembrosFamilia.filter(
-            m => m.toString() !== miembroId
-        );
-
-        return socio.save();
+        return socio.asociados[asociadoIndex];
     }
 
-    async updateAsociados(id: string, asociados: Asociado[]): Promise<Socio> {
-        try {
-            this.logger.debug(`Updating asociados for socio ${id}`);
-            const socio = await this.socioModel.findById(id);
-            if (!socio) {
-                throw new NotFoundException(`Socio con ID ${id} no encontrado`);
-            }
-
-            // Eliminar fotos de asociados que ya no existen
-            const oldAsociados = socio.asociados || [];
-            const newAsociadosIds = asociados.map(a => a._id?.toString()).filter(Boolean);
-            const deletedAsociados = oldAsociados.filter(a => a._id && !newAsociadosIds.includes(a._id.toString()));
-
-            for (const asociado of deletedAsociados) {
-                if (asociado.foto) {
-                    try {
-                        await this.uploadsService.deleteFile(asociado.foto);
-                    } catch (error) {
-                        this.logger.warn(`No se pudo eliminar la foto del asociado: ${error.message}`);
-                    }
-                }
-            }
-
-            socio.asociados = asociados;
-            return await socio.save();
-        } catch (error) {
-            this.logger.error(`Error updating asociados for socio ${id}:`, error);
-            throw error;
+    async removeAsociado(socioId: string, asociadoId: string) {
+        const socio = await this.socioModel.findById(socioId);
+        if (!socio) {
+            throw new NotFoundException('Socio no encontrado');
         }
+
+        const asociadoIndex = socio.asociados.findIndex(a => a._id.toString() === asociadoId);
+        if (asociadoIndex === -1) {
+            throw new NotFoundException('Asociado no encontrado');
+        }
+
+        socio.asociados.splice(asociadoIndex, 1);
+        await socio.save();
+
+        return { message: 'Asociado eliminado correctamente' };
     }
 
-    async getAsociados(id: string): Promise<Asociado[]> {
-        try {
-            this.logger.debug(`Getting asociados for socio ${id}`);
-            const socio = await this.socioModel.findById(id);
-            if (!socio) {
-                throw new NotFoundException(`Socio con ID ${id} no encontrado`);
-            }
-            return socio.asociados || [];
-        } catch (error) {
-            this.logger.error(`Error getting asociados for socio ${id}:`, error);
-            throw error;
+    async getAsociados(socioId: string) {
+        const socio = await this.socioModel.findById(socioId);
+        if (!socio) {
+            throw new NotFoundException('Socio no encontrado');
         }
+
+        return socio.asociados || [];
     }
 
     async getLastNumber(): Promise<string> {
@@ -317,6 +299,46 @@ export class SociosService {
             return { available: !existingSocio };
         } catch (error) {
             this.logger.error(`Error validating socio number ${number}:`, error);
+            throw error;
+        }
+    }
+
+    async getMiembros(socioId: string) {
+        const socio = await this.socioModel.findById(socioId);
+        if (!socio) {
+            throw new NotFoundException('Socio no encontrado');
+        }
+
+        return socio.asociados || [];
+    }
+
+    async updateAsociados(id: string, asociados: Asociado[]): Promise<Socio> {
+        try {
+            this.logger.debug(`Updating asociados for socio ${id}`);
+            const socio = await this.socioModel.findById(id);
+            if (!socio) {
+                throw new NotFoundException(`Socio con ID ${id} no encontrado`);
+            }
+
+            // Eliminar fotos de asociados que ya no existen
+            const oldAsociados = socio.asociados || [];
+            const newAsociadosIds = asociados.map(a => a._id?.toString()).filter(Boolean);
+            const deletedAsociados = oldAsociados.filter(a => a._id && !newAsociadosIds.includes(a._id.toString()));
+
+            for (const asociado of deletedAsociados) {
+                if (asociado.foto) {
+                    try {
+                        await this.uploadsService.deleteFile(asociado.foto);
+                    } catch (error) {
+                        this.logger.warn(`No se pudo eliminar la foto del asociado: ${error.message}`);
+                    }
+                }
+            }
+
+            socio.asociados = asociados;
+            return await socio.save();
+        } catch (error) {
+            this.logger.error(`Error updating asociados for socio ${id}:`, error);
             throw error;
         }
     }

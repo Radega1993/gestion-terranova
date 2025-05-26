@@ -8,7 +8,9 @@ import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { UserRole } from '../../users/types/user-roles.enum';
 import { UploadsService } from '../../uploads/uploads.service';
-import { Asociado } from '../schemas/socio.schema';
+import { Asociado } from '../schemas/asociado.schema';
+import { CreateMiembroDto } from '../dto/create-miembro.dto';
+import { UpdateMiembroDto } from '../dto/update-miembro.dto';
 
 @Controller('socios')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -106,24 +108,6 @@ export class SociosController {
         return this.sociosService.remove(id);
     }
 
-    @Post(':id/miembros/:miembroId')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
-    async addMiembroFamilia(
-        @Param('id') id: string,
-        @Param('miembroId') miembroId: string
-    ) {
-        return this.sociosService.addMiembroFamilia(id, miembroId);
-    }
-
-    @Delete(':id/miembros/:miembroId')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
-    async removeMiembroFamilia(
-        @Param('id') id: string,
-        @Param('miembroId') miembroId: string
-    ) {
-        return this.sociosService.removeMiembroFamilia(id, miembroId);
-    }
-
     @Put(':id/toggle-active')
     @Roles(UserRole.ADMINISTRADOR)
     async toggleActive(@Param('id') id: string) {
@@ -131,20 +115,46 @@ export class SociosController {
         return this.sociosService.toggleActive(id);
     }
 
+    @Get(':id/asociados')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    async getAsociados(@Param('id') id: string) {
+        return this.sociosService.getAsociados(id);
+    }
+
+    @Post(':id/asociados')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    async addAsociado(
+        @Param('id') id: string,
+        @Body() createMiembroDto: CreateMiembroDto
+    ) {
+        return this.sociosService.addAsociado(id, createMiembroDto);
+    }
+
+    @Put(':id/asociados/:asociadoId')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    async updateAsociado(
+        @Param('id') id: string,
+        @Param('asociadoId') asociadoId: string,
+        @Body() updateMiembroDto: UpdateMiembroDto
+    ) {
+        return this.sociosService.updateAsociado(id, asociadoId, updateMiembroDto);
+    }
+
+    @Delete(':id/asociados/:asociadoId')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    async removeAsociado(
+        @Param('id') id: string,
+        @Param('asociadoId') asociadoId: string
+    ) {
+        return this.sociosService.removeAsociado(id, asociadoId);
+    }
+
     @Put(':id/asociados')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     async updateAsociados(
         @Param('id') id: string,
-        @Body('asociados') asociados: Asociado[]
+        @Body() asociados: Asociado[]
     ) {
-        this.logger.debug(`Updating asociados for socio ${id}`);
         return this.sociosService.updateAsociados(id, asociados);
-    }
-
-    @Get(':id/asociados')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
-    async getAsociados(@Param('id') id: string) {
-        this.logger.debug(`Getting asociados for socio ${id}`);
-        return this.sociosService.getAsociados(id);
     }
 } 

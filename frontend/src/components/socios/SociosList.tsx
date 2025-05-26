@@ -38,6 +38,7 @@ import { Socio } from '../../types/socio';
 import { useNavigate } from 'react-router-dom';
 import { PhotoCamera, FamilyRestroom, Block } from '@mui/icons-material';
 import Swal from 'sweetalert2';
+import GestionarMiembrosModal from './GestionarMiembrosModal';
 
 interface SocioWithId extends Omit<Socio, 'createdAt'> {
     _id: string;
@@ -66,6 +67,8 @@ const SociosList: React.FC = () => {
     const navigate = useNavigate();
     const { token } = useAuthStore();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [openGestionarMiembros, setOpenGestionarMiembros] = useState(false);
+    const [socioSeleccionado, setSocioSeleccionado] = useState<SocioWithId | null>(null);
 
     const fetchSocios = async () => {
         try {
@@ -274,7 +277,13 @@ const SociosList: React.FC = () => {
     };
 
     const handleManageAsociados = (socio: SocioWithId) => {
-        navigate(`/socios/${socio._id}/asociados`);
+        setSocioSeleccionado(socio);
+        setOpenGestionarMiembros(true);
+    };
+
+    const handleCloseGestionarMiembros = () => {
+        setOpenGestionarMiembros(false);
+        setSocioSeleccionado(null);
     };
 
     const handleToggleActive = async (socio: SocioWithId) => {
@@ -567,6 +576,14 @@ const SociosList: React.FC = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            {socioSeleccionado && (
+                <GestionarMiembrosModal
+                    open={openGestionarMiembros}
+                    onClose={handleCloseGestionarMiembros}
+                    socio={socioSeleccionado}
+                />
+            )}
         </Box>
     );
 };
