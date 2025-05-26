@@ -2,6 +2,8 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { Asociado } from './asociado.schema';
 
+export { Asociado } from './asociado.schema';
+
 @Schema({ _id: false })
 class Nombre {
     @Prop({ required: true })

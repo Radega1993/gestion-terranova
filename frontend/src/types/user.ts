@@ -9,7 +9,9 @@ export interface User {
     username: string;
     role: UserRole;
     nombre: string;
-    isActive: boolean;
+    apellidos: string;
+    activo: boolean;
+    lastLogin?: Date;
 }
 
 export interface CreateUserDto {
@@ -17,6 +19,7 @@ export interface CreateUserDto {
     password: string;
     role: UserRole;
     nombre: string;
+    apellidos: string;
 }
 
 export interface UpdateUserDto {
@@ -24,5 +27,6 @@ export interface UpdateUserDto {
     password?: string;
     role?: UserRole;
     nombre?: string;
+    apellidos?: string;
     isActive?: boolean;
 } 

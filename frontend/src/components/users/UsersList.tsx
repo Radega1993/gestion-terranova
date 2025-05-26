@@ -1,16 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Container,
-    Typography,
-    Button,
-    Paper,
     Table,
     TableBody,
     TableCell,
     TableContainer,
     TableHead,
     TableRow,
+    Paper,
     IconButton,
+    Button,
     Dialog,
     DialogTitle,
     DialogContent,
@@ -18,21 +17,30 @@ import {
     TextField,
     Alert,
 } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { Edit as EditIcon, Block as BlockIcon, CheckCircle as CheckCircleIcon } from '@mui/icons-material';
 import { useAuthStore } from '../../stores/authStore';
 import { API_BASE_URL } from '../../config';
 import { User, UserRole } from '../../types/user';
 
+interface FormData {
+    username: string;
+    password: string;
+    role: UserRole;
+    nombre: string;
+    apellidos: string;
+}
+
 const UsersList = () => {
     const [users, setUsers] = useState<User[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
-    const [formData, setFormData] = useState({
+    const [error, setError] = useState<string | null>(null);
+    const [formData, setFormData] = useState<FormData>({
         username: '',
         password: '',
         role: UserRole.TRABAJADOR,
+        nombre: '',
+        apellidos: '',
     });
     const { token } = useAuthStore();
 
@@ -40,27 +48,22 @@ const UsersList = () => {
         try {
             const response = await fetch(`${API_BASE_URL}/users`, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
+                    'Authorization': `Bearer ${token}`
+                }
             });
-
             if (!response.ok) {
-                throw new Error('Error al cargar usuarios');
+                throw new Error('Error al obtener usuarios');
             }
-
             const data = await response.json();
             setUsers(data);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Error al cargar usuarios');
-        } finally {
-            setLoading(false);
+            setError(err instanceof Error ? err.message : 'Error al obtener usuarios');
         }
     };
 
     useEffect(() => {
         fetchUsers();
-    }, [token]);
+    }, []);
 
     const handleOpenDialog = (user?: User) => {
         if (user) {
@@ -69,6 +72,8 @@ const UsersList = () => {
                 username: user.username,
                 password: '',
                 role: user.role,
+                nombre: user.nombre,
+                apellidos: user.apellidos || '',
             });
         } else {
             setSelectedUser(null);
@@ -76,6 +81,8 @@ const UsersList = () => {
                 username: '',
                 password: '',
                 role: UserRole.TRABAJADOR,
+                nombre: '',
+                apellidos: '',
             });
         }
         setOpenDialog(true);
@@ -88,15 +95,26 @@ const UsersList = () => {
             username: '',
             password: '',
             role: UserRole.TRABAJADOR,
+            nombre: '',
+            apellidos: '',
         });
+        setError(null);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            const userData: Partial<FormData> = { ...formData };
+
+            // Solo incluir password si se ha proporcionado uno
+            if (!userData.password) {
+                const { password, ...userDataWithoutPassword } = userData;
+                Object.assign(userData, userDataWithoutPassword);
+            }
+
             const url = selectedUser
                 ? `${API_BASE_URL}/users/${selectedUser._id}`
-                : `${API_BASE_URL}/users`;
+                : `${API_BASE_URL}/users/register`;
 
             const method = selectedUser ? 'PUT' : 'POST';
 
@@ -106,11 +124,12 @@ const UsersList = () => {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(formData),
+                body: JSON.stringify(userData),
             });
 
             if (!response.ok) {
-                throw new Error('Error al guardar usuario');
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Error al guardar usuario');
             }
 
             handleCloseDialog();
@@ -120,68 +139,59 @@ const UsersList = () => {
         }
     };
 
-    const handleDelete = async (userId: string) => {
-        if (!window.confirm('¿Estás seguro de que deseas eliminar este usuario?')) {
-            return;
-        }
-
+    const handleToggleActive = async (userId: string) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
-                method: 'DELETE',
+            const response = await fetch(`${API_BASE_URL}/users/${userId}/toggle-active`, {
+                method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
+                }
             });
 
             if (!response.ok) {
-                throw new Error('Error al eliminar usuario');
+                throw new Error('Error al cambiar el estado del usuario');
             }
 
             fetchUsers();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Error al eliminar usuario');
+            setError(err instanceof Error ? err.message : 'Error al cambiar el estado del usuario');
         }
     };
 
-    if (loading) {
-        return <Typography>Cargando...</Typography>;
-    }
-
     return (
-        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Typography variant="h4" component="h1" gutterBottom>
-                Gestión de Usuarios
-            </Typography>
-
-            {error && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                    {error}
-                </Alert>
-            )}
-
+        <Container>
             <Button
                 variant="contained"
                 color="primary"
                 onClick={() => handleOpenDialog()}
-                sx={{ mb: 2 }}
+                style={{ marginBottom: '1rem' }}
             >
                 Nuevo Usuario
             </Button>
+
+            {error && (
+                <Alert severity="error" style={{ marginBottom: '1rem' }}>
+                    {error}
+                </Alert>
+            )}
 
             <TableContainer component={Paper}>
                 <Table>
                     <TableHead>
                         <TableRow>
                             <TableCell>Usuario</TableCell>
+                            <TableCell>Nombre</TableCell>
+                            <TableCell>Apellidos</TableCell>
                             <TableCell>Rol</TableCell>
                             <TableCell>Acciones</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {users.map((user) => (
+                        {users.map(user => (
                             <TableRow key={user._id}>
                                 <TableCell>{user.username}</TableCell>
+                                <TableCell>{user.nombre}</TableCell>
+                                <TableCell>{user.apellidos}</TableCell>
                                 <TableCell>{user.role}</TableCell>
                                 <TableCell>
                                     <IconButton
@@ -191,10 +201,11 @@ const UsersList = () => {
                                         <EditIcon />
                                     </IconButton>
                                     <IconButton
-                                        onClick={() => handleDelete(user._id)}
-                                        color="error"
+                                        onClick={() => handleToggleActive(user._id)}
+                                        color={user.activo ? "success" : "error"}
+                                        size="small"
                                     >
-                                        <DeleteIcon />
+                                        {user.activo ? <CheckCircleIcon /> : <BlockIcon />}
                                     </IconButton>
                                 </TableCell>
                             </TableRow>
@@ -203,61 +214,71 @@ const UsersList = () => {
                 </Table>
             </TableContainer>
 
-            <Dialog open={openDialog} onClose={handleCloseDialog}>
+            <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
                 <DialogTitle>
                     {selectedUser ? 'Editar Usuario' : 'Nuevo Usuario'}
                 </DialogTitle>
-                <DialogContent>
-                    <TextField
-                        autoFocus
-                        margin="dense"
-                        label="Usuario"
-                        type="text"
-                        fullWidth
-                        value={formData.username}
-                        onChange={(e) =>
-                            setFormData({ ...formData, username: e.target.value })
-                        }
-                    />
-                    <TextField
-                        margin="dense"
-                        label="Contraseña"
-                        type="password"
-                        fullWidth
-                        value={formData.password}
-                        onChange={(e) =>
-                            setFormData({ ...formData, password: e.target.value })
-                        }
-                    />
-                    <TextField
-                        select
-                        margin="dense"
-                        label="Rol"
-                        fullWidth
-                        value={formData.role}
-                        onChange={(e) =>
-                            setFormData({
-                                ...formData,
-                                role: e.target.value as UserRole,
-                            })
-                        }
-                        SelectProps={{
-                            native: true,
-                        }}
-                    >
-                        {Object.values(UserRole).map((role) => (
-                            <option key={role} value={role}>
-                                {role}
-                            </option>
-                        ))}
-                    </TextField>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseDialog}>Cancelar</Button>
-                    <Button onClick={handleSubmit} variant="contained" color="primary">
-                        Guardar
-                    </Button>
-                </DialogActions>
+                <form onSubmit={handleSubmit}>
+                    <DialogContent>
+                        <TextField
+                            margin="dense"
+                            label="Usuario"
+                            type="text"
+                            fullWidth
+                            value={formData.username}
+                            onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                            required
+                        />
+                        <TextField
+                            margin="dense"
+                            label="Nombre"
+                            type="text"
+                            fullWidth
+                            value={formData.nombre}
+                            onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                            required
+                        />
+                        <TextField
+                            margin="dense"
+                            label="Apellidos"
+                            type="text"
+                            fullWidth
+                            value={formData.apellidos}
+                            onChange={(e) => setFormData({ ...formData, apellidos: e.target.value })}
+                        />
+                        <TextField
+                            margin="dense"
+                            label="Contraseña"
+                            type="password"
+                            fullWidth
+                            value={formData.password}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            required={!selectedUser}
+                            helperText={selectedUser ? "Dejar en blanco para mantener la contraseña actual" : ""}
+                        />
+                        <TextField
+                            select
+                            margin="dense"
+                            label="Rol"
+                            fullWidth
+                            value={formData.role}
+                            onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+                            required
+                        >
+                            {Object.values(UserRole).map((role) => (
+                                <option key={role} value={role}>
+                                    {role}
+                                </option>
+                            ))}
+                        </TextField>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleCloseDialog}>Cancelar</Button>
+                        <Button type="submit" variant="contained" color="primary">
+                            {selectedUser ? 'Actualizar' : 'Crear'}
+                        </Button>
+                    </DialogActions>
+                </form>
             </Dialog>
         </Container>
     );

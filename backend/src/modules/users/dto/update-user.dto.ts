@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsOptional, IsBoolean, MinLength } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsBoolean, MinLength, ValidateIf } from 'class-validator';
 import { UserRole } from '../types/user-roles.enum';
 
 export class UpdateUserDto {
@@ -8,12 +8,17 @@ export class UpdateUserDto {
 
     @IsString()
     @IsOptional()
-    @MinLength(6)
+    @ValidateIf((o) => o.password !== undefined)
+    @MinLength(4)
     password?: string;
 
     @IsString()
     @IsOptional()
     nombre?: string;
+
+    @IsString()
+    @IsOptional()
+    apellidos?: string;
 
     @IsEnum(UserRole)
     @IsOptional()

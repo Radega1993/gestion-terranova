@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException, Inject, forwardRef, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../../users/users.service';
+import { UserDocument } from '../../users/schemas/user.schema';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -20,11 +21,14 @@ export class AuthService {
         try {
             const user = await this.usersService.findOneByUsername(username);
             this.logger.debug('Usuario encontrado en base de datos');
-            this.logger.debug(`Datos del usuario: ${JSON.stringify(user.toObject(), null, 2)}`);
+            this.logger.debug(`Datos del usuario: ${JSON.stringify(user, null, 2)}`);
 
             if (user && await bcrypt.compare(password, user.password)) {
+                if (!user.isActive) {
+                    throw new UnauthorizedException('Usuario desactivado');
+                }
                 this.logger.debug('Contraseña válida');
-                const { password, ...result } = user.toObject();
+                const { password, ...result } = user;
                 this.logger.debug(`Resultado de validación: ${JSON.stringify(result, null, 2)}`);
                 this.logger.debug('=== FIN DE VALIDACIÓN EXITOSA ===');
                 return result;
@@ -34,9 +38,9 @@ export class AuthService {
             this.logger.debug('=== FIN DE VALIDACIÓN FALLIDA ===');
             return null;
         } catch (error) {
-            this.logger.error('Error en validateUser:', error);
+            this.logger.error(`Error al validar usuario: ${error.message}`);
             this.logger.debug('=== FIN DE VALIDACIÓN CON ERROR ===');
-            return null;
+            throw error;
         }
     }
 
@@ -47,11 +51,11 @@ export class AuthService {
 
         try {
             const payload = {
-                sub: user._id,
-                username: user.username,
-                nombre: user.nombre,
-                role: user.role,
-                isActive: user.isActive
+                sub: user._doc._id,
+                username: user._doc.username,
+                nombre: user._doc.nombre,
+                role: user._doc.role,
+                isActive: user._doc.isActive
             };
             this.logger.debug('Payload generado:', JSON.stringify(payload, null, 2));
 
@@ -63,11 +67,11 @@ export class AuthService {
             return {
                 access_token: token,
                 user: {
-                    _id: user._id,
-                    username: user.username,
-                    nombre: user.nombre,
-                    role: user.role,
-                    isActive: user.isActive
+                    _id: user._doc._id,
+                    username: user._doc.username,
+                    nombre: user._doc.nombre,
+                    role: user._doc.role,
+                    isActive: user._doc.isActive
                 }
             };
         } catch (error) {

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, UnauthorizedException, Logger, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from './schemas/user.schema';
@@ -91,5 +91,27 @@ export class UsersService {
         if (result.deletedCount === 0) {
             throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
         }
+    }
+
+    async toggleActive(id: string): Promise<User> {
+        const user = await this.userModel.findById(id).exec();
+        if (!user) {
+            throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
+        }
+
+        // No permitir desactivar el último administrador
+        if (user.role === UserRole.ADMINISTRADOR && user.isActive) {
+            const adminCount = await this.userModel.countDocuments({
+                role: UserRole.ADMINISTRADOR,
+                isActive: true
+            }).exec();
+
+            if (adminCount <= 1) {
+                throw new BadRequestException('No se puede desactivar el último administrador');
+            }
+        }
+
+        user.isActive = !user.isActive;
+        return user.save();
     }
 } 

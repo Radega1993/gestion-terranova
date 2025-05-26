@@ -15,7 +15,7 @@ export class InitService implements OnModuleInit {
                 username: 'admin',
                 password: 'admin',
                 nombre: 'Administrador',
-                apellido: 'Sistema',
+                apellidos: 'Sistema',
                 role: UserRole.ADMINISTRADOR
             });
             console.log('Usuario administrador creado');

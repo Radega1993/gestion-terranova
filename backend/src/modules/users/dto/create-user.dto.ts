@@ -8,7 +8,7 @@ export class CreateUserDto {
 
     @IsString()
     @IsNotEmpty()
-    @MinLength(6)
+    @MinLength(4)
     password: string;
 
     @IsString()
@@ -17,7 +17,7 @@ export class CreateUserDto {
 
     @IsString()
     @IsNotEmpty()
-    apellido: string;
+    apellidos: string;
 
     @IsEnum(UserRole)
     @IsNotEmpty()
