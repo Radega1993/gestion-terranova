@@ -46,15 +46,13 @@ const LoginForm = () => {
                 throw new Error('Formato de respuesta inválido');
             }
 
-            // Extraer el ID del usuario del token JWT
-            const tokenPayload = JSON.parse(atob(data.access_token.split('.')[1]));
-            const userId = tokenPayload.sub;
-
             // Guardar el token y el usuario en el store
             setAuth(data.access_token, {
-                _id: userId,
+                _id: data.user._id,
                 username: data.user.username,
-                role: data.user.role // Cambiado de data.user.rol a data.user.role
+                role: data.user.role,
+                nombre: data.user.nombre,
+                isActive: data.user.isActive
             });
 
             // Limpiar el formulario

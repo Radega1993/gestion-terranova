@@ -12,6 +12,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import { UserRole } from './types/user';
 import SociosList from './components/socios/SociosList';
 import CreateSocioForm from './components/socios/CreateSocioForm';
+import { Navbar } from './components/layout/Navbar';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -36,14 +37,7 @@ function App() {
         <CssBaseline />
         <Router>
           <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-            <AppBar position="sticky">
-              <Toolbar>
-                <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-                  Gestión Terranova
-                </Typography>
-                <LogoutButton />
-              </Toolbar>
-            </AppBar>
+            <Navbar />
             <Container sx={{ pt: 4, flexGrow: 1 }}>
               <Routes>
                 <Route path="/login" element={<LoginForm />} />
@@ -97,7 +91,7 @@ function App() {
                   }
                 />
                 <Route
-                  path="/socios/crear"
+                  path="/socios/create"
                   element={
                     <ProtectedRoute>
                       <CreateSocioForm />
