@@ -36,18 +36,6 @@ export class UsersController {
         }
     }
 
-    @Post('login')
-    async login(@Body() loginUserDto: LoginUserDto) {
-        try {
-            return await this.usersService.login(loginUserDto);
-        } catch (error) {
-            if (error instanceof UnauthorizedException) {
-                throw error;
-            }
-            throw new UnauthorizedException('Error al iniciar sesión');
-        }
-    }
-
     @Get()
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)

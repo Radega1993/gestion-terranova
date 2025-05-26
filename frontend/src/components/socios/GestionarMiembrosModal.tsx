@@ -332,7 +332,7 @@ const GestionarMiembrosModal: React.FC<GestionarMiembrosModalProps> = ({
                                     <TableCell>Foto</TableCell>
                                     <TableCell>Código</TableCell>
                                     <TableCell>Nombre Completo</TableCell>
-                                    <TableCell>Fecha de Nacimiento</TableCell>
+                                    <TableCell>Fecha de Nacimiento(MM/DD/AAAA)</TableCell>
                                     <TableCell>Teléfono</TableCell>
                                     <TableCell>Acciones</TableCell>
                                 </TableRow>

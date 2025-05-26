@@ -1,13 +1,16 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@mui/material';
+import { useAuthStore } from '../../stores/authStore';
 
 const LogoutButton: React.FC = () => {
     const navigate = useNavigate();
+    const { logout } = useAuthStore();
 
     const handleLogout = () => {
-        localStorage.removeItem('gestion-terranova');
-        navigate('/login');
+        logout();
+        localStorage.removeItem('auth-storage');
+        navigate('/login', { replace: true });
     };
 
     return (

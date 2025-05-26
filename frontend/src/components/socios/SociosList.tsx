@@ -23,6 +23,8 @@ import {
     Tooltip,
     Collapse,
     Avatar,
+    ToggleButton,
+    ToggleButtonGroup,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
@@ -39,11 +41,16 @@ import { useNavigate } from 'react-router-dom';
 import { PhotoCamera, FamilyRestroom, Block } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import GestionarMiembrosModal from './GestionarMiembrosModal';
+import { Edit as EditIconMUI, Delete as DeleteIconMUI, PhotoCamera as PhotoCameraIcon, Add as AddIconMUI, People as PeopleIcon } from '@mui/icons-material';
+import VerFamiliaModal from './VerFamiliaModal';
+import {
+    Block as BlockIcon,
+    CheckCircle as CheckCircleIcon,
+} from '@mui/icons-material';
 
-interface SocioWithId extends Omit<Socio, 'createdAt'> {
+interface SocioWithId extends Socio {
     _id: string;
-    createdAt: string;
-    isActive: boolean;
+    createdAt?: string;
 }
 
 const SociosList: React.FC = () => {
@@ -62,13 +69,15 @@ const SociosList: React.FC = () => {
         telefono: '',
         direccion: '',
         fechaAlta: new Date().toISOString().split('T')[0],
-        isActive: true as boolean,
+        active: true as boolean,
     });
     const navigate = useNavigate();
     const { token } = useAuthStore();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [openGestionarMiembros, setOpenGestionarMiembros] = useState(false);
     const [socioSeleccionado, setSocioSeleccionado] = useState<SocioWithId | null>(null);
+    const [openVerFamilia, setOpenVerFamilia] = useState(false);
+    const [openToggleDialog, setOpenToggleDialog] = useState(false);
 
     const fetchSocios = async () => {
         try {
@@ -106,7 +115,7 @@ const SociosList: React.FC = () => {
                 telefono: socio.contacto?.telefonos?.[0] || '',
                 direccion: `${socio.direccion.calle} ${socio.direccion.numero}${socio.direccion.piso ? `, ${socio.direccion.piso}` : ''}`,
                 fechaAlta: new Date().toISOString().split('T')[0],
-                isActive: socio.isActive,
+                active: socio.active,
             });
         } else {
             setSelectedSocio(null);
@@ -117,7 +126,7 @@ const SociosList: React.FC = () => {
                 telefono: '',
                 direccion: '',
                 fechaAlta: new Date().toISOString().split('T')[0],
-                isActive: true,
+                active: true,
             });
         }
         setOpenDialog(true);
@@ -133,7 +142,7 @@ const SociosList: React.FC = () => {
             telefono: '',
             direccion: '',
             fechaAlta: new Date().toISOString().split('T')[0],
-            isActive: true,
+            active: true,
         });
     };
 
@@ -288,22 +297,69 @@ const SociosList: React.FC = () => {
 
     const handleToggleActive = async (socio: SocioWithId) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/socios/${socio._id}`, {
-                method: 'PATCH',
+            const response = await fetch(`${API_BASE_URL}/socios/${socio._id}/toggle-active`, {
+                method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ isActive: !socio.isActive }),
             });
 
             if (!response.ok) {
                 throw new Error('Error al actualizar el estado del socio');
             }
 
-            fetchSocios();
+            // Actualizar el estado local inmediatamente
+            setSocios(prevSocios =>
+                prevSocios.map(s =>
+                    s._id === socio._id
+                        ? { ...s, active: !s.active }
+                        : s
+                )
+            );
+
+            // Mostrar notificación de éxito
+            Swal.fire({
+                icon: 'success',
+                title: `Socio ${!socio.active ? 'activado' : 'desactivado'} correctamente`,
+                showConfirmButton: false,
+                timer: 1500
+            });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Error al actualizar el estado del socio');
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: err instanceof Error ? err.message : 'Error al actualizar el estado del socio'
+            });
+        }
+    };
+
+    const handleOpenVerFamilia = (socio: SocioWithId) => {
+        setSelectedSocio(socio);
+        setOpenVerFamilia(true);
+    };
+
+    const handleCloseVerFamilia = () => {
+        setOpenVerFamilia(false);
+        setSelectedSocio(null);
+    };
+
+    const handleToggleClick = (socio: SocioWithId) => {
+        setSelectedSocio(socio);
+        setOpenToggleDialog(true);
+    };
+
+    const handleCloseToggleDialog = () => {
+        setOpenToggleDialog(false);
+        setSelectedSocio(null);
+    };
+
+    const handleConfirmToggle = async () => {
+        if (selectedSocio) {
+            await handleToggleActive(selectedSocio);
+            setOpenToggleDialog(false);
+            setSelectedSocio(null);
         }
     };
 
@@ -460,7 +516,7 @@ const SociosList: React.FC = () => {
                             <TableCell>Foto</TableCell>
                             <TableCell>Nombre Completo</TableCell>
                             <TableCell>Código</TableCell>
-                            <TableCell>Fecha Nacimiento</TableCell>
+                            <TableCell>Fecha Nacimiento (MM/DD/AAAA)</TableCell>
                             <TableCell>Contacto</TableCell>
                             <TableCell>Acciones</TableCell>
                         </TableRow>
@@ -474,7 +530,14 @@ const SociosList: React.FC = () => {
                             )
                             .map((socio) => (
                                 <React.Fragment key={socio._id}>
-                                    <TableRow>
+                                    <TableRow
+                                        sx={{
+                                            backgroundColor: socio.active === false ? 'rgba(0, 0, 0, 0.04)' : 'inherit',
+                                            '&:hover': {
+                                                backgroundColor: socio.active === false ? 'rgba(0, 0, 0, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+                                            },
+                                        }}
+                                    >
                                         <TableCell>
                                             <IconButton
                                                 size="small"
@@ -510,14 +573,20 @@ const SociosList: React.FC = () => {
                                                     </IconButton>
                                                 </Tooltip>
                                                 <Tooltip title="Ver Familia">
-                                                    <IconButton>
-                                                        <FamilyRestroom />
+                                                    <IconButton
+                                                        onClick={() => handleOpenVerFamilia(socio)}
+                                                        color="primary"
+                                                    >
+                                                        <PeopleIcon />
                                                     </IconButton>
                                                 </Tooltip>
                                                 {renderFotoButton(socio)}
-                                                <Tooltip title={socio.isActive ? "Desactivar" : "Activar"}>
-                                                    <IconButton onClick={() => handleToggleActive(socio)}>
-                                                        <Block color={socio.isActive ? "error" : "success"} />
+                                                <Tooltip title={socio.active ? "Desactivar socio" : "Activar socio"}>
+                                                    <IconButton
+                                                        onClick={() => handleToggleClick(socio)}
+                                                        color={socio.active ? "success" : "error"}
+                                                    >
+                                                        {socio.active ? <CheckCircleIcon /> : <BlockIcon />}
                                                     </IconButton>
                                                 </Tooltip>
                                             </Box>
@@ -535,19 +604,19 @@ const SociosList: React.FC = () => {
                                                             <TableRow>
                                                                 <TableCell>Foto</TableCell>
                                                                 <TableCell>Nombre Completo</TableCell>
-                                                                <TableCell>Fecha Nacimiento</TableCell>
+                                                                <TableCell>Fecha Nacimiento (MM/DD/AAAA)</TableCell>
                                                                 <TableCell>Código Socio</TableCell>
                                                             </TableRow>
                                                         </TableHead>
                                                         <TableBody>
-                                                            {socio.asociados?.map((asociado) => (
-                                                                <TableRow key={asociado._id}>
+                                                            {socio.asociados?.map((asociado, index) => (
+                                                                <TableRow key={`${socio._id}-asociado-${index}`}>
                                                                     <TableCell>
                                                                         {renderFotoAsociado(asociado.foto)}
                                                                     </TableCell>
                                                                     <TableCell>{asociado.nombre}</TableCell>
                                                                     <TableCell>{asociado.fechaNacimiento ? new Date(asociado.fechaNacimiento).toLocaleDateString() : 'No disponible'}</TableCell>
-                                                                    <TableCell>{asociado.socio || 'No disponible'}</TableCell>
+                                                                    <TableCell>{asociado.codigo || 'No disponible'}</TableCell>
                                                                 </TableRow>
                                                             ))}
                                                         </TableBody>
@@ -584,6 +653,38 @@ const SociosList: React.FC = () => {
                     socio={socioSeleccionado}
                 />
             )}
+
+            {selectedSocio && (
+                <VerFamiliaModal
+                    open={openVerFamilia}
+                    onClose={handleCloseVerFamilia}
+                    socio={selectedSocio}
+                />
+            )}
+
+            <Dialog
+                open={openToggleDialog}
+                onClose={handleCloseToggleDialog}
+                container={document.body}
+            >
+                <DialogTitle>
+                    {selectedSocio?.active ? "Desactivar Socio" : "Activar Socio"}
+                </DialogTitle>
+                <DialogContent>
+                    <Typography>
+                        ¿Estás seguro de que deseas {selectedSocio?.active ? "desactivar" : "activar"} al socio {selectedSocio?.nombre.nombre} {selectedSocio?.nombre.primerApellido}?
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseToggleDialog}>Cancelar</Button>
+                    <Button
+                        onClick={handleConfirmToggle}
+                        color={selectedSocio?.active ? "error" : "success"}
+                    >
+                        {selectedSocio?.active ? "Desactivar" : "Activar"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };

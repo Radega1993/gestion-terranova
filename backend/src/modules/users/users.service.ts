@@ -50,44 +50,6 @@ export class UsersService {
         return newUser.save();
     }
 
-    async login(loginUserDto: LoginUserDto) {
-        this.logger.debug(`Buscando usuario con username: ${loginUserDto.username}`);
-        const user = await this.userModel.findOne({ username: loginUserDto.username }).exec();
-
-        if (!user) {
-            throw new UnauthorizedException('Credenciales inválidas');
-        }
-
-        const isPasswordValid = await this.validatePassword(loginUserDto.password, user.password);
-        if (!isPasswordValid) {
-            throw new UnauthorizedException('Credenciales inválidas');
-        }
-
-        if (!user.isActive) {
-            throw new UnauthorizedException('User is inactive');
-        }
-
-        const payload = {
-            sub: user._id,
-            username: user.username,
-            nombre: user.nombre,
-            role: user.role,
-            isActive: user.isActive
-        };
-
-        const token = jwt.sign(payload, this.configService.get<string>('JWT_SECRET'), {
-            expiresIn: '24h'
-        });
-
-        // Actualizar lastLogin
-        await this.userModel.findByIdAndUpdate(user._id, {
-            lastLogin: new Date(),
-            updatedAt: new Date()
-        }).exec();
-
-        return { access_token: token, user };
-    }
-
     async findAll(): Promise<User[]> {
         return this.userModel.find().exec();
     }

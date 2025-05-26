@@ -5,32 +5,42 @@ import { UserRole } from '../types/user';
 interface User {
     _id: string;
     username: string;
-    role: 'ADMINISTRADOR' | 'JUNTA' | 'TRABAJADOR';
+    role: UserRole;
 }
 
 interface AuthState {
     token: string | null;
     user: User | null;
+    userRole: UserRole | null;
     setAuth: (token: string, user: User) => void;
     logout: () => void;
+    isAuthenticated: () => boolean;
 }
 
 export const useAuthStore = create<AuthState>()(
     persist(
-        (set) => ({
+        (set, get) => ({
             token: null,
             user: null,
+            userRole: null,
             setAuth: (token: string, user: User) => {
+                console.log('Setting auth with user:', user); // Debug log
                 set({
                     token,
-                    user
+                    user,
+                    userRole: user.role
                 });
             },
             logout: () => {
                 set({
                     token: null,
-                    user: null
+                    user: null,
+                    userRole: null
                 });
+            },
+            isAuthenticated: () => {
+                const state = get();
+                return !!state.token && !!state.user;
             }
         }),
         {

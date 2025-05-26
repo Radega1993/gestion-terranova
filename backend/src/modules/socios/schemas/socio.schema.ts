@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Asociado } from './asociado.schema';
 
 @Schema({ _id: false })
 class Nombre {
@@ -61,27 +62,12 @@ class Contacto {
     emails: string[];
 }
 
-@Schema({ _id: false })
-export class Asociado {
-    @Prop()
-    _id: MongooseSchema.Types.ObjectId;
-
-    @Prop({ required: true })
-    nombre: string;
-
-    @Prop()
-    fechaNacimiento: Date;
-
-    @Prop()
-    foto: string;
-}
-
 @Schema({ timestamps: true })
 export class Socio extends Document {
     @Prop({ required: true, default: false })
     rgpd: boolean;
 
-    @Prop()
+    @Prop({ required: true, unique: true })
     socio: string;
 
     @Prop({ required: true, default: 1 })
@@ -120,9 +106,6 @@ export class Socio extends Document {
     @Prop({ type: [Asociado], default: [] })
     asociados: Asociado[];
 
-    @Prop({ type: [Asociado], default: [] })
-    especiales: Asociado[];
-
     @Prop()
     notas: string;
 
@@ -130,13 +113,10 @@ export class Socio extends Document {
     fotografia: string;
 
     @Prop({ default: true })
-    isActive: boolean;
+    active: boolean;
 
     @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Socio' })
     socioPrincipal: Socio;
-
-    @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Socio' }] })
-    miembrosFamilia: Socio[];
 
     @Prop()
     foto: string;

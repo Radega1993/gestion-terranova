@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
     Container,
@@ -15,19 +15,11 @@ import { API_BASE_URL } from '../../config';
 const LoginForm = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { setAuth, token } = useAuthStore();
+    const { setAuth } = useAuthStore();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
-
-    // Redirigir al dashboard si ya está autenticado
-    useEffect(() => {
-        if (token) {
-            const from = (location.state as any)?.from?.pathname || '/dashboard';
-            navigate(from, { replace: true });
-        }
-    }, [token, navigate, location]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -35,7 +27,7 @@ const LoginForm = () => {
         setLoading(true);
 
         try {
-            const response = await fetch(`${API_BASE_URL}/users/login`, {
+            const response = await fetch(`${API_BASE_URL}/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -44,7 +36,6 @@ const LoginForm = () => {
             });
 
             const data = await response.json();
-            console.log('Respuesta del login:', data);
 
             if (!response.ok) {
                 throw new Error(data.message || 'Error al iniciar sesión');
@@ -63,10 +54,16 @@ const LoginForm = () => {
             setAuth(data.access_token, {
                 _id: userId,
                 username: data.user.username,
-                role: data.user.rol
+                role: data.user.role // Cambiado de data.user.rol a data.user.role
             });
 
-            // La redirección se manejará en el useEffect cuando el token cambie
+            // Limpiar el formulario
+            setUsername('');
+            setPassword('');
+
+            // Redirigir al dashboard o a la página anterior
+            const from = (location.state as any)?.from?.pathname || '/dashboard';
+            navigate(from, { replace: true });
         } catch (err) {
             console.error('Error en login:', err);
             setError(err instanceof Error ? err.message : 'Error al iniciar sesión');

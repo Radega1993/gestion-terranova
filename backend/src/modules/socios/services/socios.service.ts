@@ -87,7 +87,7 @@ export class SociosService {
             // Manejar campos simples
             const simpleFields = [
                 'socio', 'casa', 'totalSocios', 'numPersonas', 'adheridos', 'menor3Años',
-                'cuota', 'dni', 'notas', 'isActive', 'foto', 'fechaBaja',
+                'cuota', 'dni', 'notas', 'active', 'foto', 'fechaBaja',
                 'motivoBaja', 'observaciones', 'rgpd', 'fechaNacimiento'
             ];
 
@@ -183,7 +183,7 @@ export class SociosService {
         if (!socio) {
             throw new NotFoundException(`Socio con ID ${id} no encontrado`);
         }
-        socio.activo = !socio.activo;
+        socio.active = !socio.active;
         return socio.save();
     }
 

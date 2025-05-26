@@ -600,7 +600,7 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                                 <TextField
                                     required
                                     fullWidth
-                                    label="Fecha de Nacimiento"
+                                    label="Fecha de Nacimiento(MM/DD/AAAA)"
                                     name="fechaNacimiento"
                                     type="date"
                                     value={formData.fechaNacimiento || ''}

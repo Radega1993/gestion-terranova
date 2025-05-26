@@ -1,6 +1,6 @@
 import { IsString, IsNumber, IsBoolean, IsArray, ValidateNested, IsOptional, IsDate } from 'class-validator';
 import { Type } from 'class-transformer';
-import { Asociado } from '../schemas/socio.schema';
+import { Asociado } from '../schemas/asociado.schema';
 
 export class NombreDto {
     @IsString()

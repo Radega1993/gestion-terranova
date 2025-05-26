@@ -197,7 +197,7 @@ const MiembroForm: React.FC<MiembroFormProps> = ({
                         <Grid item xs={12} sm={6}>
                             <TextField
                                 fullWidth
-                                label="Fecha de Nacimiento"
+                                label="Fecha de Nacimiento(MM/DD/AAAA)"
                                 name="fechaNacimiento"
                                 type="date"
                                 value={formData.fechaNacimiento}

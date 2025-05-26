@@ -3,6 +3,7 @@ export interface Nombre {
     nombre: string;
     primerApellido: string;
     segundoApellido?: string;
+    apellidos?: string;
 }
 
 export interface Direccion {
@@ -23,16 +24,17 @@ export interface Banco {
 }
 
 export interface Contacto {
-    telefonos: string[];
-    emails: string[];
+    telefonos?: string[];
+    email?: string;
 }
 
 export interface Asociado {
-    _id: string;
+    _id?: string;
+    codigo: string;
     nombre: string;
-    fechaNacimiento?: string;
+    fechaNacimiento: Date;
+    telefono?: string;
     foto?: string;
-    fotografia?: string;
     parentesco: string;
     socio?: string;
 }
@@ -40,31 +42,46 @@ export interface Asociado {
 // Interfaz principal para el Socio
 export interface Socio {
     _id?: string;
-    socio: string; // Identificador único AET000
-    nombre: Nombre;
-    direccion: Direccion;
-    banco?: Banco;
-    contacto: Contacto;
-    casa: number;
-    totalSocios: number;
-    numPersonas: number;
-    adheridos: number;
-    menor3Años: number;
-    cuota: number;
-    rgpd: boolean;
-    dni?: string;
-    notas?: string;
-    fotografia?: string;
+    nombre: {
+        nombre: string;
+        primerApellido: string;
+        segundoApellido?: string;
+    };
+    socio: string;
+    fechaNacimiento: Date;
+    direccion: {
+        calle: string;
+        numero: string;
+        piso?: string;
+        poblacion: string;
+        cp: string;
+        provincia: string;
+    };
+    contacto?: {
+        telefonos: string[];
+        email: string[];
+    };
+    banco?: {
+        iban: string;
+        entidad: string;
+        oficina: string;
+        dc: string;
+        cuenta: string;
+    };
     foto?: string;
-    asociados: Asociado[];
-    isActive?: boolean;
+    active: boolean;
     createdAt?: Date;
     updatedAt?: Date;
-    fechaBaja?: Date;
-    motivoBaja?: string;
-    observaciones?: string;
-    fechaNacimiento: string;
+    asociados?: Asociado[];
+}
+
+export interface SocioWithId extends Omit<Socio, 'createdAt'> {
+    _id: string;
+    createdAt: string;
+    active: boolean;
 }
 
 // Interfaz para crear un socio (algunos campos son opcionales)
-export interface CreateSocioInput extends Omit<Socio, '_id' | 'createdAt' | 'updatedAt'> { } 
+export interface CreateSocioInput extends Omit<Socio, '_id' | 'createdAt' | 'updatedAt'> {
+    active: boolean;
+} 

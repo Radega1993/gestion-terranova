@@ -221,7 +221,7 @@ const AsociadosForm: React.FC = () => {
                                         />
                                         <TextField
                                             fullWidth
-                                            label="Fecha de nacimiento"
+                                            label="Fecha de nacimiento(MM/DD/AAAA)"
                                             type="date"
                                             value={asociado.fechaNacimiento || ''}
                                             onChange={(e) => handleAsociadoChange(index, 'fechaNacimiento', e.target.value)}
