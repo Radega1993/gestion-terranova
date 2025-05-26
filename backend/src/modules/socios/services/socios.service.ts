@@ -342,4 +342,8 @@ export class SociosService {
             throw error;
         }
     }
+
+    async findBySocioCode(socio: string): Promise<Socio | null> {
+        return this.socioModel.findOne({ socio }).exec();
+    }
 } 

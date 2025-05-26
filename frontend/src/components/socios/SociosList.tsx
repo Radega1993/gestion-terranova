@@ -38,7 +38,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { API_BASE_URL } from '../../config';
 import { Socio } from '../../types/socio';
 import { useNavigate } from 'react-router-dom';
-import { PhotoCamera, FamilyRestroom, Block } from '@mui/icons-material';
+import { PhotoCamera, FamilyRestroom, Block, FileUpload, FileDownload } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import GestionarMiembrosModal from './GestionarMiembrosModal';
 import { Edit as EditIconMUI, Delete as DeleteIconMUI, PhotoCamera as PhotoCameraIcon, Add as AddIconMUI, People as PeopleIcon } from '@mui/icons-material';
@@ -72,7 +72,7 @@ const SociosList: React.FC = () => {
         active: true as boolean,
     });
     const navigate = useNavigate();
-    const { token } = useAuthStore();
+    const { token, user } = useAuthStore();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [openGestionarMiembros, setOpenGestionarMiembros] = useState(false);
     const [socioSeleccionado, setSocioSeleccionado] = useState<SocioWithId | null>(null);
@@ -363,6 +363,87 @@ const SociosList: React.FC = () => {
         }
     };
 
+    const handleExportSocios = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/socios/export`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al exportar socios');
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'socios.xlsx';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error al exportar socios');
+        }
+    };
+
+    const handleImportSocios = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/socios/import`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al importar socios');
+            }
+
+            const result = await response.json();
+
+            if (result.errors.length > 0) {
+                Swal.fire({
+                    title: 'Importación con errores',
+                    html: `
+                        <p>Se importaron ${result.success.length} socios correctamente.</p>
+                        <p>Errores encontrados:</p>
+                        <ul>
+                            ${result.errors.map((error: any) =>
+                        `<li>Socio ${error.socio}: ${error.error}</li>`
+                    ).join('')}
+                        </ul>
+                    `,
+                    icon: 'warning'
+                });
+            } else {
+                Swal.fire({
+                    title: 'Importación exitosa',
+                    text: `Se importaron ${result.success.length} socios correctamente.`,
+                    icon: 'success'
+                });
+            }
+
+            fetchSocios();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error al importar socios');
+        }
+
+        // Reset file input
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
     const renderFotoButton = (socio: SocioWithId) => {
         const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
             const file = event.target.files?.[0];
@@ -482,154 +563,188 @@ const SociosList: React.FC = () => {
     }
 
     return (
-        <Box sx={{ width: '100%' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                <TextField
-                    label="Buscar socio"
-                    variant="outlined"
-                    size="small"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    InputProps={{
-                        startAdornment: (
-                            <InputAdornment position="start">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                    }}
-                />
-                <Button
-                    variant="contained"
-                    color="primary"
-                    startIcon={<AddIcon />}
-                    onClick={handleCreateSocio}
-                >
-                    Nuevo Socio
-                </Button>
+        <Box sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+                <Typography variant="h4" component="h1" gutterBottom>
+                    Socios
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                    {(user?.role === 'ADMINISTRADOR' || user?.role === 'JUNTA') && (
+                        <>
+                            <input
+                                type="file"
+                                accept=".xlsx"
+                                style={{ display: 'none' }}
+                                ref={fileInputRef}
+                                onChange={handleImportSocios}
+                            />
+                            <Button
+                                variant="contained"
+                                startIcon={<FileUpload />}
+                                onClick={() => fileInputRef.current?.click()}
+                            >
+                                Importar
+                            </Button>
+                            <Button
+                                variant="contained"
+                                startIcon={<FileDownload />}
+                                onClick={handleExportSocios}
+                            >
+                                Exportar
+                            </Button>
+                        </>
+                    )}
+                    <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        onClick={() => navigate('/socios/create')}
+                    >
+                        Nuevo Socio
+                    </Button>
+                </Box>
             </Box>
 
-            <TableContainer component={Paper}>
-                <Table>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell />
-                            <TableCell>Foto</TableCell>
-                            <TableCell>Nombre Completo</TableCell>
-                            <TableCell>Código</TableCell>
-                            <TableCell>Fecha Nacimiento (MM/DD/AAAA)</TableCell>
-                            <TableCell>Contacto</TableCell>
-                            <TableCell>Acciones</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {socios
-                            .filter(socio =>
-                                socio.nombre.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                socio.nombre.primerApellido.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                socio.socio.toLowerCase().includes(searchTerm.toLowerCase())
-                            )
-                            .map((socio) => (
-                                <React.Fragment key={socio._id}>
-                                    <TableRow
-                                        sx={{
-                                            backgroundColor: socio.active === false ? 'rgba(0, 0, 0, 0.04)' : 'inherit',
-                                            '&:hover': {
-                                                backgroundColor: socio.active === false ? 'rgba(0, 0, 0, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-                                            },
-                                        }}
-                                    >
-                                        <TableCell>
-                                            <IconButton
-                                                size="small"
-                                                onClick={() => toggleRowExpand(socio._id)}
-                                            >
-                                                {expandedRows[socio._id] ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
-                                            </IconButton>
-                                        </TableCell>
-                                        <TableCell>
-                                            {renderFoto(socio.foto)}
-                                        </TableCell>
-                                        <TableCell>
-                                            {`${socio.nombre.nombre} ${socio.nombre.primerApellido} ${socio.nombre.segundoApellido || ''}`}
-                                        </TableCell>
-                                        <TableCell>{socio.socio}</TableCell>
-                                        <TableCell>{new Date(socio.fechaNacimiento).toLocaleDateString()}</TableCell>
-                                        <TableCell>
-                                            <Box>
-                                                <Typography variant="body2">{socio.contacto?.telefonos?.[0] || 'No disponible'}</Typography>
-                                                <Typography variant="body2">{socio.contacto?.emails?.[0] || 'No disponible'}</Typography>
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Box sx={{ display: 'flex', gap: 1 }}>
-                                                <Tooltip title="Editar">
-                                                    <IconButton onClick={() => handleEditSocio(socio)}>
-                                                        <EditIcon />
-                                                    </IconButton>
-                                                </Tooltip>
-                                                <Tooltip title="Gestionar Miembros">
-                                                    <IconButton onClick={() => handleManageAsociados(socio)}>
-                                                        <GroupIcon />
-                                                    </IconButton>
-                                                </Tooltip>
-                                                <Tooltip title="Ver Familia">
-                                                    <IconButton
-                                                        onClick={() => handleOpenVerFamilia(socio)}
-                                                        color="primary"
-                                                    >
-                                                        <PeopleIcon />
-                                                    </IconButton>
-                                                </Tooltip>
-                                                {renderFotoButton(socio)}
-                                                <Tooltip title={socio.active ? "Desactivar socio" : "Activar socio"}>
-                                                    <IconButton
-                                                        onClick={() => handleToggleClick(socio)}
-                                                        color={socio.active ? "success" : "error"}
-                                                    >
-                                                        {socio.active ? <CheckCircleIcon /> : <BlockIcon />}
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </Box>
-                                        </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={7}>
-                                            <Collapse in={expandedRows[socio._id]} timeout="auto" unmountOnExit>
-                                                <Box sx={{ margin: 1 }}>
-                                                    <Typography variant="h6" gutterBottom component="div">
-                                                        Miembros Asociados
-                                                    </Typography>
-                                                    <Table size="small">
-                                                        <TableHead>
-                                                            <TableRow>
-                                                                <TableCell>Foto</TableCell>
-                                                                <TableCell>Nombre Completo</TableCell>
-                                                                <TableCell>Fecha Nacimiento (MM/DD/AAAA)</TableCell>
-                                                                <TableCell>Código Socio</TableCell>
-                                                            </TableRow>
-                                                        </TableHead>
-                                                        <TableBody>
-                                                            {socio.asociados?.map((asociado, index) => (
-                                                                <TableRow key={`${socio._id}-asociado-${index}`}>
-                                                                    <TableCell>
-                                                                        {renderFotoAsociado(asociado.foto)}
-                                                                    </TableCell>
-                                                                    <TableCell>{asociado.nombre}</TableCell>
-                                                                    <TableCell>{asociado.fechaNacimiento ? new Date(asociado.fechaNacimiento).toLocaleDateString() : 'No disponible'}</TableCell>
-                                                                    <TableCell>{asociado.codigo || 'No disponible'}</TableCell>
-                                                                </TableRow>
-                                                            ))}
-                                                        </TableBody>
-                                                    </Table>
+            <Box sx={{ width: '100%' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                    <TextField
+                        label="Buscar socio"
+                        variant="outlined"
+                        size="small"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                    />
+                </Box>
+
+                <TableContainer component={Paper}>
+                    <Table>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell />
+                                <TableCell>Foto</TableCell>
+                                <TableCell>Nombre Completo</TableCell>
+                                <TableCell>Código</TableCell>
+                                <TableCell>Fecha Nacimiento (MM/DD/AAAA)</TableCell>
+                                <TableCell>Contacto</TableCell>
+                                <TableCell>Acciones</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {socios
+                                .filter(socio =>
+                                    socio.nombre.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    socio.nombre.primerApellido.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    socio.socio.toLowerCase().includes(searchTerm.toLowerCase())
+                                )
+                                .map((socio) => (
+                                    <React.Fragment key={socio._id}>
+                                        <TableRow
+                                            sx={{
+                                                backgroundColor: socio.active === false ? 'rgba(0, 0, 0, 0.04)' : 'inherit',
+                                                '&:hover': {
+                                                    backgroundColor: socio.active === false ? 'rgba(0, 0, 0, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+                                                },
+                                            }}
+                                        >
+                                            <TableCell>
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => toggleRowExpand(socio._id)}
+                                                >
+                                                    {expandedRows[socio._id] ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                                                </IconButton>
+                                            </TableCell>
+                                            <TableCell>
+                                                {renderFoto(socio.foto)}
+                                            </TableCell>
+                                            <TableCell>
+                                                {`${socio.nombre.nombre} ${socio.nombre.primerApellido} ${socio.nombre.segundoApellido || ''}`}
+                                            </TableCell>
+                                            <TableCell>{socio.socio}</TableCell>
+                                            <TableCell>{new Date(socio.fechaNacimiento).toLocaleDateString()}</TableCell>
+                                            <TableCell>
+                                                <Box>
+                                                    <Typography variant="body2">{socio.contacto?.telefonos?.[0] || 'No disponible'}</Typography>
+                                                    <Typography variant="body2">{socio.contacto?.emails?.[0] || 'No disponible'}</Typography>
                                                 </Box>
-                                            </Collapse>
-                                        </TableCell>
-                                    </TableRow>
-                                </React.Fragment>
-                            ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Box sx={{ display: 'flex', gap: 1 }}>
+                                                    <Tooltip title="Editar">
+                                                        <IconButton onClick={() => handleEditSocio(socio)}>
+                                                            <EditIcon />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                    <Tooltip title="Gestionar Miembros">
+                                                        <IconButton onClick={() => handleManageAsociados(socio)}>
+                                                            <GroupIcon />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                    <Tooltip title="Ver Familia">
+                                                        <IconButton
+                                                            onClick={() => handleOpenVerFamilia(socio)}
+                                                            color="primary"
+                                                        >
+                                                            <PeopleIcon />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                    {renderFotoButton(socio)}
+                                                    <Tooltip title={socio.active ? "Desactivar socio" : "Activar socio"}>
+                                                        <IconButton
+                                                            onClick={() => handleToggleClick(socio)}
+                                                            color={socio.active ? "success" : "error"}
+                                                        >
+                                                            {socio.active ? <CheckCircleIcon /> : <BlockIcon />}
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                </Box>
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={7}>
+                                                <Collapse in={expandedRows[socio._id]} timeout="auto" unmountOnExit>
+                                                    <Box sx={{ margin: 1 }}>
+                                                        <Typography variant="h6" gutterBottom component="div">
+                                                            Miembros Asociados
+                                                        </Typography>
+                                                        <Table size="small">
+                                                            <TableHead>
+                                                                <TableRow>
+                                                                    <TableCell>Foto</TableCell>
+                                                                    <TableCell>Nombre Completo</TableCell>
+                                                                    <TableCell>Fecha Nacimiento (MM/DD/AAAA)</TableCell>
+                                                                    <TableCell>Código Socio</TableCell>
+                                                                </TableRow>
+                                                            </TableHead>
+                                                            <TableBody>
+                                                                {socio.asociados?.map((asociado, index) => (
+                                                                    <TableRow key={`${socio._id}-asociado-${index}`}>
+                                                                        <TableCell>
+                                                                            {renderFotoAsociado(asociado.foto)}
+                                                                        </TableCell>
+                                                                        <TableCell>{asociado.nombre}</TableCell>
+                                                                        <TableCell>{asociado.fechaNacimiento ? new Date(asociado.fechaNacimiento).toLocaleDateString() : 'No disponible'}</TableCell>
+                                                                        <TableCell>{asociado.codigo || 'No disponible'}</TableCell>
+                                                                    </TableRow>
+                                                                ))}
+                                                            </TableBody>
+                                                        </Table>
+                                                    </Box>
+                                                </Collapse>
+                                            </TableCell>
+                                        </TableRow>
+                                    </React.Fragment>
+                                ))}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </Box>
 
             <Dialog open={openDeleteDialog} onClose={handleCancelDelete}>
                 <DialogTitle>Confirmar eliminación</DialogTitle>
