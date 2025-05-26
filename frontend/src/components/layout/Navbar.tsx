@@ -107,7 +107,7 @@ export const Navbar: React.FC = () => {
                     <MenuItem onClick={() => { navigate('/'); handleMobileMenuClose(); }}>
                         <DashboardIcon sx={{ mr: 1 }} /> Dashboard
                     </MenuItem>
-                    <MenuItem onClick={() => { navigate('/stock'); handleMobileMenuClose(); }}>
+                    <MenuItem onClick={() => { navigate('/inventory'); handleMobileMenuClose(); }}>
                         <InventoryIcon sx={{ mr: 1 }} /> Inventario
                     </MenuItem>
                     <MenuItem onClick={() => { navigate('/socios'); handleMobileMenuClose(); }}>
@@ -139,7 +139,7 @@ export const Navbar: React.FC = () => {
                     <MenuItem onClick={() => { navigate('/'); handleMobileMenuClose(); }}>
                         <DashboardIcon sx={{ mr: 1 }} /> Dashboard
                     </MenuItem>
-                    <MenuItem onClick={() => { navigate('/stock'); handleMobileMenuClose(); }}>
+                    <MenuItem onClick={() => { navigate('/inventory'); handleMobileMenuClose(); }}>
                         <InventoryIcon sx={{ mr: 1 }} /> Inventario
                     </MenuItem>
                     <MenuItem onClick={() => { navigate('/reservas'); handleMobileMenuClose(); }}>
@@ -180,7 +180,7 @@ export const Navbar: React.FC = () => {
                             {renderNavButton('/', 'Inicio', <HomeIcon />)}
                             {user.role === 'ADMINISTRADOR' && (
                                 <>
-                                    {renderNavButton('/stock', 'Inventario', <InventoryIcon />)}
+                                    {renderNavButton('/inventory', 'Inventario', <InventoryIcon />)}
                                     {renderNavButton('/socios', 'Socios', <PeopleIcon />)}
                                     {renderNavButton('/users', 'Usuarios', <PersonIcon />)}
                                     {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
@@ -194,7 +194,7 @@ export const Navbar: React.FC = () => {
                             )}
                             {user.role === 'TRABAJADOR' && (
                                 <>
-                                    {renderNavButton('/stock', 'Inventario', <InventoryIcon />)}
+                                    {renderNavButton('/inventory', 'Inventario', <InventoryIcon />)}
                                     {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
                                 </>
                             )}

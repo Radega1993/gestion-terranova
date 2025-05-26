@@ -42,7 +42,6 @@ import {
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import axiosInstance from '../../config/axios';
 import { Product, ProductType, CreateProductDto, UpdateProductDto } from '../../types/product';
 import { UserRole } from '../../types/user';
 import { API_BASE_URL } from '../../config';
@@ -56,6 +55,7 @@ interface FormData {
     unidad_medida: string;
     stock_actual: number;
     precio_compra_unitario: number;
+    activo: boolean;
 }
 
 interface ImportResponse {
@@ -71,7 +71,8 @@ export const InventoryView: React.FC = () => {
         tipo: ProductType.BEBIDA,
         unidad_medida: '',
         stock_actual: 0,
-        precio_compra_unitario: 0
+        precio_compra_unitario: 0,
+        activo: true
     });
     const [fileUpload, setFileUpload] = useState<File | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -161,13 +162,15 @@ export const InventoryView: React.FC = () => {
     const fetchProducts = async () => {
         try {
             setLoading(true);
-            let url = '/inventory';
+            let url = `${API_BASE_URL}/inventory`;
 
             if (searchQuery) {
-                url = `/inventory/search?query=${encodeURIComponent(searchQuery)}&field=${searchField}`;
+                url = `${API_BASE_URL}/inventory/search?query=${encodeURIComponent(searchQuery)}&field=${searchField}`;
             }
 
-            const response = await axiosInstance.get(url);
+            const response = await axios.get(url, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
             setProducts(response.data);
         } catch (error) {
             console.error('Error:', error);
@@ -180,7 +183,9 @@ export const InventoryView: React.FC = () => {
         // Cargar tipos de productos al montar el componente
         const fetchProductTypes = async () => {
             try {
-                const response = await axiosInstance.get('/inventory/types');
+                const response = await axios.get(`${API_BASE_URL}/inventory/types`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
                 setProductTypes(response.data);
             } catch (error) {
                 console.error('Error fetching product types:', error);
@@ -188,11 +193,11 @@ export const InventoryView: React.FC = () => {
         };
 
         fetchProductTypes();
-    }, []);
+    }, [token]);
 
     useEffect(() => {
         fetchProducts();
-    }, [token]); // Añadido token como dependencia
+    }, [token]);
 
     // Añadir el debounce para la búsqueda
     useEffect(() => {
@@ -201,7 +206,7 @@ export const InventoryView: React.FC = () => {
         }, 300);
 
         return () => clearTimeout(timeoutId);
-    }, [searchQuery, searchField, token]); // Añadido token como dependencia
+    }, [searchQuery, searchField, token]);
 
     const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         setSearchQuery(event.target.value);
@@ -224,7 +229,8 @@ export const InventoryView: React.FC = () => {
                 tipo: product.tipo,
                 unidad_medida: product.unidad_medida,
                 stock_actual: product.stock_actual,
-                precio_compra_unitario: product.precio_compra_unitario
+                precio_compra_unitario: product.precio_compra_unitario,
+                activo: product.activo
             });
         } else {
             setSelectedProduct(null);
@@ -233,7 +239,8 @@ export const InventoryView: React.FC = () => {
                 tipo: ProductType.BEBIDA,
                 unidad_medida: '',
                 stock_actual: 0,
-                precio_compra_unitario: 0
+                precio_compra_unitario: 0,
+                activo: true
             });
         }
         setOpenDialog(true);
@@ -247,7 +254,8 @@ export const InventoryView: React.FC = () => {
             tipo: ProductType.BEBIDA,
             unidad_medida: '',
             stock_actual: 0,
-            precio_compra_unitario: 0
+            precio_compra_unitario: 0,
+            activo: true
         });
     };
 
@@ -265,8 +273,9 @@ export const InventoryView: React.FC = () => {
 
     const handleExport = async () => {
         try {
-            const response = await axiosInstance.get('/inventory/export', {
-                responseType: 'blob'
+            const response = await axios.get(`${API_BASE_URL}/inventory/export`, {
+                responseType: 'blob',
+                headers: { Authorization: `Bearer ${token}` }
             });
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');

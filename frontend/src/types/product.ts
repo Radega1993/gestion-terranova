@@ -23,6 +23,7 @@ export interface CreateProductDto {
     unidad_medida: string;
     stock_actual: number;
     precio_compra_unitario: number;
+    activo: boolean;
 }
 
 export interface UpdateProductDto {

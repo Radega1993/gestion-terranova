@@ -332,4 +332,8 @@ export class InventoryService {
             throw new BadRequestException(`Error searching products: ${error.message}`);
         }
     }
+
+    async findByName(nombre: string): Promise<ProductDocument | null> {
+        return this.productModel.findOne({ nombre }).exec();
+    }
 } 

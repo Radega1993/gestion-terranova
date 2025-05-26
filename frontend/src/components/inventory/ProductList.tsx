@@ -28,9 +28,12 @@ import { Edit as EditIcon, Delete as DeleteIcon, Add as AddIcon } from '@mui/ico
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { Product, ProductType, CreateProductDto, UpdateProductDto } from '../../types/product';
+import { API_BASE_URL } from '../../config';
+import { useAuthStore } from '../../stores/authStore';
 
 const ProductList: React.FC = () => {
     const queryClient = useQueryClient();
+    const { token } = useAuthStore();
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -43,14 +46,11 @@ const ProductList: React.FC = () => {
         activo: true,
     });
 
-    // Obtener token del localStorage
-    const token = localStorage.getItem('token');
-
     // Consulta para obtener productos
     const { data: products, isLoading } = useQuery<Product[]>({
         queryKey: ['products'],
         queryFn: async () => {
-            const response = await axios.get('http://localhost:3000/inventory', {
+            const response = await axios.get(`${API_BASE_URL}/inventory`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             return response.data;
@@ -60,7 +60,7 @@ const ProductList: React.FC = () => {
     // Mutación para crear producto
     const createMutation = useMutation({
         mutationFn: async (newProduct: CreateProductDto) => {
-            const response = await axios.post('http://localhost:3000/inventory', newProduct, {
+            const response = await axios.post(`${API_BASE_URL}/inventory`, newProduct, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             return response.data;
@@ -75,7 +75,7 @@ const ProductList: React.FC = () => {
     // Mutación para actualizar producto
     const updateMutation = useMutation({
         mutationFn: async ({ id, data }: { id: string; data: UpdateProductDto }) => {
-            const response = await axios.put(`http://localhost:3000/inventory/${id}`, data, {
+            const response = await axios.put(`${API_BASE_URL}/inventory/${id}`, data, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             return response.data;
@@ -90,7 +90,7 @@ const ProductList: React.FC = () => {
     // Mutación para eliminar producto
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
-            const response = await axios.delete(`http://localhost:3000/inventory/${id}`, {
+            const response = await axios.delete(`${API_BASE_URL}/inventory/${id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             return response.data;
@@ -104,7 +104,7 @@ const ProductList: React.FC = () => {
     const toggleStatusMutation = useMutation({
         mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
             const response = await axios.patch(
-                `http://localhost:3000/inventory/${id}/status`,
+                `${API_BASE_URL}/inventory/${id}/status`,
                 { activo: isActive },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -172,7 +172,7 @@ const ProductList: React.FC = () => {
         formData.append('file', file);
 
         try {
-            await axios.post('http://localhost:3000/inventory/import', formData, {
+            await axios.post(`${API_BASE_URL}/inventory/import`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                     Authorization: `Bearer ${token}`
@@ -187,7 +187,7 @@ const ProductList: React.FC = () => {
 
     const handleExportExcel = async () => {
         try {
-            const response = await axios.get('http://localhost:3000/inventory/export', {
+            const response = await axios.get(`${API_BASE_URL}/inventory/export`, {
                 responseType: 'blob',
                 headers: { Authorization: `Bearer ${token}` }
             });

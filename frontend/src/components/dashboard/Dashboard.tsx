@@ -13,7 +13,12 @@ const Dashboard: React.FC = () => {
         { title: 'Reservas', path: '/reservas', description: 'Gestión de reservas' },
         { title: 'Ventas', path: '/ventas', description: 'Gestión de ventas' },
         { title: 'Socios', path: '/socios', description: 'Gestión de socios' },
-        { title: 'Stock', path: '/stock', description: 'Gestión de stock' },
+        {
+            title: 'Inventario',
+            path: '/inventory',
+            description: 'Gestión de inventario',
+            roles: [UserRole.ADMINISTRADOR, UserRole.TRABAJADOR]
+        },
         {
             title: 'Usuarios',
             path: '/users',

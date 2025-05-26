@@ -28,6 +28,7 @@ import { ImportResults } from '../types/import-results.interface';
 import { ProductDocument } from '../schemas/product.schema';
 import { extname } from 'path';
 import { memoryStorage } from 'multer';
+import * as ExcelJS from 'exceljs';
 
 @Controller('inventory')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -169,5 +170,117 @@ export class InventoryController {
     async toggleActive(@Param('id') id: string) {
         this.logger.debug(`Toggling active status for product with ID: ${id}`);
         return this.inventoryService.toggleActive(id);
+    }
+
+    @Get('export')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR)
+    async exportProducts() {
+        const products = await this.inventoryService.findAll();
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Productos');
+
+        // Configurar columnas
+        worksheet.columns = [
+            { header: 'Nombre', key: 'nombre', width: 30 },
+            { header: 'Tipo', key: 'tipo', width: 20 },
+            { header: 'Unidad de Medida', key: 'unidad_medida', width: 15 },
+            { header: 'Stock Actual', key: 'stock_actual', width: 15 },
+            { header: 'Precio Compra Unitario', key: 'precio_compra_unitario', width: 20 },
+            { header: 'Activo', key: 'activo', width: 10 }
+        ];
+
+        // Estilo para el encabezado
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Añadir datos
+        products.forEach(product => {
+            worksheet.addRow({
+                nombre: product.nombre,
+                tipo: product.tipo,
+                unidad_medida: product.unidad_medida,
+                stock_actual: product.stock_actual,
+                precio_compra_unitario: product.precio_compra_unitario,
+                activo: product.activo ? 'Sí' : 'No'
+            });
+        });
+
+        // Generar buffer
+        const buffer = await workbook.xlsx.writeBuffer();
+
+        return {
+            buffer,
+            filename: 'inventario.xlsx'
+        };
+    }
+
+    @Post('import')
+    @Roles(UserRole.ADMINISTRADOR)
+    @UseInterceptors(FileInterceptor('file'))
+    async importProducts(@UploadedFile() file: Express.Multer.File) {
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(file.buffer);
+        const worksheet = workbook.getWorksheet(1);
+
+        const results = {
+            success: [],
+            errors: []
+        };
+
+        // Procesar productos
+        for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
+            const row = worksheet.getRow(rowNumber);
+
+            // Verificar si la fila tiene datos
+            if (!row.getCell(1).value) continue;
+
+            const productData = {
+                nombre: row.getCell(1).value?.toString() || '',
+                tipo: row.getCell(2).value?.toString() || '',
+                unidad_medida: row.getCell(3).value?.toString() || '',
+                stock_actual: Number(row.getCell(4).value) || 0,
+                precio_compra_unitario: Number(row.getCell(5).value) || 0,
+                activo: row.getCell(6).value?.toString()?.toLowerCase() === 'sí'
+            };
+
+            try {
+                // Validar datos requeridos
+                if (!productData.nombre) {
+                    throw new Error('El nombre es obligatorio');
+                }
+
+                if (!productData.tipo) {
+                    throw new Error('El tipo es obligatorio');
+                }
+
+                if (!productData.unidad_medida) {
+                    throw new Error('La unidad de medida es obligatoria');
+                }
+
+                // Buscar si existe un producto con el mismo nombre
+                const existingProduct = await this.inventoryService.findByName(productData.nombre);
+                if (existingProduct) {
+                    // Actualizar producto existente
+                    await this.inventoryService.update(existingProduct._id.toString(), productData);
+                    results.success.push(productData.nombre);
+                } else {
+                    // Crear nuevo producto
+                    await this.inventoryService.create(productData);
+                    results.success.push(productData.nombre);
+                }
+            } catch (error) {
+                results.errors.push({
+                    producto: productData.nombre || `Fila ${rowNumber}`,
+                    error: error.message
+                });
+            }
+        }
+
+        return {
+            message: `Importación ${results.success.length > 0 ? 'parcialmente ' : ''}exitosa`,
+            success: results.success,
+            errors: results.errors
+        };
     }
 } 

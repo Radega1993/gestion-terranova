@@ -13,6 +13,7 @@ import { UserRole } from './types/user';
 import SociosList from './components/socios/SociosList';
 import CreateSocioForm from './components/socios/CreateSocioForm';
 import { Navbar } from './components/layout/Navbar';
+import { InventoryView } from './components/inventory/InventoryView';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -111,6 +112,14 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <div>Stock Module</div>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/inventory"
+                  element={
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.TRABAJADOR]}>
+                      <InventoryView />
                     </ProtectedRoute>
                   }
                 />
