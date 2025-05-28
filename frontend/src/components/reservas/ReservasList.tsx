@@ -39,13 +39,19 @@ import { DateCalendar } from '@mui/x-date-pickers/DateCalendar';
 import { styled } from '@mui/material/styles';
 import { PickersDay } from '@mui/x-date-pickers/PickersDay';
 import { API_BASE_URL } from '../../config';
-import axios, { AxiosError } from 'axios';
 import Swal from 'sweetalert2';
 import { ReservaPDF } from './ReservaPDF';
 import { LiquidacionPDF } from './LiquidacionPDF';
 import { GestionServicios } from './GestionServicios';
 import { GestionSuplementos } from './GestionSuplementos';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useReservas } from './hooks/useReservas';
+import { useServicios } from './hooks/useServicios';
+import { useSuplementos } from './hooks/useSuplementos';
+import { useSocios } from './hooks/useSocios';
+import { useLiquidacion } from './hooks/useLiquidacion';
+import { LiquidacionDialog } from './LiquidacionDialog';
+import { CancelacionDialog } from './CancelacionDialog';
 
 interface Servicio {
     id: string;
@@ -161,16 +167,52 @@ interface ReservasListProps {
 }
 
 export const ReservasList: React.FC<ReservasListProps> = () => {
-    const queryClient = useQueryClient();
-    const { user } = useAuthStore();
+    const { user, token } = useAuthStore();
     const navigate = useNavigate();
-    const [reservas, setReservas] = useState<Reserva[]>([]);
-    const [socios, setSocios] = useState<Socio[]>([]);
-    const [servicios, setServicios] = useState<Servicio[]>([]);
-    const [suplementosList, setSuplementosList] = useState<Suplemento[]>([]);
+    const queryClient = useQueryClient();
+
+    // Custom hooks
+    const {
+        reservas,
+        isLoadingReservas,
+        selectedReserva,
+        setSelectedReserva,
+        reservaMutation,
+        deleteMutation,
+        liquidarMutation,
+        cancelarMutation
+    } = useReservas();
+
+    const {
+        servicios,
+        isLoadingServicios,
+        saveServiciosMutation,
+        deleteServicioMutation,
+        updateServicios
+    } = useServicios();
+
+    const {
+        suplementos: suplementosList,
+        isLoadingSuplementos,
+        saveSuplementosMutation,
+        deleteSuplementoMutation,
+        updateSuplementos
+    } = useSuplementos();
+
+    const {
+        socios,
+        isLoadingSocios,
+        buscarSocio
+    } = useSocios();
+
+    const {
+        pdfUrl,
+        generarPdfMutation,
+        limpiarPdf
+    } = useLiquidacion();
+
     const [openDialog, setOpenDialog] = useState(false);
     const [openServiciosDialog, setOpenServiciosDialog] = useState(false);
-    const [selectedReserva, setSelectedReserva] = useState<Reserva | null>(null);
     const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
     const [formData, setFormData] = useState<FormData>({
         fecha: new Date().toISOString().split('T')[0],
@@ -210,235 +252,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         severity: 'success'
     });
     const [openPDF, setOpenPDF] = useState(false);
-    const { token } = useAuthStore();
-
-    // Consulta para obtener reservas
-    const { data: reservasData, isLoading: isLoadingReservas } = useQuery({
-        queryKey: ['reservas'],
-        queryFn: async () => {
-            console.log('Iniciando petición para obtener reservas...');
-            const response = await fetch(`${API_BASE_URL}/reservas`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-            if (!response.ok) {
-                console.error('Error en la respuesta:', response.status, response.statusText);
-                throw new Error('Error al obtener reservas');
-            }
-            const data = await response.json();
-            console.log('Reservas obtenidas:', data);
-            return data;
-        },
-        enabled: !!user
-    });
-
-    // Actualizar el estado de reservas cuando cambian los datos
-    useEffect(() => {
-        if (reservasData) {
-            setReservas(reservasData);
-        }
-    }, [reservasData]);
-
-    // Consulta para obtener socios
-    const { data: sociosData } = useQuery({
-        queryKey: ['socios'],
-        queryFn: async () => {
-            console.log('Iniciando petición para obtener socios...');
-            const response = await fetch(`${API_BASE_URL}/socios`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-            if (!response.ok) throw new Error('Error al obtener socios');
-            const data = await response.json();
-            console.log('Socios obtenidos del backend:', data);
-            return data;
-        },
-        enabled: !!user
-    });
-
-    // Actualizar el estado de socios cuando cambian los datos
-    useEffect(() => {
-        if (sociosData) {
-            console.log('Actualizando estado de socios con:', sociosData);
-            setSocios(sociosData);
-        }
-    }, [sociosData]);
-
-    // Consulta para obtener servicios
-    const { data: serviciosData = [] } = useQuery({
-        queryKey: ['servicios'],
-        queryFn: async () => {
-            try {
-                const response = await fetch(`${API_BASE_URL}/servicios`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                });
-                if (!response.ok) throw new Error('Error al obtener servicios');
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error('Error al obtener servicios:', error);
-                throw error;
-            }
-        },
-        enabled: !!user
-    });
-
-    // Actualizar el estado de servicios cuando cambian los datos
-    useEffect(() => {
-        if (serviciosData) {
-            setServicios(serviciosData);
-        }
-    }, [serviciosData]);
-
-    // Consulta para obtener suplementos
-    const { data: suplementosListData = [] } = useQuery({
-        queryKey: ['suplementos'],
-        queryFn: async () => {
-            try {
-                const response = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                });
-                if (!response.ok) throw new Error('Error al obtener suplementos');
-                return await response.json();
-            } catch (error) {
-                console.error('Error al obtener suplementos:', error);
-                throw error;
-            }
-        },
-        enabled: !!user
-    });
-
-    // Actualizar el estado de suplementos cuando cambian los datos
-    useEffect(() => {
-        if (suplementosListData) {
-            console.log('Actualizando estado de suplementos con:', suplementosListData);
-            setSuplementosList(suplementosListData);
-        }
-    }, [suplementosListData]);
-
-    // Mutación para crear/actualizar reserva
-    const reservaMutation = useMutation({
-        mutationFn: async (reservaData: any) => {
-            const url = selectedReserva
-                ? `${API_BASE_URL}/reservas/${selectedReserva._id}`
-                : `${API_BASE_URL}/reservas`;
-
-            const response = await fetch(url, {
-                method: selectedReserva ? 'PATCH' : 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(reservaData)
-            });
-
-            if (!response.ok) throw new Error('Error al guardar la reserva');
-            return await response.json();
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['reservas'] });
-            handleCloseDialog();
-        },
-        onError: (error: any) => {
-            console.error('Error saving reserva:', error);
-            alert(error.message || 'Ha ocurrido un error al procesar la reserva');
-        }
-    });
-
-    // Mutación para eliminar reserva
-    const deleteMutation = useMutation({
-        mutationFn: async (id: string) => {
-            const response = await fetch(`${API_BASE_URL}/reservas/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                }
-            });
-            if (!response.ok) throw new Error('Error al eliminar la reserva');
-            return await response.json();
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['reservas'] });
-        }
-    });
-
-    // Mutación para liquidar reserva
-    const liquidarMutation = useMutation({
-        mutationFn: async (datosLiquidacion: any) => {
-            const response = await fetch(`${API_BASE_URL}/reservas/${selectedReservaLiquidacion?._id}/liquidar`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(datosLiquidacion)
-            });
-            if (!response.ok) throw new Error('Error al liquidar la reserva');
-            return await response.json();
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['reservas'] });
-            handleCloseLiquidacionDialog();
-            setSnackbar({
-                open: true,
-                message: 'Reserva liquidada correctamente',
-                severity: 'success'
-            });
-        },
-        onError: (error: any) => {
-            setSnackbar({
-                open: true,
-                message: error.message || 'Error al liquidar la reserva',
-                severity: 'error'
-            });
-        }
-    });
-
-    // Mutación para cancelar reserva
-    const cancelarMutation = useMutation({
-        mutationFn: async (datosCancelacion: any) => {
-            const response = await fetch(`${API_BASE_URL}/reservas/${selectedReservaForCancel?._id}/cancelar`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(datosCancelacion)
-            });
-            if (!response.ok) throw new Error('Error al cancelar la reserva');
-            return await response.json();
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['reservas'] });
-            setOpenCancelDialog(false);
-            setSelectedReservaForCancel(null);
-            setSnackbar({
-                open: true,
-                message: cancelacionData.pendienteRevisionJunta
-                    ? 'La reserva ha sido cancelada. La devolución del dinero será valorada por la Junta.'
-                    : 'La reserva ha sido cancelada exitosamente',
-                severity: 'success'
-            });
-        },
-        onError: (error: any) => {
-            setSnackbar({
-                open: true,
-                message: error.message || 'Error al cancelar la reserva',
-                severity: 'error'
-            });
-        }
-    });
 
     const handleOpenDialog = (reserva?: Reserva) => {
         if (reserva) {
@@ -688,6 +501,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
     };
 
     const handleOpenLiquidacionDialog = (reserva: Reserva) => {
+        if (!reserva) return;
         setSelectedReservaLiquidacion(reserva);
         setLiquidacionData({
             suplementos: reserva.suplementos,
@@ -701,12 +515,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
     const handleCloseLiquidacionDialog = () => {
         setOpenLiquidacionDialog(false);
         setSelectedReservaLiquidacion(null);
-        setLiquidacionData({
-            suplementos: [],
-            montoAbonado: 0,
-            metodoPago: '',
-            observaciones: ''
-        });
     };
 
     const calcularPrecioTotalLiquidacion = () => {
@@ -906,7 +714,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
 
     const handleSaveServicios = async (servicios: Servicio[]) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/servicios/${_id}`, {
+            const response = await fetch(`${API_BASE_URL}/servicios`, {
                 method: 'PATCH',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -916,7 +724,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
             });
             if (!response.ok) throw new Error('Error al guardar servicios');
 
-            // Actualizar los servicios después de guardar
             const updatedResponse = await fetch(`${API_BASE_URL}/servicios`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -924,7 +731,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 },
             });
             if (!updatedResponse.ok) throw new Error('Error al obtener servicios');
-            setServicios(await updatedResponse.json());
+            updateServicios(await updatedResponse.json());
 
             setSnackbar({
                 open: true,
@@ -943,34 +750,16 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
 
     const handleSaveSuplementos = async (suplementos: Suplemento[]) => {
         try {
-            // Actualizar cada suplemento individualmente
-            for (const suplemento of suplementos) {
-                if (suplemento._id) {
-                    // Si tiene _id, actualizar con PATCH
-                    const response = await fetch(`${API_BASE_URL}/servicios/suplementos/${suplemento._id}`, {
-                        method: 'PATCH',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(suplemento)
-                    });
-                    if (!response.ok) throw new Error('Error al actualizar suplemento');
-                } else {
-                    // Si no tiene _id, crear nuevo con POST
-                    const response = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(suplemento)
-                    });
-                    if (!response.ok) throw new Error('Error al crear suplemento');
-                }
-            }
+            const response = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(suplementos)
+            });
+            if (!response.ok) throw new Error('Error al guardar suplementos');
 
-            // Actualizar la lista de suplementos después de guardar
             const updatedResponse = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -978,7 +767,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 },
             });
             if (!updatedResponse.ok) throw new Error('Error al obtener suplementos');
-            setSuplementosList(await updatedResponse.json());
+            updateSuplementos(await updatedResponse.json());
 
             setSnackbar({
                 open: true,
@@ -990,6 +779,46 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
             setSnackbar({
                 open: true,
                 message: error instanceof Error ? error.message : 'Error al guardar los suplementos',
+                severity: 'error'
+            });
+        }
+    };
+
+    const handleDeleteServicio = async (id: string) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/servicios/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Error al eliminar servicio');
+            }
+
+            const updatedResponse = await fetch(`${API_BASE_URL}/servicios`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!updatedResponse.ok) throw new Error('Error al obtener servicios');
+            const updatedData = await updatedResponse.json();
+            updateServicios(updatedData);
+
+            setSnackbar({
+                open: true,
+                message: 'Servicio eliminado correctamente',
+                severity: 'success'
+            });
+        } catch (error) {
+            console.error('Error al eliminar servicio:', error);
+            setSnackbar({
+                open: true,
+                message: error instanceof Error ? error.message : 'Error al eliminar el servicio',
                 severity: 'error'
             });
         }
@@ -1032,88 +861,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 </Typography>
             </Box>
         );
-    };
-
-    const handleDeleteServicio = async (id: string) => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/servicios/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Error al eliminar servicio');
-            }
-
-            // Actualizar la lista de servicios después de eliminar
-            const updatedResponse = await fetch(`${API_BASE_URL}/servicios`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-            if (!updatedResponse.ok) throw new Error('Error al obtener servicios');
-            const updatedData = await updatedResponse.json();
-            setServicios(updatedData);
-
-            setSnackbar({
-                open: true,
-                message: 'Servicio eliminado correctamente',
-                severity: 'success'
-            });
-        } catch (error) {
-            console.error('Error al eliminar servicio:', error);
-            setSnackbar({
-                open: true,
-                message: error instanceof Error ? error.message : 'Error al eliminar el servicio',
-                severity: 'error'
-            });
-        }
-    };
-
-    const handleDeleteSuplemento = async (id: string) => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/servicios/suplementos/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Error al eliminar suplemento');
-            }
-
-            // Actualizar la lista de suplementos después de eliminar
-            const updatedResponse = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-            if (!updatedResponse.ok) throw new Error('Error al obtener suplementos');
-            const updatedData = await updatedResponse.json();
-            setSuplementosList(updatedData);
-
-            setSnackbar({
-                open: true,
-                message: 'Suplemento eliminado correctamente',
-                severity: 'success'
-            });
-        } catch (error) {
-            console.error('Error al eliminar suplemento:', error);
-            setSnackbar({
-                open: true,
-                message: error instanceof Error ? error.message : 'Error al eliminar el suplemento',
-                severity: 'error'
-            });
-        }
     };
 
     return (
@@ -1177,7 +924,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                         </Typography>
                         <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                                {servicios.filter(s => s.activo).map((servicio) => (
+                                {servicios.filter((s: Servicio) => s.activo).map((servicio: Servicio) => (
                                     <Box key={servicio.id} sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)', md: 'calc(33.33% - 8px)' } }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                             <Box
@@ -1537,7 +1284,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 onClose={() => setOpenGestionSuplementos(false)}
                 suplementos={suplementosList}
                 onSaveSuplementos={handleSaveSuplementos}
-                onDeleteSuplemento={handleDeleteSuplemento}
             />
 
             {/* Modal de Nueva/Editar Reserva */}
@@ -1851,297 +1597,13 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
             </Dialog>
 
             {/* Modal de Liquidación */}
-            <Dialog
-                open={openLiquidacionDialog}
-                onClose={handleCloseLiquidacionDialog}
-                maxWidth="md"
-                fullWidth
-                PaperProps={{
-                    sx: {
-                        minHeight: '60vh',
-                        maxHeight: '80vh'
-                    }
-                }}
-            >
-                <DialogTitle sx={{
-                    borderBottom: '1px solid rgba(0, 0, 0, 0.12)',
-                    pb: 2,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    bgcolor: 'primary.main',
-                    color: 'white'
-                }}>
-                    <Typography variant="h5" component="div">
-                        Liquidar Reserva
-                    </Typography>
-                    <IconButton
-                        onClick={handleCloseLiquidacionDialog}
-                        size="large"
-                        sx={{ color: 'white' }}
-                    >
-                        <CloseIcon />
-                    </IconButton>
-                </DialogTitle>
-                <DialogContent sx={{ mt: 2, p: 3 }}>
-                    <Box component="form" onSubmit={handleLiquidacionSubmit}>
-                        {/* Sección de Información de la Reserva */}
-                        <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: 'background.default', borderRadius: 2 }}>
-                            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', mb: 3 }}>
-                                Información de la Reserva
-                            </Typography>
-                            <Grid container spacing={3}>
-                                <Grid sx={{ xs: 12, sm: 6 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">
-                                        Socio
-                                    </Typography>
-                                    <Typography variant="body1">
-                                        {selectedReservaLiquidacion?.socio.nombre.nombre} {selectedReservaLiquidacion?.socio.nombre.primerApellido}
-                                    </Typography>
-                                </Grid>
-                                <Grid sx={{ xs: 12, sm: 6 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">
-                                        Servicio
-                                    </Typography>
-                                    <Typography variant="body1">
-                                        {servicios.find(s => s.id === selectedReservaLiquidacion?.tipoInstalacion.toLowerCase())?.nombre}
-                                    </Typography>
-                                </Grid>
-                                <Grid sx={{ xs: 12, sm: 6 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">
-                                        Precio Total
-                                    </Typography>
-                                    <Typography variant="body1">
-                                        {selectedReservaLiquidacion?.precio.toFixed(2)}€
-                                    </Typography>
-                                </Grid>
-                                <Grid sx={{ xs: 12, sm: 6 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">
-                                        Monto Pendiente
-                                    </Typography>
-                                    <Typography variant="body1" color="error.main" fontWeight="bold">
-                                        {(selectedReservaLiquidacion?.precio || 0) - (selectedReservaLiquidacion?.montoAbonado || 0)}€
-                                    </Typography>
-                                </Grid>
-                            </Grid>
-                        </Paper>
-
-                        {/* Sección de Pago */}
-                        <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: 'background.default', borderRadius: 2 }}>
-                            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', mb: 3 }}>
-                                Información del Pago
-                            </Typography>
-                            <Grid container spacing={3}>
-                                <Grid sx={{ xs: 12, sm: 6 }}>
-                                    <TextField
-                                        fullWidth
-                                        type="number"
-                                        label="Monto a Abonar"
-                                        value={liquidacionData.montoAbonado}
-                                        onChange={(e) => {
-                                            const montoPendiente = (selectedReservaLiquidacion?.precio || 0) - (selectedReservaLiquidacion?.montoAbonado || 0);
-                                            const nuevoMonto = parseFloat(e.target.value) || 0;
-                                            if (nuevoMonto <= montoPendiente) {
-                                                setLiquidacionData({ ...liquidacionData, montoAbonado: nuevoMonto });
-                                            }
-                                        }}
-                                        InputProps={{
-                                            startAdornment: <Typography sx={{ mr: 1, fontSize: '1.1rem' }}>€</Typography>,
-                                            endAdornment: (
-                                                <Typography sx={{ ml: 1, fontSize: '1.1rem', color: 'text.secondary' }}>
-                                                    Total pendiente: {((selectedReservaLiquidacion?.precio || 0) - (selectedReservaLiquidacion?.montoAbonado || 0)).toFixed(2)}€
-                                                </Typography>
-                                            )
-                                        }}
-                                        helperText="Debe abonar el monto total pendiente"
-                                        sx={{
-                                            '& .MuiInputBase-input': {
-                                                fontSize: '1.1rem',
-                                                padding: '12px 14px'
-                                            },
-                                            '& .MuiInputLabel-root': {
-                                                fontSize: '1.1rem'
-                                            }
-                                        }}
-                                    />
-                                </Grid>
-                                <Grid sx={{ xs: 12, sm: 6 }}>
-                                    <FormControl fullWidth>
-                                        <InputLabel sx={{ fontSize: '1.2rem' }}>Método de Pago</InputLabel>
-                                        <Select
-                                            value={liquidacionData.metodoPago}
-                                            label="Método de Pago"
-                                            onChange={(e) => setLiquidacionData({ ...liquidacionData, metodoPago: e.target.value as 'efectivo' | 'tarjeta' | '' })}
-                                            sx={{
-                                                '& .MuiSelect-select': {
-                                                    fontSize: '1.2rem',
-                                                    minHeight: '48px',
-                                                    minWidth: '200px'
-                                                },
-                                                '& .MuiOutlinedInput-notchedOutline': {
-                                                    borderWidth: '2px'
-                                                }
-                                            }}
-                                        >
-                                            <MenuItem value="efectivo" sx={{ fontSize: '1.2rem', py: 1 }}>Efectivo</MenuItem>
-                                            <MenuItem value="tarjeta" sx={{ fontSize: '1.2rem', py: 1 }}>Tarjeta</MenuItem>
-                                        </Select>
-                                    </FormControl>
-                                </Grid>
-                            </Grid>
-                        </Paper>
-
-                        {/* Sección de Suplementos */}
-                        <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: 'background.default', borderRadius: 2 }}>
-                            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', mb: 3 }}>
-                                Suplementos
-                            </Typography>
-                            <Grid container spacing={2}>
-                                {suplementosList.filter(s => s.activo).map((suplemento) => (
-                                    <Grid sx={{ xs: 12, sm: 6, md: 4 }} key={suplemento.id}>
-                                        <Paper
-                                            elevation={1}
-                                            sx={{
-                                                p: 2,
-                                                border: liquidacionData.suplementos.some(s => s.id === suplemento.id)
-                                                    ? '2px solid'
-                                                    : '1px solid',
-                                                borderColor: liquidacionData.suplementos.some(s => s.id === suplemento.id)
-                                                    ? 'primary.main'
-                                                    : 'divider',
-                                                borderRadius: 2,
-                                                cursor: 'pointer',
-                                                '&:hover': {
-                                                    borderColor: 'primary.main',
-                                                    bgcolor: 'action.hover'
-                                                }
-                                            }}
-                                            onClick={() => {
-                                                const newSuplementos = [...liquidacionData.suplementos];
-                                                const index = newSuplementos.findIndex(s => s.id === suplemento.id);
-                                                if (index === -1) {
-                                                    newSuplementos.push({ id: suplemento.id, cantidad: 1 });
-                                                } else {
-                                                    newSuplementos.splice(index, 1);
-                                                }
-                                                setLiquidacionData({ ...liquidacionData, suplementos: newSuplementos });
-                                            }}
-                                        >
-                                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                                                <Checkbox
-                                                    checked={liquidacionData.suplementos.some(s => s.id === suplemento.id)}
-                                                    onChange={(e) => {
-                                                        const newSuplementos = [...liquidacionData.suplementos];
-                                                        if (e.target.checked) {
-                                                            newSuplementos.push({ id: suplemento.id, cantidad: 1 });
-                                                        } else {
-                                                            const index = newSuplementos.findIndex(s => s.id === suplemento.id);
-                                                            if (index !== -1) {
-                                                                newSuplementos.splice(index, 1);
-                                                            }
-                                                        }
-                                                        setLiquidacionData({ ...liquidacionData, suplementos: newSuplementos });
-                                                    }}
-                                                    sx={{ '& .MuiSvgIcon-root': { fontSize: 28 } }}
-                                                />
-                                                <Box sx={{ flex: 1 }}>
-                                                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                                                        {suplemento.nombre}
-                                                    </Typography>
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        {suplemento.precio}€ {suplemento.tipo === 'porHora' ? '/hora' : ''}
-                                                    </Typography>
-                                                </Box>
-                                            </Box>
-                                            {suplemento.tipo === 'porHora' && liquidacionData.suplementos.some(s => s.id === suplemento.id) && (
-                                                <TextField
-                                                    type="number"
-                                                    size="small"
-                                                    label="Cantidad de horas"
-                                                    value={liquidacionData.suplementos.find(s => s.id === suplemento.id)?.cantidad || 1}
-                                                    onChange={(e) => {
-                                                        const newSuplementos = liquidacionData.suplementos.map(s =>
-                                                            s.id === suplemento.id
-                                                                ? { ...s, cantidad: parseInt(e.target.value) || 1 }
-                                                                : s
-                                                        );
-                                                        setLiquidacionData({ ...liquidacionData, suplementos: newSuplementos });
-                                                    }}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    sx={{
-                                                        width: '100%',
-                                                        mt: 1,
-                                                        '& .MuiInputBase-input': {
-                                                            fontSize: '1rem',
-                                                            padding: '8px 14px'
-                                                        }
-                                                    }}
-                                                />
-                                            )}
-                                        </Paper>
-                                    </Grid>
-                                ))}
-                            </Grid>
-                        </Paper>
-
-                        {/* Sección de Observaciones */}
-                        <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: 'background.default', borderRadius: 2 }}>
-                            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', mb: 3 }}>
-                                Observaciones
-                            </Typography>
-                            <TextField
-                                fullWidth
-                                multiline
-                                rows={4}
-                                label="Observaciones"
-                                value={liquidacionData.observaciones}
-                                onChange={(e) => setLiquidacionData({ ...liquidacionData, observaciones: e.target.value })}
-                                sx={{
-                                    '& .MuiInputBase-input': {
-                                        fontSize: '1.1rem',
-                                        padding: '12px 14px'
-                                    },
-                                    '& .MuiInputLabel-root': {
-                                        fontSize: '1.1rem'
-                                    }
-                                }}
-                            />
-                        </Paper>
-
-                        {/* Botones de Acción */}
-                        <Box sx={{
-                            display: 'flex',
-                            justifyContent: 'flex-end',
-                            gap: 2,
-                            borderTop: '1px solid rgba(0, 0, 0, 0.12)',
-                            pt: 3
-                        }}>
-                            <Button
-                                onClick={handleCloseLiquidacionDialog}
-                                variant="outlined"
-                                sx={{
-                                    fontSize: '1.1rem',
-                                    px: 3,
-                                    py: 1
-                                }}
-                            >
-                                Cancelar
-                            </Button>
-                            <Button
-                                type="submit"
-                                variant="contained"
-                                sx={{
-                                    fontSize: '1.1rem',
-                                    px: 3,
-                                    py: 1
-                                }}
-                            >
-                                Liquidar Reserva
-                            </Button>
-                        </Box>
-                    </Box>
-                </DialogContent>
-            </Dialog>
+            {selectedReservaLiquidacion && (
+                <LiquidacionDialog
+                    open={openLiquidacionDialog}
+                    onClose={handleCloseLiquidacionDialog}
+                    reserva={selectedReservaLiquidacion}
+                />
+            )}
 
             <Snackbar
                 open={snackbar.open}
@@ -2176,129 +1638,13 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
             </Dialog>
 
             {/* Modal de Cancelación */}
-            <Dialog
-                open={openCancelDialog}
-                onClose={() => setOpenCancelDialog(false)}
-                maxWidth="sm"
-                fullWidth
-            >
-                <DialogTitle sx={{
-                    borderBottom: '1px solid rgba(0, 0, 0, 0.12)',
-                    pb: 2,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    bgcolor: 'error.main',
-                    color: 'white'
-                }}>
-                    <Typography variant="h5" component="div">
-                        Cancelar Reserva
-                    </Typography>
-                    <IconButton
-                        onClick={() => setOpenCancelDialog(false)}
-                        size="large"
-                        sx={{ color: 'white' }}
-                    >
-                        <CloseIcon />
-                    </IconButton>
-                </DialogTitle>
-                <DialogContent sx={{ mt: 2, p: 3 }}>
-                    <Box component="form" onSubmit={(e) => { e.preventDefault(); handleCancelSubmit(); }}>
-                        <Grid container spacing={3}>
-                            <Grid xs={12}>
-                                <FormControl fullWidth>
-                                    <InputLabel>Motivo de Cancelación</InputLabel>
-                                    <Select
-                                        value={cancelacionData.motivo}
-                                        label="Motivo de Cancelación"
-                                        onChange={(e) => setCancelacionData({ ...cancelacionData, motivo: e.target.value as 'CLIMA' | 'ANTICIPADA' | 'OTRO' })}
-                                    >
-                                        <MenuItem value="CLIMA">Por condiciones climáticas</MenuItem>
-                                        <MenuItem value="ANTICIPADA">Cancelación anticipada</MenuItem>
-                                        <MenuItem value="OTRO">Otro motivo</MenuItem>
-                                    </Select>
-                                </FormControl>
-                            </Grid>
-
-                            {cancelacionData.motivo === 'ANTICIPADA' && (
-                                <>
-                                    <Grid xs={12}>
-                                        <TextField
-                                            fullWidth
-                                            multiline
-                                            rows={3}
-                                            label="Observaciones"
-                                            value={cancelacionData.observaciones}
-                                            onChange={(e) => setCancelacionData({ ...cancelacionData, observaciones: e.target.value })}
-                                            helperText="Especifique el motivo de la cancelación"
-                                        />
-                                    </Grid>
-                                    {selectedReservaForCancel && (() => {
-                                        const fechaReserva = new Date(selectedReservaForCancel.fecha);
-                                        const fechaActual = new Date();
-                                        const diasDiferencia = Math.ceil((fechaReserva.getTime() - fechaActual.getTime()) / (1000 * 60 * 60 * 24));
-
-                                        if (diasDiferencia >= 9 && selectedReservaForCancel.montoAbonado) {
-                                            return (
-                                                <Grid xs={12}>
-                                                    <TextField
-                                                        fullWidth
-                                                        type="number"
-                                                        label="Monto a Devolver"
-                                                        value={cancelacionData.montoDevuelto}
-                                                        onChange={(e) => setCancelacionData({ ...cancelacionData, montoDevuelto: parseFloat(e.target.value) || 0 })}
-                                                        InputProps={{
-                                                            startAdornment: <Typography sx={{ mr: 1 }}>€</Typography>,
-                                                        }}
-                                                        helperText={`Monto máximo a devolver: ${selectedReservaForCancel.montoAbonado}€`}
-                                                    />
-                                                </Grid>
-                                            );
-                                        }
-                                        return null;
-                                    })()}
-                                </>
-                            )}
-
-                            {cancelacionData.motivo === 'OTRO' && (
-                                <Grid xs={12}>
-                                    <TextField
-                                        fullWidth
-                                        multiline
-                                        rows={3}
-                                        label="Observaciones"
-                                        value={cancelacionData.observaciones}
-                                        onChange={(e) => setCancelacionData({ ...cancelacionData, observaciones: e.target.value })}
-                                    />
-                                </Grid>
-                            )}
-                        </Grid>
-
-                        <Box sx={{
-                            display: 'flex',
-                            justifyContent: 'flex-end',
-                            gap: 2,
-                            mt: 3,
-                            pt: 2,
-                            borderTop: '1px solid rgba(0, 0, 0, 0.12)'
-                        }}>
-                            <Button
-                                onClick={() => setOpenCancelDialog(false)}
-                                variant="outlined"
-                            >
-                                Cancelar
-                            </Button>
-                            <Button
-                                type="submit"
-                                variant="contained"
-                                color="error"
-                            >
-                                Confirmar Cancelación
-                            </Button>
-                        </Box>
-                    </Box>
-                </DialogContent>
-            </Dialog>
+            {selectedReservaForCancel && (
+                <CancelacionDialog
+                    open={openCancelDialog}
+                    onClose={() => setOpenCancelDialog(false)}
+                    reserva={selectedReservaForCancel}
+                />
+            )}
         </Box>
     );
 }; 
