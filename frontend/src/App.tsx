@@ -14,6 +14,7 @@ import SociosList from './components/socios/SociosList';
 import CreateSocioForm from './components/socios/CreateSocioForm';
 import { Navbar } from './components/layout/Navbar';
 import { InventoryView } from './components/inventory/InventoryView';
+import { ReservasList } from './components/reservas/ReservasList';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -71,7 +72,7 @@ function App() {
                   path="/reservas"
                   element={
                     <ProtectedRoute>
-                      <div>Reservas Module</div>
+                      <ReservasList />
                     </ProtectedRoute>
                   }
                 />

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, UnauthorizedException, Logger, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, UnauthorizedException, Logger, BadRequestException, Request } from '@nestjs/common';
 import { ReservasService } from '../services/reservas.service';
 import { CreateReservaDto, UpdateReservaDto } from '../dto/reserva.dto';
 import { LiquidarReservaDto } from '../dto/liquidar-reserva.dto';
@@ -20,11 +20,11 @@ export class ReservasController {
     constructor(private readonly reservasService: ReservasService) { }
 
     @Post()
-    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR)
-    async create(@Body() createReservaDto: CreateReservaDto, @GetUser() user: User) {
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    create(@Body() createReservaDto: CreateReservaDto, @Request() req) {
         this.logger.debug('Recibida petición para crear reserva');
         try {
-            return await this.reservasService.create(createReservaDto, user._id.toString());
+            return this.reservasService.create(createReservaDto, req.user._id);
         } catch (error) {
             this.logger.error('Error al crear reserva:', error);
             throw error;
@@ -32,10 +32,11 @@ export class ReservasController {
     }
 
     @Get()
-    async findAll() {
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    findAll() {
         this.logger.debug('Recibida petición para obtener todas las reservas');
         try {
-            return await this.reservasService.findAll();
+            return this.reservasService.findAll();
         } catch (error) {
             this.logger.error('Error al obtener reservas:', error);
             throw error;
@@ -75,10 +76,11 @@ export class ReservasController {
     }
 
     @Get(':id')
-    async findOne(@Param('id') id: string) {
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    findOne(@Param('id') id: string) {
         this.logger.debug(`Recibida petición para obtener reserva con ID: ${id}`);
         try {
-            return await this.reservasService.findOne(id);
+            return this.reservasService.findOne(id);
         } catch (error) {
             this.logger.error(`Error al obtener reserva con ID ${id}:`, error);
             throw error;
@@ -86,11 +88,11 @@ export class ReservasController {
     }
 
     @Patch(':id')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR)
-    async update(@Param('id') id: string, @Body() updateReservaDto: UpdateReservaDto, @GetUser() user: User) {
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    update(@Param('id') id: string, @Body() updateReservaDto: UpdateReservaDto, @Request() req) {
         this.logger.debug(`Recibida petición para actualizar reserva con ID: ${id}`);
         try {
-            return await this.reservasService.update(id, updateReservaDto, user._id.toString());
+            return this.reservasService.update(id, updateReservaDto, req.user._id);
         } catch (error) {
             this.logger.error(`Error al actualizar reserva con ID ${id}:`, error);
             throw error;
@@ -110,26 +112,38 @@ export class ReservasController {
         }
     }
 
-    @Post(':id/liquidar')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR)
-    async liquidar(@Param('id') id: string, @Body() liquidarReservaDto: LiquidarReservaDto, @GetUser() user: User) {
-        this.logger.debug(`Recibida petición para liquidar reserva con ID: ${id}`);
+    @Post(':id/confirmar')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    confirmar(@Param('id') id: string, @Request() req) {
+        return this.reservasService.confirmar(id, req.user._id);
+    }
+
+    @Post(':id/cancelar')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    cancelar(@Param('id') id: string, @Body() cancelarReservaDto: CancelarReservaDto, @Request() req) {
+        this.logger.debug(`Recibida petición para cancelar reserva con ID: ${id}`);
         try {
-            return await this.reservasService.liquidar(id, liquidarReservaDto, user._id.toString());
+            return this.reservasService.cancelar(id, cancelarReservaDto, req.user._id);
         } catch (error) {
-            this.logger.error(`Error al liquidar reserva con ID ${id}:`, error);
+            this.logger.error(`Error al cancelar reserva con ID ${id}:`, error);
             throw error;
         }
     }
 
-    @Post(':id/cancelar')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR)
-    async cancelar(@Param('id') id: string, @Body() cancelarReservaDto: CancelarReservaDto, @GetUser() user: User) {
-        this.logger.debug(`Recibida petición para cancelar reserva con ID: ${id}`);
+    @Post(':id/completar')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    completar(@Param('id') id: string) {
+        return this.reservasService.completar(id);
+    }
+
+    @Post(':id/liquidar')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    liquidar(@Param('id') id: string, @Body() liquidarReservaDto: LiquidarReservaDto, @Request() req) {
+        this.logger.debug(`Recibida petición para liquidar reserva con ID: ${id}`);
         try {
-            return await this.reservasService.cancelar(id, cancelarReservaDto, user._id.toString());
+            return this.reservasService.liquidar(id, liquidarReservaDto, req.user._id);
         } catch (error) {
-            this.logger.error(`Error al cancelar reserva con ID ${id}:`, error);
+            this.logger.error(`Error al liquidar reserva con ID ${id}:`, error);
             throw error;
         }
     }

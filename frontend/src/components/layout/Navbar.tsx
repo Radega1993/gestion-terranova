@@ -129,6 +129,9 @@ export const Navbar: React.FC = () => {
                     <MenuItem onClick={() => { navigate('/socios'); handleMobileMenuClose(); }}>
                         <PeopleIcon sx={{ mr: 1 }} /> Socios
                     </MenuItem>
+                    <MenuItem onClick={() => { navigate('/users'); handleMobileMenuClose(); }}>
+                        <PersonIcon sx={{ mr: 1 }} /> Usuarios
+                    </MenuItem>
                     <MenuItem onClick={() => { navigate('/reservas'); handleMobileMenuClose(); }}>
                         <EventIcon sx={{ mr: 1 }} /> Reservas
                     </MenuItem>
@@ -189,6 +192,7 @@ export const Navbar: React.FC = () => {
                             {user.role === 'JUNTA' && (
                                 <>
                                     {renderNavButton('/socios', 'Socios', <PeopleIcon />)}
+                                    {renderNavButton('/users', 'Usuarios', <PersonIcon />)}
                                     {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
                                 </>
                             )}

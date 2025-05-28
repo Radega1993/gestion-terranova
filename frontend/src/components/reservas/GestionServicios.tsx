@@ -60,14 +60,12 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
 
     // Actualizar los estados cuando cambian los props
     useEffect(() => {
-        console.log('Actualizando estados con nuevos props de servicios:', servicios);
         if (servicios.length > 0) {
             setServiciosEdit([...servicios]);
         }
     }, [servicios]);
 
     const handleAddServicio = () => {
-        console.log('Añadiendo nuevo servicio');
         const newServicio: Servicio = {
             id: '',
             nombre: '',
@@ -80,7 +78,6 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
     };
 
     const handleEditServicio = (servicio: Servicio) => {
-        console.log('Editando servicio:', servicio);
         setEditingServicio({ ...servicio });
     };
 
@@ -133,7 +130,6 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
     const handleSaveServicio = () => {
         if (!editingServicio) return;
 
-        console.log('Guardando servicio:', editingServicio);
 
         if (!editingServicio.nombre.trim()) {
             alert('El nombre del servicio es obligatorio');
@@ -163,19 +159,16 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
             updatedServicios = [...serviciosEdit, editingServicio];
         }
 
-        console.log('Servicios actualizados:', updatedServicios);
         setServiciosEdit(updatedServicios);
         setEditingServicio(null);
     };
 
     const handleSaveServicios = async (servicios: Servicio[]) => {
-        console.log('Guardando servicios:', servicios);
         try {
             for (const servicio of servicios) {
                 try {
                     if (servicio._id) {
                         // Si tiene ID, intentar actualizar
-                        console.log('Actualizando servicio:', servicio);
                         const response = await fetch(`${API_BASE_URL}/servicios/${servicio._id}`, {
                             method: 'PATCH',
                             headers: {
@@ -187,7 +180,6 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
                         if (!response.ok) throw new Error('Error al actualizar servicio');
                     } else {
                         // Si no tiene ID, crear como nuevo
-                        console.log('Creando nuevo servicio:', servicio);
                         const response = await fetch(`${API_BASE_URL}/servicios`, {
                             method: 'POST',
                             headers: {
@@ -201,7 +193,6 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
                 } catch (error) {
                     if (error instanceof Error && error.message.includes('404')) {
                         // Si no existe, crear como nuevo
-                        console.log('Servicio no encontrado, creando como nuevo:', servicio);
                         const response = await fetch(`${API_BASE_URL}/servicios`, {
                             method: 'POST',
                             headers: {
@@ -233,22 +224,18 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
     };
 
     const handleSave = () => {
-        console.log('Iniciando guardado de servicios');
-        console.log('Servicios originales:', servicios);
-        console.log('Servicios editados:', serviciosEdit);
+
 
         // Filtrar solo los servicios que han sido modificados
         const modifiedServicios = serviciosEdit.filter((servicio) => {
             // Si es un servicio nuevo (no tiene id), incluirlo
             if (!servicio.id) {
-                console.log('Servicio nuevo detectado:', servicio);
                 return true;
             }
 
             // Buscar el servicio original
             const originalServicio = servicios.find(s => s.id === servicio.id);
             if (!originalServicio) {
-                console.log('Servicio original no encontrado:', servicio);
                 return true;
             }
 
@@ -261,24 +248,9 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
                 originalServicio.activo !== servicio.activo
             );
 
-            if (hasChanges) {
-                console.log('Cambios detectados en servicio:', {
-                    original: originalServicio,
-                    modified: servicio,
-                    changes: {
-                        nombre: originalServicio.nombre !== servicio.nombre,
-                        precio: originalServicio.precio !== servicio.precio,
-                        color: originalServicio.color !== servicio.color,
-                        colorConObservaciones: originalServicio.colorConObservaciones !== servicio.colorConObservaciones,
-                        activo: originalServicio.activo !== servicio.activo
-                    }
-                });
-            }
-
             return hasChanges;
         });
 
-        console.log('Servicios modificados:', modifiedServicios);
         if (modifiedServicios.length > 0) {
             onSaveServicios(modifiedServicios);
         } else {

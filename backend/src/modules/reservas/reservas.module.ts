@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ReservasController } from './controllers/reservas.controller';
-import { ServiciosController } from './controllers/servicios.controller';
 import { ReservasService } from './services/reservas.service';
-import { ServiciosService } from './services/servicios.service';
+import { ReservasController } from './controllers/reservas.controller';
 import { Reserva, ReservaSchema } from './schemas/reserva.schema';
 import { Servicio, ServicioSchema } from './schemas/servicio.schema';
 import { Suplemento, SuplementoSchema } from './schemas/suplemento.schema';
+import { ServiciosService } from './services/servicios.service';
+import { ServiciosController } from './controllers/servicios.controller';
 
 @Module({
     imports: [

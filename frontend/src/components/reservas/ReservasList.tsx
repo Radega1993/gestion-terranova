@@ -54,7 +54,6 @@ interface Servicio {
     color: string;
     colorConObservaciones: string;
     activo: boolean;
-    _id?: string;
 }
 
 interface Suplemento {
@@ -265,7 +264,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 });
                 if (!response.ok) throw new Error('Error al obtener servicios');
                 const data = await response.json();
-                console.log('Servicios obtenidos:', data);
                 return data;
             } catch (error) {
                 console.error('Error al obtener servicios:', error);
@@ -278,7 +276,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
     // Actualizar el estado de servicios cuando cambian los datos
     useEffect(() => {
         if (serviciosData) {
-            console.log('Actualizando estado de servicios con:', serviciosData);
             setServicios(serviciosData);
         }
     }, [serviciosData]);
@@ -294,8 +291,13 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                         'Content-Type': 'application/json',
                     },
                 });
-                if (!response.ok) throw new Error('Error al obtener suplementos');
-                return await response.json();
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('Error en la respuesta:', errorData);
+                    throw new Error('Error al obtener suplementos');
+                }
+                const data = await response.json();
+                return data;
             } catch (error) {
                 console.error('Error al obtener suplementos:', error);
                 throw error;
@@ -303,6 +305,13 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         },
         enabled: !!user
     });
+
+    // Actualizar el estado de suplementos cuando cambian los datos
+    useEffect(() => {
+        if (suplementosListData) {
+            setSuplementosList(suplementosListData);
+        }
+    }, [suplementosListData]);
 
     // Mutación para crear/actualizar reserva
     const reservaMutation = useMutation({
@@ -419,7 +428,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
     });
 
     const handleOpenDialog = (reserva?: Reserva) => {
-        console.log('Abriendo diálogo de reserva:', reserva ? 'edición' : 'nueva');
         if (reserva) {
             setSelectedReserva(reserva);
             // Buscar el servicio correspondiente en la lista de servicios del backend
@@ -870,34 +878,17 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
 
     const handleSaveServicios = async (servicios: Servicio[]) => {
         try {
-            // Actualizar cada servicio individualmente
-            for (const servicio of servicios) {
-                if (servicio._id) {
-                    // Si tiene _id, actualizar con PATCH
-                    const response = await fetch(`${API_BASE_URL}/servicios/${servicio._id}`, {
-                        method: 'PATCH',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(servicio)
-                    });
-                    if (!response.ok) throw new Error('Error al actualizar servicio');
-                } else {
-                    // Si no tiene _id, crear nuevo con POST
-                    const response = await fetch(`${API_BASE_URL}/servicios`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(servicio)
-                    });
-                    if (!response.ok) throw new Error('Error al crear servicio');
-                }
-            }
+            const response = await fetch(`${API_BASE_URL}/servicios/${_id}`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(servicios)
+            });
+            if (!response.ok) throw new Error('Error al guardar servicios');
 
-            // Actualizar la lista de servicios después de guardar
+            // Actualizar los servicios después de guardar
             const updatedResponse = await fetch(`${API_BASE_URL}/servicios`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -924,20 +915,34 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
 
     const handleSaveSuplementos = async (suplementos: Suplemento[]) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(suplementos)
-            });
-            if (!response.ok) throw new Error('Error al guardar suplementos');
+            // Actualizar cada suplemento individualmente
+            for (const suplemento of suplementos) {
+                if (suplemento._id) {
+                    // Si tiene _id, actualizar con PATCH
+                    const response = await fetch(`${API_BASE_URL}/servicios/suplementos/${suplemento._id}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(suplemento)
+                    });
+                    if (!response.ok) throw new Error('Error al actualizar suplemento');
+                } else {
+                    // Si no tiene _id, crear nuevo con POST
+                    const response = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(suplemento)
+                    });
+                    if (!response.ok) throw new Error('Error al crear suplemento');
+                }
+            }
 
-            setSuplementosList(suplementos);
-            setOpenGestionSuplementos(false);
-
-            // Actualizar los suplementos después de guardar
+            // Actualizar la lista de suplementos después de guardar
             const updatedResponse = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -956,7 +961,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
             console.error('Error al guardar suplementos:', error);
             setSnackbar({
                 open: true,
-                message: error instanceof Error ? error.message : 'Error al guardar suplementos',
+                message: error instanceof Error ? error.message : 'Error al guardar los suplementos',
                 severity: 'error'
             });
         }

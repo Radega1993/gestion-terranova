@@ -9,7 +9,6 @@ import { UserRole } from '../../users/types/user-roles.enum';
 
 @Controller('servicios')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
 export class ServiciosController {
     private readonly logger = new Logger(ServiciosController.name);
 
@@ -29,11 +28,12 @@ export class ServiciosController {
     }
 
     @Get('suplementos')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async findAllSuplementos() {
         this.logger.debug('Recibida petición para obtener todos los suplementos');
         try {
-            return await this.serviciosService.findAllSuplementos();
+            const suplementos = await this.serviciosService.findAllSuplementos();
+            this.logger.debug('Suplementos encontrados en el controlador:', JSON.stringify(suplementos, null, 2));
+            return suplementos;
         } catch (error) {
             this.logger.error('Error al obtener suplementos:', error);
             throw error;
@@ -41,7 +41,6 @@ export class ServiciosController {
     }
 
     @Get('suplementos/:id')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async findOneSuplemento(@Param('id') id: string) {
         this.logger.debug(`Recibida petición para obtener suplemento con ID: ${id}`);
         try {
@@ -91,7 +90,6 @@ export class ServiciosController {
     }
 
     @Get()
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async findAllServicios() {
         this.logger.debug('Recibida petición para obtener todos los servicios');
         try {
@@ -103,7 +101,6 @@ export class ServiciosController {
     }
 
     @Get(':id')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async findOneServicio(@Param('id') id: string) {
         this.logger.debug(`Recibida petición para obtener servicio con ID: ${id}`);
         try {

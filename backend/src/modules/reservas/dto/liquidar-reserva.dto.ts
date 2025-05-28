@@ -1,11 +1,12 @@
-import { IsString, IsNumber, IsOptional } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { MetodoPago } from '../schemas/reserva.schema';
 
 export class LiquidarReservaDto {
-    @IsString()
-    metodoPago: string;
-
     @IsNumber()
-    monto: number;
+    montoAbonado: number;
+
+    @IsEnum(MetodoPago)
+    metodoPago: MetodoPago;
 
     @IsString()
     @IsOptional()

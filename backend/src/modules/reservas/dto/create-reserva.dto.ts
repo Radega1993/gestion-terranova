@@ -1,64 +1,36 @@
-import { IsString, IsDate, IsMongoId, IsArray, IsOptional, IsNumber, Min, IsEnum, IsIn, ValidateNested } from 'class-validator';
+import { IsDate, IsEnum, IsMongoId, IsNumber, IsOptional, IsString, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { EstadoReserva } from '../schemas/reserva.schema';
+import { TipoInstalacion } from '../schemas/reserva.schema';
 
-export class SuplementoDto {
-    @IsMongoId()
+class SuplementoDto {
+    @IsString()
     id: string;
 
-    @IsString()
-    nombre: string;
-
     @IsNumber()
-    precio: number;
-
-    @IsNumber()
-    cantidad: number;
-
-    @IsString()
-    tipo: string;
+    @IsOptional()
+    cantidad?: number;
 }
 
 export class CreateReservaDto {
-    @IsMongoId()
-    socio: string;
-
-    @IsString()
-    tipoInstalacion: string;
-
     @IsDate()
     @Type(() => Date)
     fecha: Date;
 
-    @IsString()
-    hora: string;
+    @IsEnum(TipoInstalacion)
+    tipoInstalacion: TipoInstalacion;
 
-    @IsNumber()
-    precio: number;
-
-    @IsNumber()
-    @IsOptional()
-    montoAbonado?: number;
-
-    @IsString()
-    @IsOptional()
-    metodoPago?: string;
+    @IsMongoId()
+    socio: string;
 
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => SuplementoDto)
-    @IsOptional()
-    suplementos?: SuplementoDto[];
+    suplementos: SuplementoDto[];
 
-    @IsString()
-    @IsOptional()
-    estado?: string;
+    @IsNumber()
+    precio: number;
 
     @IsString()
     @IsOptional()
     observaciones?: string;
-
-    @IsString()
-    @IsOptional()
-    usuarioCreacion?: string;
 } 

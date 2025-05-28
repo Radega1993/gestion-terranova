@@ -1,8 +1,17 @@
-import { IsDate, IsEnum, IsNumber, IsOptional, IsString, Min, IsArray, ValidateNested } from 'class-validator';
+import { IsDate, IsEnum, IsMongoId, IsNumber, IsOptional, IsString, IsArray, ValidateNested, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
-import { EstadoReserva } from '../schemas/reserva.schema';
+import { EstadoReserva, MetodoPago, TipoInstalacion } from '../schemas/reserva.schema';
 import { PartialType } from '@nestjs/mapped-types';
-import { CreateReservaDto, SuplementoDto } from './create-reserva.dto';
+import { CreateReservaDto } from './create-reserva.dto';
+
+class SuplementoDto {
+    @IsString()
+    id: string;
+
+    @IsNumber()
+    @IsOptional()
+    cantidad?: number;
+}
 
 export class UpdateReservaDto extends PartialType(CreateReservaDto) {
     @IsOptional()
@@ -11,21 +20,21 @@ export class UpdateReservaDto extends PartialType(CreateReservaDto) {
     fecha?: Date;
 
     @IsOptional()
-    @IsString()
-    tipoInstalacion?: string;
+    @IsEnum(TipoInstalacion)
+    tipoInstalacion?: TipoInstalacion;
 
     @IsOptional()
-    @IsString()
+    @IsMongoId()
     socio?: string;
 
     @IsOptional()
-    @IsNumber()
-    @Min(1)
-    numPersonas?: number;
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => SuplementoDto)
+    suplementos?: SuplementoDto[];
 
     @IsOptional()
     @IsNumber()
-    @Min(0)
     precio?: number;
 
     @IsOptional()
@@ -33,7 +42,7 @@ export class UpdateReservaDto extends PartialType(CreateReservaDto) {
     estado?: EstadoReserva;
 
     @IsOptional()
-    @IsString()
+    @IsMongoId()
     confirmadoPor?: string;
 
     @IsOptional()
@@ -46,16 +55,22 @@ export class UpdateReservaDto extends PartialType(CreateReservaDto) {
     motivoCancelacion?: string;
 
     @IsOptional()
-    @IsArray()
-    @ValidateNested({ each: true })
-    @Type(() => SuplementoDto)
-    suplementos?: SuplementoDto[];
+    @IsString()
+    observaciones?: string;
 
     @IsOptional()
-    @IsString()
-    metodoPago?: string;
+    @IsNumber()
+    montoAbonado?: number;
 
     @IsOptional()
-    @IsString()
-    referenciaPago?: string;
+    @IsNumber()
+    montoDevuelto?: number;
+
+    @IsOptional()
+    @IsEnum(MetodoPago)
+    metodoPago?: MetodoPago;
+
+    @IsOptional()
+    @IsBoolean()
+    pendienteRevisionJunta?: boolean;
 } 

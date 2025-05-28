@@ -1,5 +1,6 @@
-import { IsString, IsDate, IsNumber, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import { IsString, IsDate, IsNumber, IsOptional, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
+import { TipoInstalacion } from '../schemas/reserva.schema';
 
 export class CreateReservaDto {
     @IsString()
@@ -13,8 +14,8 @@ export class CreateReservaDto {
     @Type(() => Date)
     fechaFin: Date;
 
-    @IsString()
-    instalacion: string;
+    @IsEnum(TipoInstalacion)
+    tipoInstalacion: TipoInstalacion;
 
     @IsNumber()
     precio: number;
@@ -51,9 +52,9 @@ export class UpdateReservaDto {
     @IsOptional()
     fechaFin?: Date;
 
-    @IsString()
+    @IsEnum(TipoInstalacion)
     @IsOptional()
-    instalacion?: string;
+    tipoInstalacion?: TipoInstalacion;
 
     @IsNumber()
     @IsOptional()

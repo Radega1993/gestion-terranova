@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
 import { User } from '../../users/schemas/user.schema';
-import { Suplemento } from './suplemento.schema';
+
+export type ReservaDocument = Reserva & Document;
 
 export enum EstadoReserva {
     PENDIENTE = 'PENDIENTE',
@@ -12,77 +13,83 @@ export enum EstadoReserva {
     LIQUIDADA = 'LIQUIDADA'
 }
 
+export enum MetodoPago {
+    EFECTIVO = 'efectivo',
+    TARJETA = 'tarjeta'
+}
+
+export enum TipoInstalacion {
+    PISCINA = 'PISCINA',
+    BBQ = 'BBQ',
+    SALON = 'SALON',
+    PADEL = 'PADEL'
+}
+
 @Schema({ timestamps: true })
-export class Reserva extends Document {
+export class Reserva {
+    @Prop({ required: true, type: Date })
+    fecha: Date;
+
+    @Prop({ required: true, enum: TipoInstalacion })
+    tipoInstalacion: TipoInstalacion;
+
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
+    usuarioCreacion: MongooseSchema.Types.ObjectId;
+
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+    usuarioActualizacion?: MongooseSchema.Types.ObjectId;
+
     @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Socio', required: true })
-    socio: string;
+    socio: MongooseSchema.Types.ObjectId;
 
-    @Prop({ required: true })
-    fechaInicio: Date;
+    @Prop({
+        type: [{
+            id: String,
+            cantidad: Number,
+            _id: MongooseSchema.Types.ObjectId
+        }]
+    })
+    suplementos: Array<{
+        id: string;
+        cantidad?: number;
+        _id: MongooseSchema.Types.ObjectId;
+    }>;
 
-    @Prop({ required: true })
-    fechaFin: Date;
-
-    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Instalacion', required: true })
-    instalacion: string;
-
-    @Prop({ required: true })
+    @Prop({ required: true, type: Number })
     precio: number;
 
-    @Prop()
+    @Prop({ required: true, enum: EstadoReserva, default: EstadoReserva.PENDIENTE })
+    estado: EstadoReserva;
+
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+    confirmadoPor?: MongooseSchema.Types.ObjectId;
+
+    @Prop({ type: Date })
+    fechaConfirmacion?: Date;
+
+    @Prop({ type: Date })
+    fechaCancelacion?: Date;
+
+    @Prop({ type: Date })
+    fechaLiquidacion?: Date;
+
+    @Prop({ type: String })
+    motivoCancelacion?: string;
+
+    @Prop({ type: String })
     observaciones?: string;
 
-    @Prop([{
-        servicio: { type: MongooseSchema.Types.ObjectId, ref: 'Servicio' },
-        cantidad: Number,
-        precio: Number
-    }])
-    servicios?: Array<{
-        servicio: string;
-        cantidad: number;
-        precio: number;
-    }>;
+    @Prop({ type: Number, default: 0 })
+    montoAbonado?: number;
 
-    @Prop([{
-        suplemento: { type: MongooseSchema.Types.ObjectId, ref: 'Suplemento' },
-        cantidad: Number,
-        precio: Number
-    }])
-    suplementos?: Array<{
-        suplemento: string;
-        cantidad: number;
-        precio: number;
-    }>;
+    @Prop({ type: Number, default: 0 })
+    montoDevuelto?: number;
 
-    @Prop({ default: 'PENDIENTE' })
-    estado: 'PENDIENTE' | 'CONFIRMADA' | 'CANCELADA' | 'LIQUIDADA';
+    @Prop({ enum: MetodoPago })
+    metodoPago?: MetodoPago;
 
-    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
-    usuarioCreacion: string;
-
-    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
-    usuarioActualizacion?: string;
-
-    @Prop({ default: 0 })
-    montoAbonado: number;
-
-    @Prop()
-    metodoPago: string;
-
-    @Prop({ type: String, enum: EstadoReserva, default: EstadoReserva.PENDIENTE })
-    estadoReserva: EstadoReserva;
-
-    @Prop()
-    motivoCancelacion: string;
-
-    @Prop()
-    observacionesCancelacion: string;
-
-    @Prop({ default: 0 })
-    montoDevuelto: number;
-
-    @Prop({ default: false })
-    pendienteRevisionJunta: boolean;
+    @Prop({ type: Boolean, default: false })
+    pendienteRevisionJunta?: boolean;
 }
 
 export const ReservaSchema = SchemaFactory.createForClass(Reserva); 

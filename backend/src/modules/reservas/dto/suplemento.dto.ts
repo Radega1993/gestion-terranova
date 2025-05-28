@@ -1,19 +1,18 @@
 import { IsString, IsNumber, IsEnum, IsOptional, IsBoolean } from 'class-validator';
-
-export enum TipoSuplemento {
-    FIJO = 'FIJO',
-    HORARIO = 'HORARIO'
-}
+import { TipoSuplemento } from '../schemas/suplemento.schema';
 
 export class CreateSuplementoDto {
     @IsString()
-    nombre: string;
+    id: string;
 
     @IsString()
-    descripcion: string;
+    nombre: string;
 
     @IsNumber()
     precio: number;
+
+    @IsEnum(TipoSuplemento)
+    tipo: TipoSuplemento;
 
     @IsBoolean()
     @IsOptional()
@@ -23,15 +22,19 @@ export class CreateSuplementoDto {
 export class UpdateSuplementoDto {
     @IsString()
     @IsOptional()
-    nombre?: string;
+    id?: string;
 
     @IsString()
     @IsOptional()
-    descripcion?: string;
+    nombre?: string;
 
     @IsNumber()
     @IsOptional()
     precio?: number;
+
+    @IsEnum(TipoSuplemento)
+    @IsOptional()
+    tipo?: TipoSuplemento;
 
     @IsBoolean()
     @IsOptional()

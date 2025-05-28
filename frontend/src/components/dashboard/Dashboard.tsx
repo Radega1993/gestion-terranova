@@ -10,7 +10,12 @@ const Dashboard: React.FC = () => {
 
     const modules = [
         { title: 'Deudas', path: '/deudas', description: 'Gestión de deudas' },
-        { title: 'Reservas', path: '/reservas', description: 'Gestión de reservas' },
+        {
+            title: 'Reservas',
+            path: '/reservas',
+            description: 'Gestión de reservas de instalaciones',
+            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]
+        },
         { title: 'Ventas', path: '/ventas', description: 'Gestión de ventas' },
         { title: 'Socios', path: '/socios', description: 'Gestión de socios' },
         {
