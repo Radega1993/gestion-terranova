@@ -16,13 +16,16 @@ import {
     ListItemText,
     ListItemSecondaryAction,
     Paper,
+    Snackbar,
+    Alert,
 } from '@mui/material';
 import { Close as CloseIcon, Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { ChromePicker } from 'react-color';
-import axiosInstance from '../../config/axios';
-import { AxiosError } from 'axios';
+import { API_BASE_URL } from '../../config';
+import { useAuthStore } from '../../stores/authStore';
 
 interface Servicio {
+    _id?: string;
     id: string;
     nombre: string;
     precio: number;
@@ -48,6 +51,12 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
     const [editingServicio, setEditingServicio] = useState<Servicio | null>(null);
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [colorType, setColorType] = useState<'normal' | 'observaciones'>('normal');
+    const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: '',
+        severity: 'success' as 'success' | 'error'
+    });
+    const { token } = useAuthStore();
 
     // Actualizar los estados cuando cambian los props
     useEffect(() => {
@@ -75,9 +84,50 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
         setEditingServicio({ ...servicio });
     };
 
-    const handleDeleteServicio = (id: string) => {
-        console.log('Eliminando servicio con ID:', id);
-        setServiciosEdit(serviciosEdit.filter(s => s.id !== id));
+    const handleDeleteServicio = async (id: string) => {
+        try {
+            const servicio = serviciosEdit.find(s => s.id === id);
+            if (!servicio || !servicio._id) {
+                throw new Error('Servicio no encontrado');
+            }
+
+            const response = await fetch(`${API_BASE_URL}/servicios/${servicio._id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Error al eliminar servicio');
+            }
+
+            // Actualizar la lista de servicios después de eliminar
+            const updatedResponse = await fetch(`${API_BASE_URL}/servicios`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!updatedResponse.ok) throw new Error('Error al obtener servicios');
+            const updatedData = await updatedResponse.json();
+            setServiciosEdit(updatedData);
+
+            setSnackbar({
+                open: true,
+                message: 'Servicio eliminado correctamente',
+                severity: 'success'
+            });
+        } catch (error) {
+            console.error('Error al eliminar servicio:', error);
+            setSnackbar({
+                open: true,
+                message: error instanceof Error ? error.message : 'Error al eliminar el servicio',
+                severity: 'error'
+            });
+        }
     };
 
     const handleSaveServicio = () => {
@@ -123,27 +173,59 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
         try {
             for (const servicio of servicios) {
                 try {
-                    if (servicio.id) {
+                    if (servicio._id) {
                         // Si tiene ID, intentar actualizar
                         console.log('Actualizando servicio:', servicio);
-                        await axiosInstance.patch(`/servicios/${servicio.id}`, servicio);
+                        const response = await fetch(`${API_BASE_URL}/servicios/${servicio._id}`, {
+                            method: 'PATCH',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(servicio)
+                        });
+                        if (!response.ok) throw new Error('Error al actualizar servicio');
                     } else {
                         // Si no tiene ID, crear como nuevo
                         console.log('Creando nuevo servicio:', servicio);
-                        await axiosInstance.post('/servicios', servicio);
+                        const response = await fetch(`${API_BASE_URL}/servicios`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(servicio)
+                        });
+                        if (!response.ok) throw new Error('Error al crear servicio');
                     }
                 } catch (error) {
-                    if (error instanceof AxiosError && error.response?.status === 404) {
+                    if (error instanceof Error && error.message.includes('404')) {
                         // Si no existe, crear como nuevo
                         console.log('Servicio no encontrado, creando como nuevo:', servicio);
-                        await axiosInstance.post('/servicios', servicio);
+                        const response = await fetch(`${API_BASE_URL}/servicios`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(servicio)
+                        });
+                        if (!response.ok) throw new Error('Error al crear servicio');
                     } else {
                         throw error;
                     }
                 }
             }
             // Recargar servicios después de guardar
-            await fetchServicios();
+            const updatedResponse = await fetch(`${API_BASE_URL}/servicios`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!updatedResponse.ok) throw new Error('Error al obtener servicios');
+            const updatedData = await updatedResponse.json();
+            setServiciosEdit(updatedData);
         } catch (error) {
             console.error('Error al guardar servicios:', error);
             throw error;

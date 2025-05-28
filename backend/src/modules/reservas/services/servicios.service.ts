@@ -18,10 +18,19 @@ export class ServiciosService {
     // Servicios
     async createServicio(createServicioDto: CreateServicioDto): Promise<Servicio> {
         try {
+            // Verificar si ya existe un servicio con el mismo id
+            const existingService = await this.servicioModel.findOne({ id: createServicioDto.id });
+            if (existingService) {
+                throw new BadRequestException(`Ya existe un servicio con el id ${createServicioDto.id}`);
+            }
+
             const servicio = new this.servicioModel(createServicioDto);
             return await servicio.save();
         } catch (error) {
             this.logger.error('Error al crear servicio:', error);
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
             throw new BadRequestException('Error al crear el servicio');
         }
     }

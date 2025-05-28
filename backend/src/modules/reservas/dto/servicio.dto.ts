@@ -2,13 +2,19 @@ import { IsString, IsNumber, IsOptional, IsBoolean } from 'class-validator';
 
 export class CreateServicioDto {
     @IsString()
-    nombre: string;
+    id: string;
 
     @IsString()
-    descripcion: string;
+    nombre: string;
 
     @IsNumber()
     precio: number;
+
+    @IsString()
+    color: string;
+
+    @IsString()
+    colorConObservaciones: string;
 
     @IsBoolean()
     @IsOptional()
@@ -18,15 +24,23 @@ export class CreateServicioDto {
 export class UpdateServicioDto {
     @IsString()
     @IsOptional()
-    nombre?: string;
+    id?: string;
 
     @IsString()
     @IsOptional()
-    descripcion?: string;
+    nombre?: string;
 
     @IsNumber()
     @IsOptional()
     precio?: number;
+
+    @IsString()
+    @IsOptional()
+    color?: string;
+
+    @IsString()
+    @IsOptional()
+    colorConObservaciones?: string;
 
     @IsBoolean()
     @IsOptional()

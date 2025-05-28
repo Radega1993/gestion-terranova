@@ -45,7 +45,7 @@ import { ReservaPDF } from './ReservaPDF';
 import { LiquidacionPDF } from './LiquidacionPDF';
 import { GestionServicios } from './GestionServicios';
 import { GestionSuplementos } from './GestionSuplementos';
-import axiosInstance from '../../config/axios';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface Servicio {
     id: string;
@@ -54,6 +54,7 @@ interface Servicio {
     color: string;
     colorConObservaciones: string;
     activo: boolean;
+    _id?: string;
 }
 
 interface Suplemento {
@@ -168,6 +169,9 @@ interface ReservasListProps {
 }
 
 export const ReservasList: React.FC<ReservasListProps> = () => {
+    const queryClient = useQueryClient();
+    const { user } = useAuthStore();
+    const navigate = useNavigate();
     const [reservas, setReservas] = useState<Reserva[]>([]);
     const [socios, setSocios] = useState<Socio[]>([]);
     const [servicios, setServicios] = useState<Servicio[]>([]);
@@ -185,8 +189,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         montoAbonado: 0,
         metodoPago: ''
     });
-    const { token, user } = useAuthStore();
-    const navigate = useNavigate();
     const [searchSocio, setSearchSocio] = useState('');
     const [filteredSocios, setFilteredSocios] = useState<Socio[]>([]);
     const [openLiquidacionDialog, setOpenLiquidacionDialog] = useState(false);
@@ -216,110 +218,205 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         severity: 'success'
     });
     const [openPDF, setOpenPDF] = useState(false);
+    const { token } = useAuthStore();
 
+    // Consulta para obtener reservas
+    const { data: reservasData, isLoading: isLoadingReservas } = useQuery({
+        queryKey: ['reservas'],
+        queryFn: async () => {
+            const response = await fetch(`${API_BASE_URL}/reservas`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!response.ok) throw new Error('Error al obtener reservas');
+            return await response.json();
+        },
+        enabled: !!user
+    });
+
+    // Consulta para obtener socios
+    const { data: sociosData } = useQuery({
+        queryKey: ['socios'],
+        queryFn: async () => {
+            const response = await fetch(`${API_BASE_URL}/socios`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!response.ok) throw new Error('Error al obtener socios');
+            return await response.json();
+        },
+        enabled: !!user
+    });
+
+    // Consulta para obtener servicios
+    const { data: serviciosData = [] } = useQuery({
+        queryKey: ['servicios'],
+        queryFn: async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL}/servicios`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+                if (!response.ok) throw new Error('Error al obtener servicios');
+                const data = await response.json();
+                console.log('Servicios obtenidos:', data);
+                return data;
+            } catch (error) {
+                console.error('Error al obtener servicios:', error);
+                throw error;
+            }
+        },
+        enabled: !!user
+    });
+
+    // Actualizar el estado de servicios cuando cambian los datos
     useEffect(() => {
-        if (token && !user) {
-            console.log('Token presente pero usuario no encontrado, redirigiendo a login...');
-            navigate('/login');
-            return;
+        if (serviciosData) {
+            console.log('Actualizando estado de servicios con:', serviciosData);
+            setServicios(serviciosData);
         }
+    }, [serviciosData]);
 
-        if (!token) {
-            console.log('No hay token, redirigiendo a login...');
-            navigate('/login');
-            return;
-        }
-
-        fetchReservas();
-        fetchSocios();
-        fetchServicios();
-        fetchSuplementos();
-    }, [token, user]);
-
-    const fetchSocios = async () => {
-        try {
-            const response = await axiosInstance.get('/socios');
-            const data = response.data || [];
-
-            if (!Array.isArray(data)) {
-                console.error('La respuesta de socios no es un array:', data);
-                setSocios([]);
-                return;
+    // Consulta para obtener suplementos
+    const { data: suplementosListData = [] } = useQuery({
+        queryKey: ['suplementos'],
+        queryFn: async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+                if (!response.ok) throw new Error('Error al obtener suplementos');
+                return await response.json();
+            } catch (error) {
+                console.error('Error al obtener suplementos:', error);
+                throw error;
             }
+        },
+        enabled: !!user
+    });
 
-            const sociosFormateados = data.map((socio: any) => {
-                const nombreCompleto = socio.nombre || {};
-                const nombre = nombreCompleto.nombre || '';
-                const apellidos = [nombreCompleto.primerApellido, nombreCompleto.segundoApellido]
-                    .filter(Boolean)
-                    .join(' ');
+    // Mutación para crear/actualizar reserva
+    const reservaMutation = useMutation({
+        mutationFn: async (reservaData: any) => {
+            const url = selectedReserva
+                ? `${API_BASE_URL}/reservas/${selectedReserva._id}`
+                : `${API_BASE_URL}/reservas`;
 
-                return {
-                    _id: socio._id || '',
-                    nombre: nombre.trim(),
-                    apellidos: apellidos.trim(),
-                    numeroSocio: socio.socio || ''
-                };
-            }).filter((socio: Socio) => socio.nombre || socio.apellidos || socio.numeroSocio);
+            const response = await fetch(url, {
+                method: selectedReserva ? 'PATCH' : 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(reservaData)
+            });
 
-            setSocios(sociosFormateados);
-        } catch (error) {
-            console.error('Error fetching socios:', error);
-            setSocios([]);
+            if (!response.ok) throw new Error('Error al guardar la reserva');
+            return await response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['reservas'] });
+            handleCloseDialog();
+        },
+        onError: (error: any) => {
+            console.error('Error saving reserva:', error);
+            alert(error.message || 'Ha ocurrido un error al procesar la reserva');
         }
-    };
+    });
 
-    const fetchReservas = async () => {
-        try {
-            const response = await axiosInstance.get('/reservas');
-            const data = response.data || [];
-            if (!Array.isArray(data)) {
-                console.error('La respuesta de reservas no es un array:', data);
-                setReservas([]);
-                return;
-            }
-            setReservas(data);
-        } catch (error) {
-            console.error('Error fetching reservas:', error);
-            setReservas([]);
+    // Mutación para eliminar reserva
+    const deleteMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const response = await fetch(`${API_BASE_URL}/reservas/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                }
+            });
+            if (!response.ok) throw new Error('Error al eliminar la reserva');
+            return await response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['reservas'] });
         }
-    };
+    });
 
-    const fetchServicios = async () => {
-        try {
-            console.log('Fetching servicios...');
-            const response = await axiosInstance.get('/servicios');
-            const data = response.data || [];
-            if (!Array.isArray(data)) {
-                console.error('La respuesta de servicios no es un array:', data);
-                setServicios([]);
-                return;
-            }
-            console.log('Servicios recibidos:', data);
-            setServicios(data);
-        } catch (error) {
-            console.error('Error fetching servicios:', error);
-            setServicios([]);
+    // Mutación para liquidar reserva
+    const liquidarMutation = useMutation({
+        mutationFn: async (datosLiquidacion: any) => {
+            const response = await fetch(`${API_BASE_URL}/reservas/${selectedReservaLiquidacion?._id}/liquidar`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(datosLiquidacion)
+            });
+            if (!response.ok) throw new Error('Error al liquidar la reserva');
+            return await response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['reservas'] });
+            handleCloseLiquidacionDialog();
+            setSnackbar({
+                open: true,
+                message: 'Reserva liquidada correctamente',
+                severity: 'success'
+            });
+        },
+        onError: (error: any) => {
+            setSnackbar({
+                open: true,
+                message: error.message || 'Error al liquidar la reserva',
+                severity: 'error'
+            });
         }
-    };
+    });
 
-    const fetchSuplementos = async () => {
-        try {
-            console.log('Fetching suplementos...');
-            const response = await axiosInstance.get('/servicios/suplementos');
-            const data = response.data || [];
-            if (!Array.isArray(data)) {
-                console.error('La respuesta de suplementos no es un array:', data);
-                setSuplementosList([]);
-                return;
-            }
-            console.log('Suplementos recibidos:', data);
-            setSuplementosList(data);
-        } catch (error) {
-            console.error('Error fetching suplementos:', error);
-            setSuplementosList([]);
+    // Mutación para cancelar reserva
+    const cancelarMutation = useMutation({
+        mutationFn: async (datosCancelacion: any) => {
+            const response = await fetch(`${API_BASE_URL}/reservas/${selectedReservaForCancel?._id}/cancelar`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(datosCancelacion)
+            });
+            if (!response.ok) throw new Error('Error al cancelar la reserva');
+            return await response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['reservas'] });
+            setOpenCancelDialog(false);
+            setSelectedReservaForCancel(null);
+            setSnackbar({
+                open: true,
+                message: cancelacionData.pendienteRevisionJunta
+                    ? 'La reserva ha sido cancelada. La devolución del dinero será valorada por la Junta.'
+                    : 'La reserva ha sido cancelada exitosamente',
+                severity: 'success'
+            });
+        },
+        onError: (error: any) => {
+            setSnackbar({
+                open: true,
+                message: error.message || 'Error al cancelar la reserva',
+                severity: 'error'
+            });
         }
-    };
+    });
 
     const handleOpenDialog = (reserva?: Reserva) => {
         console.log('Abriendo diálogo de reserva:', reserva ? 'edición' : 'nueva');
@@ -370,25 +467,18 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         }
 
         try {
-            const url = selectedReserva
-                ? `${API_BASE_URL}/reservas/${selectedReserva._id}`
-                : `${API_BASE_URL}/reservas`;
-            const method = selectedReserva ? 'PATCH' : 'POST';
-
             const servicioSeleccionado = servicios.find(s => s.id === formData.servicio);
             if (!servicioSeleccionado) {
                 alert('Por favor, selecciona un servicio válido');
                 return;
             }
 
-            // Formatear la fecha para el backend
             const fecha = new Date(formData.fecha);
             if (isNaN(fecha.getTime())) {
                 alert('Por favor, selecciona una fecha válida');
                 return;
             }
 
-            // Eliminar suplementos duplicados y asegurar que tengan toda la información necesaria
             const suplementosUnicos = formData.suplementos.reduce((acc: any[], current) => {
                 const existingIndex = acc.findIndex(item => item.id === current.id);
                 const suplementoInfo = suplementosList.find(s => s.id === current.id);
@@ -407,7 +497,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                         tipo: suplementoInfo.tipo
                     });
                 } else {
-                    // Si ya existe, sumar las cantidades
                     acc[existingIndex].cantidad = (acc[existingIndex].cantidad || 1) + (current.cantidad || 1);
                 }
                 return acc;
@@ -425,28 +514,10 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 metodoPago: formData.metodoPago || ''
             };
 
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(reservaData),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                // Mostrar el mensaje de error como información
-                alert(data.message || 'No se pudo procesar la reserva');
-                return;
-            }
-
-            await fetchReservas();
-            handleCloseDialog();
+            reservaMutation.mutate(reservaData);
         } catch (error) {
-            console.error('Error saving reserva:', error);
-            alert('Ha ocurrido un error al procesar la reserva. Por favor, inténtalo de nuevo.');
+            console.error('Error preparing reserva data:', error);
+            alert('Ha ocurrido un error al preparar los datos de la reserva');
         }
     };
 
@@ -454,23 +525,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         if (!window.confirm('¿Estás seguro de que quieres eliminar esta reserva?')) {
             return;
         }
-
-        try {
-            const response = await fetch(`${API_BASE_URL}/reservas/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            await fetchReservas();
-        } catch (error) {
-            console.error('Error deleting reserva:', error);
-        }
+        deleteMutation.mutate(id);
     };
 
     const handleSuplementoChange = (suplementoId: string, checked: boolean, cantidad?: number) => {
@@ -667,32 +722,12 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 estado: 'COMPLETADA'
             };
 
-            const response = await fetch(`${API_BASE_URL}/reservas/${selectedReservaLiquidacion._id}/liquidar`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(datosLiquidacion)
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Error al liquidar la reserva');
-            }
-
-            await fetchReservas();
-            handleCloseLiquidacionDialog();
+            liquidarMutation.mutate(datosLiquidacion);
+        } catch (error) {
+            console.error('Error preparing liquidacion data:', error);
             setSnackbar({
                 open: true,
-                message: 'Reserva liquidada correctamente',
-                severity: 'success'
-            });
-        } catch (error: any) {
-            console.error('Error al liquidar la reserva:', error);
-            setSnackbar({
-                open: true,
-                message: error.message || 'Error al liquidar la reserva',
+                message: 'Error al preparar los datos de liquidación',
                 severity: 'error'
             });
         }
@@ -713,7 +748,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         if (!selectedReservaForCancel) return;
 
         try {
-            // Validaciones según el motivo
             if (cancelacionData.motivo === 'CLIMA') {
                 const fechaReserva = new Date(selectedReservaForCancel.fecha);
                 const fechaActual = new Date();
@@ -731,7 +765,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 const diasDiferencia = Math.ceil((fechaReserva.getTime() - fechaActual.getTime()) / (1000 * 60 * 60 * 24));
 
                 if (diasDiferencia < 9) {
-                    // Caso de menos de 9 días
                     if (!cancelacionData.observaciones) {
                         setSnackbar({
                             open: true,
@@ -756,7 +789,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                         return;
                     }
 
-                    // Si confirma, marcamos como pendiente de revisión
                     setCancelacionData(prev => ({
                         ...prev,
                         montoDevuelto: 0,
@@ -764,7 +796,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                         pendienteRevisionJunta: true
                     }));
                 } else {
-                    // Caso de más de 9 días
                     if ((selectedReservaForCancel.montoAbonado || 0) > 0) {
                         if (!cancelacionData.montoDevuelto) {
                             setSnackbar({
@@ -802,7 +833,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 }
             }
 
-            // Confirmación final antes de proceder
             const result = await Swal.fire({
                 title: '¿Estás seguro?',
                 text: 'Esta acción no se puede deshacer',
@@ -815,32 +845,13 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
             });
 
             if (result.isConfirmed) {
-                const response = await axios.patch(`${API_BASE_URL}/reservas/${selectedReservaForCancel._id}/cancelar`, cancelacionData, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                if (response.data) {
-                    setSnackbar({
-                        open: true,
-                        message: cancelacionData.pendienteRevisionJunta
-                            ? 'La reserva ha sido cancelada. La devolución del dinero será valorada por la Junta.'
-                            : 'La reserva ha sido cancelada exitosamente',
-                        severity: 'success'
-                    });
-                    setReservas(reservas.map(r =>
-                        r._id === selectedReservaForCancel._id ? response.data : r
-                    ));
-                    setOpenCancelDialog(false);
-                    setSelectedReservaForCancel(null);
-                }
+                cancelarMutation.mutate(cancelacionData);
             }
-        } catch (error: any) {
-            console.error('Error al cancelar la reserva:', error);
+        } catch (error) {
+            console.error('Error preparing cancelacion data:', error);
             setSnackbar({
                 open: true,
-                message: error.response?.data?.message || 'Error al cancelar la reserva',
+                message: 'Error al preparar los datos de cancelación',
                 severity: 'error'
             });
         }
@@ -858,53 +869,54 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
     };
 
     const handleSaveServicios = async (servicios: Servicio[]) => {
-        console.log('Guardando servicios:', servicios);
         try {
+            // Actualizar cada servicio individualmente
             for (const servicio of servicios) {
-                try {
-                    if (servicio.id) {
-                        // Si tiene ID, intentar actualizar
-                        console.log('Actualizando servicio:', servicio);
-                        await axios.patch(`${API_BASE_URL}/servicios/${servicio.id}`, servicio, {
-                            headers: {
-                                'Authorization': `Bearer ${token}`
-                            }
-                        });
-                    } else {
-                        // Si no tiene ID, crear como nuevo
-                        console.log('Creando nuevo servicio:', servicio);
-                        await axios.post(`${API_BASE_URL}/servicios`, servicio, {
-                            headers: {
-                                'Authorization': `Bearer ${token}`
-                            }
-                        });
-                    }
-                } catch (error) {
-                    if (error instanceof AxiosError && error.response?.status === 404) {
-                        // Si no existe, crear como nuevo
-                        console.log('Servicio no encontrado, creando como nuevo:', servicio);
-                        await axios.post(`${API_BASE_URL}/servicios`, servicio, {
-                            headers: {
-                                'Authorization': `Bearer ${token}`
-                            }
-                        });
-                    } else {
-                        throw error;
-                    }
+                if (servicio._id) {
+                    // Si tiene _id, actualizar con PATCH
+                    const response = await fetch(`${API_BASE_URL}/servicios/${servicio._id}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(servicio)
+                    });
+                    if (!response.ok) throw new Error('Error al actualizar servicio');
+                } else {
+                    // Si no tiene _id, crear nuevo con POST
+                    const response = await fetch(`${API_BASE_URL}/servicios`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(servicio)
+                    });
+                    if (!response.ok) throw new Error('Error al crear servicio');
                 }
             }
-            // Recargar servicios después de guardar
-            await fetchServicios();
+
+            // Actualizar la lista de servicios después de guardar
+            const updatedResponse = await fetch(`${API_BASE_URL}/servicios`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!updatedResponse.ok) throw new Error('Error al obtener servicios');
+            setServicios(await updatedResponse.json());
+
             setSnackbar({
                 open: true,
                 message: 'Servicios guardados correctamente',
                 severity: 'success'
             });
         } catch (error) {
-            console.error('Error saving servicios:', error);
+            console.error('Error al guardar servicios:', error);
             setSnackbar({
                 open: true,
-                message: 'Error al guardar los servicios',
+                message: error instanceof Error ? error.message : 'Error al guardar los servicios',
                 severity: 'error'
             });
         }
@@ -912,101 +924,39 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
 
     const handleSaveSuplementos = async (suplementos: Suplemento[]) => {
         try {
-            console.log('Guardando suplementos:', suplementos);
-            const updatedSuplementos = [...suplementosList]; // Copiar la lista actual
-            let hasChanges = false;
+            const response = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(suplementos)
+            });
+            if (!response.ok) throw new Error('Error al guardar suplementos');
 
-            for (const suplemento of suplementos) {
-                try {
-                    // Buscar si el suplemento ya existe en la lista actual por _id
-                    const existingSuplemento = suplementosList.find(s => s._id === suplemento._id);
+            setSuplementosList(suplementos);
+            setOpenGestionSuplementos(false);
 
-                    if (existingSuplemento) {
-                        // Verificar si realmente hay cambios
-                        const hasRealChanges =
-                            existingSuplemento.nombre !== suplemento.nombre ||
-                            existingSuplemento.precio !== suplemento.precio ||
-                            existingSuplemento.tipo !== suplemento.tipo ||
-                            existingSuplemento.activo !== suplemento.activo;
+            // Actualizar los suplementos después de guardar
+            const updatedResponse = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!updatedResponse.ok) throw new Error('Error al obtener suplementos');
+            setSuplementosList(await updatedResponse.json());
 
-                        if (hasRealChanges) {
-                            // Es un suplemento existente con cambios, actualizarlo
-                            console.log('Actualizando suplemento existente:', {
-                                id: existingSuplemento._id,
-                                cambios: {
-                                    nombre: suplemento.nombre,
-                                    precio: suplemento.precio,
-                                    tipo: suplemento.tipo,
-                                    activo: suplemento.activo
-                                }
-                            });
-
-                            const response = await axios.patch(`${API_BASE_URL}/servicios/suplementos/${existingSuplemento._id}`, {
-                                nombre: suplemento.nombre,
-                                precio: suplemento.precio,
-                                tipo: suplemento.tipo,
-                                activo: suplemento.activo
-                            }, {
-                                headers: {
-                                    'Authorization': `Bearer ${token}`
-                                }
-                            });
-                            console.log('Suplemento actualizado:', response.data);
-
-                            // Actualizar en la lista local
-                            const index = updatedSuplementos.findIndex(s => s._id === suplemento._id);
-                            if (index !== -1) {
-                                updatedSuplementos[index] = response.data;
-                                hasChanges = true;
-                            }
-                        } else {
-                            console.log('No hay cambios reales en el suplemento:', suplemento.nombre);
-                        }
-                    } else {
-                        // Es un suplemento nuevo, crearlo
-                        console.log('Creando nuevo suplemento:', suplemento);
-                        const response = await axios.post(`${API_BASE_URL}/servicios/suplementos`, {
-                            id: suplemento.id,
-                            nombre: suplemento.nombre,
-                            precio: suplemento.precio,
-                            tipo: suplemento.tipo,
-                            activo: suplemento.activo
-                        }, {
-                            headers: {
-                                'Authorization': `Bearer ${token}`
-                            }
-                        });
-                        console.log('Suplemento creado:', response.data);
-                        updatedSuplementos.push(response.data);
-                        hasChanges = true;
-                    }
-                } catch (error: any) {
-                    console.error('Error al guardar suplemento:', error);
-                    if (error.response?.data?.message) {
-                        alert(`Error al guardar suplemento ${suplemento.nombre}: ${error.response.data.message}`);
-                    } else {
-                        alert(`Error al guardar suplemento ${suplemento.nombre}: ${error.message}`);
-                    }
-                }
-            }
-
-            // Solo actualizar el estado y recargar si hubo cambios
-            if (hasChanges) {
-                setSuplementosList(updatedSuplementos);
-                await fetchSuplementos(); // Recargar los suplementos del backend
-                setSnackbar({
-                    open: true,
-                    message: 'Suplementos guardados correctamente',
-                    severity: 'success'
-                });
-            } else {
-                console.log('No hubo cambios que guardar');
-            }
-        } catch (error: any) {
+            setSnackbar({
+                open: true,
+                message: 'Suplementos guardados correctamente',
+                severity: 'success'
+            });
+        } catch (error) {
             console.error('Error al guardar suplementos:', error);
             setSnackbar({
                 open: true,
-                message: 'Error al guardar suplementos: ' + error.message,
+                message: error instanceof Error ? error.message : 'Error al guardar suplementos',
                 severity: 'error'
             });
         }
@@ -1049,6 +999,47 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 </Typography>
             </Box>
         );
+    };
+
+    const handleDeleteServicio = async (id: string) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/servicios/${_id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Error al eliminar servicio');
+            }
+
+            // Actualizar la lista de servicios después de eliminar
+            const updatedResponse = await fetch(`${API_BASE_URL}/servicios`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!updatedResponse.ok) throw new Error('Error al obtener servicios');
+            const updatedData = await updatedResponse.json();
+            setServicios(updatedData);
+
+            setSnackbar({
+                open: true,
+                message: 'Servicio eliminado correctamente',
+                severity: 'success'
+            });
+        } catch (error) {
+            console.error('Error al eliminar servicio:', error);
+            setSnackbar({
+                open: true,
+                message: error instanceof Error ? error.message : 'Error al eliminar el servicio',
+                severity: 'error'
+            });
+        }
     };
 
     return (
@@ -1463,6 +1454,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 onClose={() => setOpenGestionServicios(false)}
                 servicios={servicios}
                 onSaveServicios={handleSaveServicios}
+                onDeleteServicio={handleDeleteServicio}
             />
 
             {/* Modal de Gestión de Suplementos */}
