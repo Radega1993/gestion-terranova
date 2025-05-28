@@ -1,6 +1,6 @@
-import { IsDate, IsEnum, IsMongoId, IsNumber, IsOptional, IsString, IsArray, ValidateNested } from 'class-validator';
+import { IsDate, IsMongoId, IsNumber, IsOptional, IsString, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
-import { TipoInstalacion } from '../schemas/reserva.schema';
+import { MetodoPago } from '../schemas/reserva.schema';
 
 class SuplementoDto {
     @IsString()
@@ -16,11 +16,14 @@ export class CreateReservaDto {
     @Type(() => Date)
     fecha: Date;
 
-    @IsEnum(TipoInstalacion)
-    tipoInstalacion: TipoInstalacion;
+    @IsString()
+    tipoInstalacion: string;
 
     @IsMongoId()
     socio: string;
+
+    @IsMongoId()
+    usuarioCreacion: string;
 
     @IsArray()
     @ValidateNested({ each: true })
@@ -33,4 +36,12 @@ export class CreateReservaDto {
     @IsString()
     @IsOptional()
     observaciones?: string;
+
+    @IsNumber()
+    @IsOptional()
+    montoAbonado?: number;
+
+    @IsEnum(MetodoPago)
+    @IsOptional()
+    metodoPago?: MetodoPago;
 } 

@@ -1,6 +1,7 @@
-import { IsDate, IsEnum, IsMongoId, IsNumber, IsOptional, IsString, IsArray, ValidateNested, IsBoolean } from 'class-validator';
+import { IsDate, IsMongoId, IsEnum, IsNumber, IsOptional, IsString, Min, IsArray, ValidateNested, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
-import { EstadoReserva, MetodoPago, TipoInstalacion } from '../schemas/reserva.schema';
+import { EstadoReserva, MetodoPago } from '../schemas/reserva.schema';
+import { TipoSuplemento } from '../schemas/suplemento.schema';
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateReservaDto } from './create-reserva.dto';
 
@@ -8,8 +9,8 @@ class SuplementoDto {
     @IsString()
     id: string;
 
-    @IsNumber()
     @IsOptional()
+    @IsNumber()
     cantidad?: number;
 }
 
@@ -20,8 +21,8 @@ export class UpdateReservaDto extends PartialType(CreateReservaDto) {
     fecha?: Date;
 
     @IsOptional()
-    @IsEnum(TipoInstalacion)
-    tipoInstalacion?: TipoInstalacion;
+    @IsString()
+    tipoInstalacion?: string;
 
     @IsOptional()
     @IsMongoId()

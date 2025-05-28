@@ -8,6 +8,16 @@ const getToken = () => {
         localStorage.getItem('access_token');
 };
 
+export const getSocios = async (): Promise<Socio[]> => {
+    const token = getToken();
+    const response = await axios.get(`${API_BASE_URL}/socios`, {
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+    return response.data;
+};
+
 export const getSocio = async (id: string): Promise<Socio> => {
     const token = getToken();
     const response = await axios.get(`${API_BASE_URL}/socios/${id}`, {

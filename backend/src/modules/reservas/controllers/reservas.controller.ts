@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, UnauthorizedException, Logger, BadRequestException, Request } from '@nestjs/common';
 import { ReservasService } from '../services/reservas.service';
-import { CreateReservaDto, UpdateReservaDto } from '../dto/reserva.dto';
+import { CreateReservaDto } from '../dto/create-reserva.dto';
+import { UpdateReservaDto } from '../dto/update-reserva.dto';
 import { LiquidarReservaDto } from '../dto/liquidar-reserva.dto';
 import { CancelarReservaDto } from '../dto/cancelar-reserva.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -33,10 +34,12 @@ export class ReservasController {
 
     @Get()
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
-    findAll() {
+    async findAll() {
         this.logger.debug('Recibida petición para obtener todas las reservas');
         try {
-            return this.reservasService.findAll();
+            const reservas = await this.reservasService.findAll();
+            this.logger.debug(`Encontradas ${reservas.length} reservas`);
+            return reservas;
         } catch (error) {
             this.logger.error('Error al obtener reservas:', error);
             throw error;
@@ -112,11 +115,11 @@ export class ReservasController {
         }
     }
 
-    @Post(':id/confirmar')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
-    confirmar(@Param('id') id: string, @Request() req) {
-        return this.reservasService.confirmar(id, req.user._id);
-    }
+    // @Post(':id/confirmar')
+    // @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    // confirmar(@Param('id') id: string, @Request() req) {
+    //     return this.reservasService.confirmar(id, req.user._id);
+    // }
 
     @Post(':id/cancelar')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
@@ -130,11 +133,11 @@ export class ReservasController {
         }
     }
 
-    @Post(':id/completar')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
-    completar(@Param('id') id: string) {
-        return this.reservasService.completar(id);
-    }
+    // @Post(':id/completar')
+    // @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    // completar(@Param('id') id: string) {
+    //     return this.reservasService.completar(id);
+    // }
 
     @Post(':id/liquidar')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)

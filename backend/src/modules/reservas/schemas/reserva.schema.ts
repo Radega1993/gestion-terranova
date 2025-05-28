@@ -9,8 +9,8 @@ export enum EstadoReserva {
     CONFIRMADA = 'CONFIRMADA',
     CANCELADA = 'CANCELADA',
     COMPLETADA = 'COMPLETADA',
-    LISTA_ESPERA = 'LISTA_ESPERA',
-    LIQUIDADA = 'LIQUIDADA'
+    LIQUIDADA = 'LIQUIDADA',
+    LISTA_ESPERA = 'LISTA_ESPERA'
 }
 
 export enum MetodoPago {
@@ -18,20 +18,13 @@ export enum MetodoPago {
     TARJETA = 'tarjeta'
 }
 
-export enum TipoInstalacion {
-    PISCINA = 'PISCINA',
-    BBQ = 'BBQ',
-    SALON = 'SALON',
-    PADEL = 'PADEL'
-}
-
 @Schema({ timestamps: true })
 export class Reserva {
     @Prop({ required: true, type: Date })
     fecha: Date;
 
-    @Prop({ required: true, enum: TipoInstalacion })
-    tipoInstalacion: TipoInstalacion;
+    @Prop({ required: true, type: String })
+    tipoInstalacion: string;
 
     @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
     usuarioCreacion: MongooseSchema.Types.ObjectId;
@@ -52,7 +45,7 @@ export class Reserva {
     suplementos: Array<{
         id: string;
         cantidad?: number;
-        _id: MongooseSchema.Types.ObjectId;
+        _id?: MongooseSchema.Types.ObjectId;
     }>;
 
     @Prop({ required: true, type: Number })
@@ -90,6 +83,19 @@ export class Reserva {
 
     @Prop({ type: Boolean, default: false })
     pendienteRevisionJunta?: boolean;
+
+    @Prop({
+        type: [{
+            monto: Number,
+            metodoPago: String,
+            fecha: Date
+        }]
+    })
+    pagos?: Array<{
+        monto: number;
+        metodoPago: string;
+        fecha: Date;
+    }>;
 }
 
 export const ReservaSchema = SchemaFactory.createForClass(Reserva); 

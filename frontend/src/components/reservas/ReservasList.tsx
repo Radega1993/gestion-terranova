@@ -67,12 +67,17 @@ interface Suplemento {
 
 interface Socio {
     _id: string;
-    nombre: string;
-    apellidos: string;
-    numeroSocio: string;
-    email?: string;
-    telefono?: string;
-    direccion?: string;
+    socio: string;
+    nombre: {
+        nombre: string;
+        primerApellido: string;
+        segundoApellido?: string;
+    };
+    contacto: {
+        telefonos: string[];
+        emails: string[];
+    };
+    active: boolean;
 }
 
 interface Reserva {
@@ -132,18 +137,6 @@ interface CancelacionData {
     montoDevuelto?: number;
     pendienteRevisionJunta?: boolean;
 }
-
-const suplementos: Suplemento[] = [
-    { id: 'aire', nombre: 'Aire acondicionado / Calefacción', precio: 10, tipo: 'fijo', activo: true },
-    { id: 'exclusividad', nombre: 'Suplemento Exclusividad', precio: 25, tipo: 'fijo', activo: true },
-    { id: 'horasExtras', nombre: 'Horas Extras', precio: 10, tipo: 'porHora', activo: true },
-];
-
-const serviciosIniciales: Servicio[] = [
-    { id: 'piscina', nombre: 'Piscina', precio: 50, color: '#2196f3', colorConObservaciones: '#1565c0', activo: true },
-    { id: 'bbq', nombre: 'Zona BBQ', precio: 30, color: '#f44336', colorConObservaciones: '#c62828', activo: true },
-    { id: 'salon', nombre: 'Salón Comunal', precio: 100, color: '#4caf50', colorConObservaciones: '#2e7d32', activo: true },
-];
 
 const StyledCalendar = styled(DateCalendar)(({ theme }) => ({
     '& .MuiPickersDay-root.Mui-selected': {
@@ -223,22 +216,36 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
     const { data: reservasData, isLoading: isLoadingReservas } = useQuery({
         queryKey: ['reservas'],
         queryFn: async () => {
+            console.log('Iniciando petición para obtener reservas...');
             const response = await fetch(`${API_BASE_URL}/reservas`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
             });
-            if (!response.ok) throw new Error('Error al obtener reservas');
-            return await response.json();
+            if (!response.ok) {
+                console.error('Error en la respuesta:', response.status, response.statusText);
+                throw new Error('Error al obtener reservas');
+            }
+            const data = await response.json();
+            console.log('Reservas obtenidas:', data);
+            return data;
         },
         enabled: !!user
     });
+
+    // Actualizar el estado de reservas cuando cambian los datos
+    useEffect(() => {
+        if (reservasData) {
+            setReservas(reservasData);
+        }
+    }, [reservasData]);
 
     // Consulta para obtener socios
     const { data: sociosData } = useQuery({
         queryKey: ['socios'],
         queryFn: async () => {
+            console.log('Iniciando petición para obtener socios...');
             const response = await fetch(`${API_BASE_URL}/socios`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -246,10 +253,20 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 },
             });
             if (!response.ok) throw new Error('Error al obtener socios');
-            return await response.json();
+            const data = await response.json();
+            console.log('Socios obtenidos del backend:', data);
+            return data;
         },
         enabled: !!user
     });
+
+    // Actualizar el estado de socios cuando cambian los datos
+    useEffect(() => {
+        if (sociosData) {
+            console.log('Actualizando estado de socios con:', sociosData);
+            setSocios(sociosData);
+        }
+    }, [sociosData]);
 
     // Consulta para obtener servicios
     const { data: serviciosData = [] } = useQuery({
@@ -291,13 +308,8 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                         'Content-Type': 'application/json',
                     },
                 });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    console.error('Error en la respuesta:', errorData);
-                    throw new Error('Error al obtener suplementos');
-                }
-                const data = await response.json();
-                return data;
+                if (!response.ok) throw new Error('Error al obtener suplementos');
+                return await response.json();
             } catch (error) {
                 console.error('Error al obtener suplementos:', error);
                 throw error;
@@ -309,6 +321,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
     // Actualizar el estado de suplementos cuando cambian los datos
     useEffect(() => {
         if (suplementosListData) {
+            console.log('Actualizando estado de suplementos con:', suplementosListData);
             setSuplementosList(suplementosListData);
         }
     }, [suplementosListData]);
@@ -610,15 +623,19 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
     };
 
     const getReservasForDate = (date: Date) => {
-        return reservas.filter(reserva =>
-            isSameDay(parseISO(reserva.fecha), date)
-        );
+        console.log('Buscando reservas para fecha:', date);
+        console.log('Reservas disponibles:', reservas);
+        const reservasDelDia = reservas.filter(reserva => {
+            const reservaDate = new Date(reserva.fecha);
+            const esMismoDia = isSameDay(reservaDate, date);
+
+            return esMismoDia;
+        });
+        console.log('Reservas encontradas para el día:', reservasDelDia);
+        return reservasDelDia;
     };
 
     const getReservaColor = (reserva: Reserva) => {
-        const servicio = servicios.find(s => s.id === reserva.tipoInstalacion.toLowerCase());
-        if (!servicio) return '#000';
-
         // Si la reserva está cancelada
         if (reserva.estado === 'CANCELADA') {
             return '#9e9e9e'; // Gris para canceladas
@@ -636,23 +653,34 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
 
         // Si tiene observaciones
         if (reserva.observaciones) {
-            return servicio.colorConObservaciones;
+            return '#f57c00'; // Naranja oscuro
         }
 
-        return servicio.color;
+        // Color por defecto según el tipo de instalación
+        switch (reserva.tipoInstalacion.toUpperCase()) {
+            case 'SALON':
+                return '#1976d2'; // Azul
+            case 'PISCINA':
+                return '#2196f3'; // Azul claro
+            case 'BBQ':
+                return '#4caf50'; // Verde
+            default:
+                return '#757575'; // Gris
+        }
     };
 
     const renderDayContent = (day: Date) => {
         const reservasDelDia = getReservasForDate(day);
+
         if (reservasDelDia.length === 0) return null;
 
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5, mt: 0.5 }}>
-                {reservasDelDia.map((reserva, index) => (
+                {reservasDelDia.map((reserva) => (
                     <ReservaIndicator
-                        key={index}
+                        key={reserva._id}
                         color={getReservaColor(reserva)}
-                        title={`${servicios.find(s => s.id === reserva.tipoInstalacion.toLowerCase())?.nombre}: ${reserva.socio.nombre.nombre} ${reserva.socio.nombre.primerApellido} ${reserva.socio.nombre.segundoApellido || ''}`}
+                        title={`${reserva.tipoInstalacion}: ${reserva.socio.nombre.nombre} ${reserva.socio.nombre.primerApellido} - ${reserva.estado}`}
                     />
                 ))}
             </Box>
@@ -1008,7 +1036,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
 
     const handleDeleteServicio = async (id: string) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/servicios/${_id}`, {
+            const response = await fetch(`${API_BASE_URL}/servicios/${id}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1042,6 +1070,47 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
             setSnackbar({
                 open: true,
                 message: error instanceof Error ? error.message : 'Error al eliminar el servicio',
+                severity: 'error'
+            });
+        }
+    };
+
+    const handleDeleteSuplemento = async (id: string) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/servicios/suplementos/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Error al eliminar suplemento');
+            }
+
+            // Actualizar la lista de suplementos después de eliminar
+            const updatedResponse = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!updatedResponse.ok) throw new Error('Error al obtener suplementos');
+            const updatedData = await updatedResponse.json();
+            setSuplementosList(updatedData);
+
+            setSnackbar({
+                open: true,
+                message: 'Suplemento eliminado correctamente',
+                severity: 'success'
+            });
+        } catch (error) {
+            console.error('Error al eliminar suplemento:', error);
+            setSnackbar({
+                open: true,
+                message: error instanceof Error ? error.message : 'Error al eliminar el suplemento',
                 severity: 'error'
             });
         }
@@ -1468,6 +1537,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 onClose={() => setOpenGestionSuplementos(false)}
                 suplementos={suplementosList}
                 onSaveSuplementos={handleSaveSuplementos}
+                onDeleteSuplemento={handleDeleteSuplemento}
             />
 
             {/* Modal de Nueva/Editar Reserva */}
@@ -1559,10 +1629,16 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                                 </Grid>
                                 <Grid sx={{ xs: 12 }}>
                                     <Autocomplete
-                                        options={socios}
-                                        getOptionLabel={(option) => `${option.nombre} ${option.apellidos} (${option.numeroSocio})`}
+                                        options={socios.filter(s => s.active)}
+                                        getOptionLabel={(option) => {
+                                            console.log('Renderizando opción:', option);
+                                            return `${option.nombre.nombre} ${option.nombre.primerApellido} (${option.socio})`;
+                                        }}
                                         value={socios.find(s => s._id === formData.socio) || null}
-                                        onChange={(_, newValue) => setFormData({ ...formData, socio: newValue?._id || '' })}
+                                        onChange={(_, newValue) => {
+                                            console.log('Nuevo valor seleccionado:', newValue);
+                                            setFormData({ ...formData, socio: newValue?._id || '' });
+                                        }}
                                         renderInput={(params) => (
                                             <TextField
                                                 {...params}
