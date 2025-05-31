@@ -107,8 +107,8 @@ const RecaudacionesList: React.FC = () => {
             console.log('Filtros enviados:', filtros);
 
             const response = await fetch(`${API_BASE_URL}/ventas/recaudaciones?${new URLSearchParams({
-                ...(filtros.fechaInicio && { fechaInicio: filtros.fechaInicio }),
-                ...(filtros.fechaFin && { fechaFin: filtros.fechaFin }),
+                ...(filtros.fechaInicio && { fechaInicio: filtros.fechaInicio.toISOString() }),
+                ...(filtros.fechaFin && { fechaFin: filtros.fechaFin.toISOString() }),
                 ...(filtros.codigoSocio && { codigoSocio: filtros.codigoSocio }),
                 ...(filtros.usuario && { usuario: filtros.usuario })
             })}`, {
@@ -129,9 +129,9 @@ const RecaudacionesList: React.FC = () => {
             if (data.length > 0) {
                 console.log('Primer registro:', data[0]);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error completo:', error);
-            setError(error.message);
+            setError(error.message || 'Error desconocido');
         } finally {
             setLoading(false);
         }
@@ -199,7 +199,13 @@ const RecaudacionesList: React.FC = () => {
                             <Button
                                 variant="outlined"
                                 startIcon={<PdfIcon />}
-                                onClick={() => setShowResumenGeneral(true)}
+                                onClick={() => {
+                                    console.log('Abriendo Resumen General');
+                                    console.log('Fecha Inicio:', filtros.fechaInicio);
+                                    console.log('Fecha Fin:', filtros.fechaFin);
+                                    console.log('Ventas:', ventas);
+                                    setShowResumenGeneral(true);
+                                }}
                                 disabled={ventas.length === 0}
                             >
                                 Resumen General
@@ -207,7 +213,13 @@ const RecaudacionesList: React.FC = () => {
                             <Button
                                 variant="outlined"
                                 startIcon={<PdfIcon />}
-                                onClick={() => setShowResumenDetallado(true)}
+                                onClick={() => {
+                                    console.log('Abriendo Resumen Detallado');
+                                    console.log('Fecha Inicio:', filtros.fechaInicio);
+                                    console.log('Fecha Fin:', filtros.fechaFin);
+                                    console.log('Ventas:', ventas);
+                                    setShowResumenDetallado(true);
+                                }}
                                 disabled={ventas.length === 0}
                             >
                                 Resumen Detallado
@@ -301,6 +313,12 @@ const RecaudacionesList: React.FC = () => {
                 onClose={() => setShowResumenGeneral(false)}
                 maxWidth="md"
                 fullWidth
+                PaperProps={{
+                    sx: {
+                        height: '90vh',
+                        maxHeight: '90vh'
+                    }
+                }}
             >
                 <DialogTitle>
                     Resumen General de Recaudaciones
@@ -311,14 +329,27 @@ const RecaudacionesList: React.FC = () => {
                         <CloseIcon />
                     </IconButton>
                 </DialogTitle>
-                <DialogContent>
-                    {filtros.fechaInicio && filtros.fechaFin && (
-                        <ResumenGeneralPDF
-                            ventas={ventas}
-                            fechaInicio={filtros.fechaInicio}
-                            fechaFin={filtros.fechaFin}
-                        />
-                    )}
+                <DialogContent sx={{
+                    p: 0,
+                    height: 'calc(90vh - 64px)',
+                    '& > div': {
+                        height: '100%'
+                    }
+                }}>
+                    {(() => {
+                        const fechaInicio = filtros.fechaInicio || new Date(Math.min(...ventas.map(v => new Date(v.fecha).getTime())));
+                        const fechaFin = filtros.fechaFin || new Date(Math.max(...ventas.map(v => new Date(v.fecha).getTime())));
+                        console.log('Modal General - Fecha Inicio:', fechaInicio);
+                        console.log('Modal General - Fecha Fin:', fechaFin);
+                        console.log('Modal General - Ventas:', ventas);
+                        return ventas.length > 0 && (
+                            <ResumenGeneralPDF
+                                ventas={ventas}
+                                fechaInicio={fechaInicio}
+                                fechaFin={fechaFin}
+                            />
+                        );
+                    })()}
                 </DialogContent>
             </Dialog>
 
@@ -328,6 +359,12 @@ const RecaudacionesList: React.FC = () => {
                 onClose={() => setShowResumenDetallado(false)}
                 maxWidth="md"
                 fullWidth
+                PaperProps={{
+                    sx: {
+                        height: '90vh',
+                        maxHeight: '90vh'
+                    }
+                }}
             >
                 <DialogTitle>
                     Resumen Detallado de Ventas
@@ -338,14 +375,27 @@ const RecaudacionesList: React.FC = () => {
                         <CloseIcon />
                     </IconButton>
                 </DialogTitle>
-                <DialogContent>
-                    {filtros.fechaInicio && filtros.fechaFin && (
-                        <ResumenDetalladoPDF
-                            ventas={ventas}
-                            fechaInicio={filtros.fechaInicio}
-                            fechaFin={filtros.fechaFin}
-                        />
-                    )}
+                <DialogContent sx={{
+                    p: 0,
+                    height: 'calc(90vh - 64px)',
+                    '& > div': {
+                        height: '100%'
+                    }
+                }}>
+                    {(() => {
+                        const fechaInicio = filtros.fechaInicio || new Date(Math.min(...ventas.map(v => new Date(v.fecha).getTime())));
+                        const fechaFin = filtros.fechaFin || new Date(Math.max(...ventas.map(v => new Date(v.fecha).getTime())));
+                        console.log('Modal Detallado - Fecha Inicio:', fechaInicio);
+                        console.log('Modal Detallado - Fecha Fin:', fechaFin);
+                        console.log('Modal Detallado - Ventas:', ventas);
+                        return ventas.length > 0 && (
+                            <ResumenDetalladoPDF
+                                ventas={ventas}
+                                fechaInicio={fechaInicio}
+                                fechaFin={fechaFin}
+                            />
+                        );
+                    })()}
                 </DialogContent>
             </Dialog>
         </Container>

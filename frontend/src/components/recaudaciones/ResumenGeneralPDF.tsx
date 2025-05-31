@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Document, Page, Text, View, StyleSheet, PDFViewer } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import axios from 'axios';
 
 const styles = StyleSheet.create({
     page: {
@@ -66,36 +67,59 @@ const styles = StyleSheet.create({
 
 interface ResumenGeneralPDFProps {
     ventas: Array<{
-        usuario: string;
-        nombreUsuario: string;
-        pagado: number;
-        productos: Array<{
+        _id: string;
+        tipo: 'VENTA' | 'RESERVA';
+        fecha: string;
+        socio: {
+            codigo: string;
             nombre: string;
-            precioTotal: number;
+        };
+        usuario: {
+            _id: string;
+            username: string;
+        };
+        total: number;
+        pagado: number;
+        estado: string;
+        detalles: Array<{
+            nombre: string;
+            cantidad: number;
+            precio: number;
+            total: number;
             categoria?: string;
         }>;
-        tipo: 'VENTA' | 'RESERVA';
     }>;
     fechaInicio: Date;
     fechaFin: Date;
 }
 
 export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fechaInicio, fechaFin }) => {
+    const [categorias, setCategorias] = useState<string[]>([]);
+
+    useEffect(() => {
+        const fetchCategorias = async () => {
+            try {
+                const response = await axios.get('/api/inventory/types');
+                console.log('Categorías obtenidas:', response.data);
+                setCategorias(response.data);
+            } catch (error) {
+                console.error('Error al obtener categorías:', error);
+            }
+        };
+        fetchCategorias();
+    }, []);
+
     // Agrupar ventas por trabajador
     const ventasPorTrabajador = ventas.reduce((acc: any, venta) => {
-        const key = venta.nombreUsuario;
+        console.log('Procesando venta:', venta);
+        const key = venta.usuario.username;
         if (!acc[key]) {
             acc[key] = {
                 total: 0,
-                categorias: {
-                    bebidas: 0,
-                    alcohol: 0,
-                    aperitivos: 0,
-                    chuches: 0,
-                    helados: 0,
-                    piscina: 0,
-                    reservas: 0
-                }
+                categorias: categorias.reduce((catAcc: any, cat) => {
+                    catAcc[cat.toLowerCase()] = 0;
+                    return catAcc;
+                }, { reservas: 0, otros: 0 })
             };
         }
 
@@ -106,10 +130,16 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
         if (venta.tipo === 'RESERVA') {
             acc[key].categorias.reservas += venta.pagado;
         } else {
-            venta.productos.forEach((producto) => {
-                const categoria = producto.categoria?.toLowerCase() || 'otros';
+            console.log('Procesando detalles de venta:', venta.detalles);
+            venta.detalles.forEach((producto) => {
+                console.log('Producto:', producto);
+                const categoria = (producto.categoria || 'OTROS').toLowerCase();
+                console.log('Categoría:', categoria);
+
                 if (acc[key].categorias[categoria] !== undefined) {
-                    acc[key].categorias[categoria] += producto.precioTotal;
+                    acc[key].categorias[categoria] += producto.total;
+                } else {
+                    acc[key].categorias.otros += producto.total;
                 }
             });
         }
@@ -117,17 +147,29 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
         return acc;
     }, {});
 
+    console.log('Ventas por trabajador:', ventasPorTrabajador);
+
     // Calcular totales generales
-    const totalesGenerales = Object.values(ventasPorTrabajador).reduce((acc: any, trabajador: any) => {
+    const totalesGenerales = Object.values(ventasPorTrabajador).reduce((acc: {
+        total: number;
+        categorias: {
+            [key: string]: number;
+        };
+    }, trabajador: any) => {
         acc.total += trabajador.total;
         Object.keys(trabajador.categorias).forEach(categoria => {
-            acc.categorias[categoria] = (acc.categorias[categoria] || 0) + trabajador.categorias[categoria];
+            if (!acc.categorias[categoria]) {
+                acc.categorias[categoria] = 0;
+            }
+            acc.categorias[categoria] += trabajador.categorias[categoria];
         });
         return acc;
     }, { total: 0, categorias: {} });
 
+    console.log('Totales generales:', totalesGenerales);
+
     return (
-        <PDFViewer style={{ width: '100%', height: '100vh' }}>
+        <PDFViewer style={{ width: '100%', height: '100%', border: 'none' }}>
             <Document>
                 <Page size="A4" style={styles.page}>
                     <View style={styles.header}>
@@ -141,34 +183,15 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                         <View key={trabajador} style={styles.section}>
                             <Text style={styles.sectionTitle}>Trabajador: {trabajador}</Text>
 
-                            <View style={styles.row}>
-                                <Text style={styles.label}>Bebidas:</Text>
-                                <Text style={styles.value}>{datos.categorias.bebidas.toFixed(2)}€</Text>
-                            </View>
-                            <View style={styles.row}>
-                                <Text style={styles.label}>Alcohol:</Text>
-                                <Text style={styles.value}>{datos.categorias.alcohol.toFixed(2)}€</Text>
-                            </View>
-                            <View style={styles.row}>
-                                <Text style={styles.label}>Aperitivos:</Text>
-                                <Text style={styles.value}>{datos.categorias.aperitivos.toFixed(2)}€</Text>
-                            </View>
-                            <View style={styles.row}>
-                                <Text style={styles.label}>Chuches:</Text>
-                                <Text style={styles.value}>{datos.categorias.chuches.toFixed(2)}€</Text>
-                            </View>
-                            <View style={styles.row}>
-                                <Text style={styles.label}>Helados:</Text>
-                                <Text style={styles.value}>{datos.categorias.helados.toFixed(2)}€</Text>
-                            </View>
-                            <View style={styles.row}>
-                                <Text style={styles.label}>Piscina:</Text>
-                                <Text style={styles.value}>{datos.categorias.piscina.toFixed(2)}€</Text>
-                            </View>
-                            <View style={styles.row}>
-                                <Text style={styles.label}>Reservas:</Text>
-                                <Text style={styles.value}>{datos.categorias.reservas.toFixed(2)}€</Text>
-                            </View>
+                            {Object.entries(datos.categorias)
+                                .filter(([_, total]) => total > 0)
+                                .map(([categoria, total]) => (
+                                    <View key={categoria} style={styles.row}>
+                                        <Text style={styles.label}>{categoria.charAt(0).toUpperCase() + categoria.slice(1)}:</Text>
+                                        <Text style={styles.value}>{(total as number).toFixed(2)}€</Text>
+                                    </View>
+                                ))}
+
                             <View style={styles.totalRow}>
                                 <Text style={styles.label}>Total Trabajador:</Text>
                                 <Text style={styles.value}>{datos.total.toFixed(2)}€</Text>
@@ -179,34 +202,14 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                     {/* Totales Generales */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Totales Generales</Text>
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Total Bebidas:</Text>
-                            <Text style={styles.value}>{totalesGenerales.categorias.bebidas.toFixed(2)}€</Text>
-                        </View>
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Total Alcohol:</Text>
-                            <Text style={styles.value}>{totalesGenerales.categorias.alcohol.toFixed(2)}€</Text>
-                        </View>
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Total Aperitivos:</Text>
-                            <Text style={styles.value}>{totalesGenerales.categorias.aperitivos.toFixed(2)}€</Text>
-                        </View>
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Total Chuches:</Text>
-                            <Text style={styles.value}>{totalesGenerales.categorias.chuches.toFixed(2)}€</Text>
-                        </View>
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Total Helados:</Text>
-                            <Text style={styles.value}>{totalesGenerales.categorias.helados.toFixed(2)}€</Text>
-                        </View>
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Total Piscina:</Text>
-                            <Text style={styles.value}>{totalesGenerales.categorias.piscina.toFixed(2)}€</Text>
-                        </View>
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Total Reservas:</Text>
-                            <Text style={styles.value}>{totalesGenerales.categorias.reservas.toFixed(2)}€</Text>
-                        </View>
+                        {Object.entries(totalesGenerales.categorias)
+                            .filter(([_, total]) => total > 0)
+                            .map(([categoria, total]) => (
+                                <View key={categoria} style={styles.row}>
+                                    <Text style={styles.label}>Total {categoria.charAt(0).toUpperCase() + categoria.slice(1)}:</Text>
+                                    <Text style={styles.value}>{(total as number).toFixed(2)}€</Text>
+                                </View>
+                            ))}
                         <View style={styles.totalRow}>
                             <Text style={styles.label}>Total General:</Text>
                             <Text style={styles.value}>{totalesGenerales.total.toFixed(2)}€</Text>

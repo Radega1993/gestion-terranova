@@ -31,7 +31,8 @@ export class Venta {
 
     @Prop({
         type: [{
-            productoId: { type: MongooseSchema.Types.ObjectId, ref: 'Product' },
+            nombre: { type: String, required: true },
+            categoria: { type: String },
             unidades: Number,
             precioUnitario: Number,
             precioTotal: Number
@@ -39,7 +40,8 @@ export class Venta {
         required: true
     })
     productos: Array<{
-        productoId: MongooseSchema.Types.ObjectId;
+        nombre: string;
+        categoria?: string;
         unidades: number;
         precioUnitario: number;
         precioTotal: number;

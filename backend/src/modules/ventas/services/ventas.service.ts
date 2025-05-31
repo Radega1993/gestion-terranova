@@ -144,8 +144,11 @@ export class VentasService {
                     await productoEncontrado.save();
 
                     return {
-                        ...producto,
-                        categoria: productoEncontrado.tipo
+                        nombre: producto.nombre,
+                        categoria: productoEncontrado.tipo,
+                        unidades: producto.unidades,
+                        precioUnitario: producto.precioUnitario,
+                        precioTotal: producto.precioTotal
                     };
                 })
             );
