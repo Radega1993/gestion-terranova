@@ -144,6 +144,7 @@ export const SocioSelector: React.FC<SocioSelectorProps> = ({ onClienteSeleccion
                     console.log('Seleccionado:', newValue);
                     onClienteSeleccionado(newValue);
                 }}
+                isOptionEqualToValue={(option, value) => option.codigo === value.codigo}
                 renderInput={(params) => (
                     <TextField
                         {...params}

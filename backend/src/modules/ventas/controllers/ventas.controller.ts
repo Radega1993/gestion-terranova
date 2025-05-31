@@ -73,4 +73,21 @@ export class VentasController {
     ) {
         return this.ventasService.registrarPago(id, pagoVentaDto);
     }
+
+    @Get('recaudaciones')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    async getRecaudaciones(
+        @Query('fechaInicio') fechaInicio?: string,
+        @Query('fechaFin') fechaFin?: string,
+        @Query('codigoSocio') codigoSocio?: string,
+        @Query('usuario') usuario?: string,
+    ) {
+        this.logger.debug('Obteniendo recaudaciones');
+        return this.ventasService.getRecaudaciones({
+            fechaInicio,
+            fechaFin,
+            codigoSocio,
+            usuario,
+        });
+    }
 } 

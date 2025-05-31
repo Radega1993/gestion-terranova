@@ -1,11 +1,50 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Document, Types, Schema } from 'mongoose';
 import { Venta } from '../schemas/venta.schema';
 import { CreateVentaDto } from '../dto/create-venta.dto';
 import { PagoVentaDto } from '../dto/pago-venta.dto';
 import { Product } from '../../inventory/schemas/product.schema';
 import { VentaFiltersDto } from '../dto/venta-filters.dto';
+import { Reserva } from '../../reservas/schemas/reserva.schema';
+import { User } from '../../users/schemas/user.schema';
+import { Socio } from '../../socios/schemas/socio.schema';
+import { Servicio } from '../../reservas/schemas/servicio.schema';
+import { RecaudacionesFiltrosDto } from '../dto/recaudaciones-filtros.dto';
+
+interface PopulatedReserva extends Omit<Reserva, 'socio' | 'usuarioCreacion' | 'usuarioActualizacion' | 'confirmadoPor'> {
+    _id: Types.ObjectId;
+    socio: {
+        _id: Types.ObjectId;
+        socio: string;
+        nombre: {
+            nombre: string;
+            primerApellido: string;
+            segundoApellido?: string;
+        };
+    };
+    usuarioCreacion: {
+        _id: Types.ObjectId;
+        username: string;
+    };
+}
+
+interface PopulatedVenta extends Omit<Venta, 'usuario' | 'productos'> {
+    _id: Types.ObjectId;
+    usuario: {
+        _id: Types.ObjectId;
+        username: string;
+    };
+    createdAt: Date;
+    productos: Array<{
+        nombre: string;
+        categoria: string;
+        unidades: number;
+        precioUnitario: number;
+        precioTotal: number;
+        _id: Types.ObjectId;
+    }>;
+}
 
 @Injectable()
 export class VentasService {
@@ -13,7 +52,9 @@ export class VentasService {
 
     constructor(
         @InjectModel(Venta.name) private ventaModel: Model<Venta>,
-        @InjectModel(Product.name) private productModel: Model<Product>
+        @InjectModel(Product.name) private productModel: Model<Product>,
+        @InjectModel(Reserva.name) private reservaModel: Model<Reserva>,
+        @InjectModel(Socio.name) private socioModel: Model<Socio>
     ) { }
 
     private buildDateFilter(filters: VentaFiltersDto) {
@@ -154,5 +195,153 @@ export class VentasService {
         venta.estado = nuevoEstado;
 
         return venta.save();
+    }
+
+    async getRecaudaciones(filtros: RecaudacionesFiltrosDto) {
+        console.log('Filtros recibidos:', filtros);
+
+        // Construir el filtro base para ventas
+        const filtroVentas: any = {};
+        if (filtros.fechaInicio && filtros.fechaFin) {
+            filtroVentas.createdAt = {
+                $gte: new Date(filtros.fechaInicio),
+                $lte: new Date(filtros.fechaFin)
+            };
+        }
+        if (filtros.codigoSocio) {
+            filtroVentas.codigoSocio = filtros.codigoSocio;
+        }
+        if (filtros.usuario) {
+            filtroVentas.usuario = new Types.ObjectId(filtros.usuario);
+        }
+
+        // Construir el filtro base para reservas
+        const filtroReservas: any = {
+            estado: 'COMPLETADA'
+        };
+        if (filtros.fechaInicio && filtros.fechaFin) {
+            filtroReservas.fecha = {
+                $gte: new Date(filtros.fechaInicio),
+                $lte: new Date(filtros.fechaFin)
+            };
+        }
+        if (filtros.usuario) {
+            filtroReservas.usuarioCreacion = new Types.ObjectId(filtros.usuario);
+        }
+
+        console.log('Filtro ventas:', JSON.stringify(filtroVentas, null, 2));
+        console.log('Filtro reservas:', JSON.stringify(filtroReservas, null, 2));
+
+        // Obtener ventas
+        const ventas = await this.ventaModel
+            .find(filtroVentas)
+            .populate('usuario', 'username')
+            .lean()
+            .exec() as unknown as PopulatedVenta[];
+
+        console.log('Ventas encontradas:', ventas.length);
+        if (ventas.length > 0) {
+            console.log('Primera venta:', JSON.stringify(ventas[0], null, 2));
+        }
+
+        // Obtener reservas
+        let reservas: PopulatedReserva[] = [];
+        if (filtros.codigoSocio) {
+            // Primero encontrar el socio por su código
+            const socio = await this.socioModel.findOne({ socio: filtros.codigoSocio });
+            if (socio) {
+                // Luego buscar las reservas por el ID del socio
+                reservas = await this.reservaModel
+                    .find({
+                        ...filtroReservas,
+                        socio: socio._id
+                    })
+                    .populate({
+                        path: 'socio',
+                        model: 'Socio',
+                        select: 'socio nombre'
+                    })
+                    .populate('usuarioCreacion', 'username')
+                    .lean()
+                    .exec() as unknown as PopulatedReserva[];
+            }
+        } else {
+            reservas = await this.reservaModel
+                .find(filtroReservas)
+                .populate({
+                    path: 'socio',
+                    model: 'Socio',
+                    select: 'socio nombre'
+                })
+                .populate('usuarioCreacion', 'username')
+                .lean()
+                .exec() as unknown as PopulatedReserva[];
+        }
+
+        console.log('Reservas encontradas:', reservas.length);
+        if (reservas.length > 0) {
+            console.log('Primera reserva:', JSON.stringify(reservas[0], null, 2));
+        }
+
+        // Transformar reservas al formato común
+        const reservasTransformadas = reservas.map(reserva => {
+            console.log('Transformando reserva:', JSON.stringify(reserva, null, 2));
+            const nombreCompleto = reserva.socio?.nombre ?
+                `${reserva.socio.nombre.nombre} ${reserva.socio.nombre.primerApellido}${reserva.socio.nombre.segundoApellido ? ' ' + reserva.socio.nombre.segundoApellido : ''}` :
+                'Socio no encontrado';
+
+            return {
+                _id: reserva._id,
+                tipo: 'RESERVA',
+                fecha: reserva.fecha,
+                socio: {
+                    codigo: reserva.socio?.socio || '',
+                    nombre: nombreCompleto
+                },
+                usuario: {
+                    _id: reserva.usuarioCreacion._id,
+                    username: reserva.usuarioCreacion.username
+                },
+                total: reserva.precio,
+                pagado: reserva.montoAbonado,
+                estado: reserva.estado,
+                detalles: [{
+                    nombre: reserva.tipoInstalacion,
+                    cantidad: 1,
+                    precio: reserva.precio,
+                    total: reserva.precio
+                }]
+            };
+        });
+
+        // Transformar ventas al formato común
+        const ventasTransformadas = ventas.map(venta => ({
+            _id: venta._id,
+            tipo: 'VENTA',
+            fecha: venta.createdAt,
+            socio: {
+                codigo: venta.codigoSocio,
+                nombre: venta.nombreSocio
+            },
+            usuario: {
+                _id: venta.usuario._id,
+                username: venta.usuario.username
+            },
+            total: venta.total,
+            pagado: venta.pagado,
+            estado: venta.estado,
+            detalles: venta.productos.map(p => ({
+                nombre: p.nombre,
+                cantidad: p.unidades,
+                precio: p.precioUnitario,
+                total: p.precioTotal
+            }))
+        }));
+
+        // Combinar y ordenar por fecha
+        const recaudaciones = [...reservasTransformadas, ...ventasTransformadas]
+            .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+
+        return recaudaciones;
     }
 } 

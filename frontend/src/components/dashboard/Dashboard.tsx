@@ -30,6 +30,12 @@ const Dashboard: React.FC = () => {
             description: 'Gestión de usuarios',
             roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA]
         },
+        {
+            title: 'Recaudaciones',
+            path: '/recaudaciones',
+            description: 'Gestión de recaudaciones',
+            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA]
+        },
     ];
 
     // Filtrar módulos según el rol del usuario
