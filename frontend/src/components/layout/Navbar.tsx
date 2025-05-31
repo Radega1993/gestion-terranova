@@ -24,7 +24,8 @@ import {
     Logout as LogoutIcon,
     Home as HomeIcon,
     Menu as MenuIcon,
-    ShoppingCart as ShoppingCartIcon
+    ShoppingCart as ShoppingCartIcon,
+    AccountBalance as AccountBalanceIcon
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 
@@ -114,6 +115,9 @@ export const Navbar: React.FC = () => {
                     <MenuItem onClick={() => { navigate('/ventas'); handleMobileMenuClose(); }}>
                         <ShoppingCartIcon sx={{ mr: 1 }} /> Ventas
                     </MenuItem>
+                    <MenuItem onClick={() => { navigate('/deudas'); handleMobileMenuClose(); }}>
+                        <AccountBalanceIcon sx={{ mr: 1 }} /> Deudas
+                    </MenuItem>
                     <MenuItem onClick={() => { navigate('/socios'); handleMobileMenuClose(); }}>
                         <PeopleIcon sx={{ mr: 1 }} /> Socios
                     </MenuItem>
@@ -129,6 +133,9 @@ export const Navbar: React.FC = () => {
                 <>
                     <MenuItem onClick={() => { navigate('/'); handleMobileMenuClose(); }}>
                         <DashboardIcon sx={{ mr: 1 }} /> Dashboard
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/deudas'); handleMobileMenuClose(); }}>
+                        <AccountBalanceIcon sx={{ mr: 1 }} /> Deudas
                     </MenuItem>
                     <MenuItem onClick={() => { navigate('/socios'); handleMobileMenuClose(); }}>
                         <PeopleIcon sx={{ mr: 1 }} /> Socios
@@ -151,6 +158,9 @@ export const Navbar: React.FC = () => {
                     </MenuItem>
                     <MenuItem onClick={() => { navigate('/ventas'); handleMobileMenuClose(); }}>
                         <ShoppingCartIcon sx={{ mr: 1 }} /> Ventas
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/deudas'); handleMobileMenuClose(); }}>
+                        <AccountBalanceIcon sx={{ mr: 1 }} /> Deudas
                     </MenuItem>
                     <MenuItem onClick={() => { navigate('/reservas'); handleMobileMenuClose(); }}>
                         <EventIcon sx={{ mr: 1 }} /> Reservas
@@ -192,6 +202,7 @@ export const Navbar: React.FC = () => {
                                 <>
                                     {renderNavButton('/inventory', 'Inventario', <InventoryIcon />)}
                                     {renderNavButton('/ventas', 'Ventas', <ShoppingCartIcon />)}
+                                    {renderNavButton('/deudas', 'Deudas', <AccountBalanceIcon />)}
                                     {renderNavButton('/socios', 'Socios', <PeopleIcon />)}
                                     {renderNavButton('/users', 'Usuarios', <PersonIcon />)}
                                     {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
@@ -199,6 +210,7 @@ export const Navbar: React.FC = () => {
                             )}
                             {user.role === 'JUNTA' && (
                                 <>
+                                    {renderNavButton('/deudas', 'Deudas', <AccountBalanceIcon />)}
                                     {renderNavButton('/socios', 'Socios', <PeopleIcon />)}
                                     {renderNavButton('/users', 'Usuarios', <PersonIcon />)}
                                     {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
@@ -208,6 +220,7 @@ export const Navbar: React.FC = () => {
                                 <>
                                     {renderNavButton('/inventory', 'Inventario', <InventoryIcon />)}
                                     {renderNavButton('/ventas', 'Ventas', <ShoppingCartIcon />)}
+                                    {renderNavButton('/deudas', 'Deudas', <AccountBalanceIcon />)}
                                     {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
                                 </>
                             )}

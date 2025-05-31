@@ -346,4 +346,23 @@ export class SociosService {
     async findBySocioCode(socio: string): Promise<Socio | null> {
         return this.socioModel.findOne({ socio }).exec();
     }
+
+    async getSimplifiedList(): Promise<any[]> {
+        try {
+            const socios = await this.socioModel.find().exec();
+            return socios.map(socio => ({
+                _id: socio._id,
+                socio: socio.socio,
+                nombreCompleto: `${socio.nombre.nombre} ${socio.nombre.primerApellido} ${socio.nombre.segundoApellido || ''}`.trim(),
+                asociados: socio.asociados?.map(asociado => ({
+                    _id: asociado._id,
+                    codigo: asociado.codigo,
+                    nombreCompleto: asociado.nombre
+                })) || []
+            }));
+        } catch (error) {
+            this.logger.error(`Error getting simplified list: ${error.message}`);
+            throw error;
+        }
+    }
 } 

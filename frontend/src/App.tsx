@@ -1,20 +1,22 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, CssBaseline, Box, Container } from '@mui/material';
+import { ThemeProvider, CssBaseline, Box, AppBar, Toolbar, Typography, Container, Button } from '@mui/material';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createTheme } from '@mui/material/styles';
-import { useAuthStore } from './stores/authStore';
-import { UserRole } from './types/user';
 import LoginForm from './components/auth/LoginForm';
 import RegisterForm from './components/auth/RegisterForm';
 import Dashboard from './components/dashboard/Dashboard';
+import LogoutButton from './components/auth/LogoutButton';
+import UsersList from './components/users/UsersList';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import { UserRole } from './types/user';
 import SociosList from './components/socios/SociosList';
 import CreateSocioForm from './components/socios/CreateSocioForm';
 import { Navbar } from './components/layout/Navbar';
 import { InventoryView } from './components/inventory/InventoryView';
 import VentasList from './components/ventas/VentasList';
 import { ReservasList } from './components/reservas/ReservasList';
-import UsersList from './components/users/UsersList';
+import { DeudasList } from './components/deudas/DeudasList';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -31,24 +33,6 @@ const theme = createTheme({
     },
   },
 });
-
-// Componente para proteger rutas
-const ProtectedRoute: React.FC<{
-  children: React.ReactNode;
-  allowedRoles?: UserRole[];
-}> = ({ children, allowedRoles }) => {
-  const { token, user } = useAuthStore();
-
-  if (!token) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  return <>{children}</>;
-};
 
 function App() {
   return (
@@ -79,34 +63,18 @@ function App() {
                   }
                 />
                 <Route
-                  path="/socios"
+                  path="/deudas"
                   element={
                     <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
-                      <SociosList />
+                      <DeudasList />
                     </ProtectedRoute>
                   }
                 />
                 <Route
-                  path="/socios/create"
+                  path="/reservas"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
-                      <CreateSocioForm />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/socios/editar/:id"
-                  element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
-                      <CreateSocioForm editMode={true} />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/inventory"
-                  element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.TRABAJADOR]}>
-                      <InventoryView />
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]}>
+                      <ReservasList />
                     </ProtectedRoute>
                   }
                 />
@@ -119,10 +87,42 @@ function App() {
                   }
                 />
                 <Route
-                  path="/reservas"
+                  path="/inventory"
+                  element={
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.TRABAJADOR]}>
+                      <InventoryView />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/socios"
                   element={
                     <ProtectedRoute>
-                      <ReservasList />
+                      <SociosList />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/socios/create"
+                  element={
+                    <ProtectedRoute>
+                      <CreateSocioForm />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/socios/editar/:id"
+                  element={
+                    <ProtectedRoute>
+                      <CreateSocioForm editMode={true} />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/stock"
+                  element={
+                    <ProtectedRoute>
+                      <div>Stock Module</div>
                     </ProtectedRoute>
                   }
                 />

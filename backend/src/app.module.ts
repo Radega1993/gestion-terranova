@@ -8,6 +8,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { ReservasModule } from './modules/reservas/reservas.module';
 import { SociosModule } from './modules/socios/socios.module';
+import { VentasModule } from './modules/ventas/ventas.module';
 import { UserRole } from './modules/users/types/user-roles.enum';
 
 @Module({
@@ -18,7 +19,8 @@ import { UserRole } from './modules/users/types/user-roles.enum';
     AuthModule,
     InventoryModule,
     ReservasModule,
-    SociosModule
+    SociosModule,
+    VentasModule
   ],
   controllers: [AppController],
   providers: [AppService],

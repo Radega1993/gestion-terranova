@@ -1,17 +1,44 @@
 export interface Producto {
     _id: string;
     nombre: string;
-    precio_compra_unitario: number;
-    stock_actual: number;
     tipo: string;
     unidad_medida: string;
+    stock_actual: number;
+    precio_compra_unitario: number;
     activo: boolean;
-    createdAt: string;
-    updatedAt: string;
-    __v: number;
 }
 
 export interface ProductoSeleccionado extends Producto {
-    cantidad: number;
-    subtotal: number;
+    unidades: number;
+    precioUnitario: number;
+    precioTotal: number;
+}
+
+export interface Cliente {
+    _id: string;
+    codigo: string;
+    nombreCompleto: string;
+    tipo: 'Socio' | 'Asociado';
+}
+
+export interface Venta {
+    _id: string;
+    codigoSocio: string;
+    nombreSocio: string;
+    esSocio: boolean;
+    productos: {
+        nombre: string;
+        tipo: string;
+        unidades: number;
+        precioUnitario: number;
+        precioTotal: number;
+    }[];
+    total: number;
+    pagado: number;
+    metodoPago: 'EFECTIVO' | 'TARJETA';
+    observaciones?: string;
+    estado: 'PENDIENTE' | 'PAGADO' | 'PAGADO_PARCIAL';
+    usuario: string;
+    createdAt: string;
+    updatedAt: string;
 } 

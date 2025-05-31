@@ -1,38 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Typography, Grid, CircularProgress, Alert } from '@mui/material';
+import React, { useState } from 'react';
+import { Container, Typography, Grid, CircularProgress, Alert, Button, Box, Paper, List, ListItem, ListItemText, ListItemSecondaryAction, IconButton, Divider } from '@mui/material';
 import { API_BASE_URL } from '../../config';
 import { useAuthStore } from '../../stores/authStore';
 import { ProductoSelector } from './components/ProductoSelector';
-import { ProductosList } from './components/ProductosList';
 import { SocioSelector } from './components/SocioSelector';
-import { Producto, ProductoSeleccionado } from './types';
-
-interface NombreSocio {
-    nombre: string;
-    primerApellido: string;
-    segundoApellido: string;
-}
-
-interface Socio {
-    _id: string;
-    socio: string;
-    nombre: NombreSocio;
-    casa: number;
-    totalSocios: number;
-    numPersonas: number;
-    adheridos: number;
-    menor3Años: number;
-    cuota: number;
-    rgpd: boolean;
-}
+import { PagoModal } from './components/PagoModal';
+import { Producto, ProductoSeleccionado, Cliente } from './types';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 const VentasList: React.FC = () => {
     const { token } = useAuthStore();
+    const [productosDisponibles, setProductosDisponibles] = useState<Producto[]>([]);
     const [productosSeleccionados, setProductosSeleccionados] = useState<ProductoSeleccionado[]>([]);
-    const [socioSeleccionado, setSocioSeleccionado] = useState<Socio | null>(null);
-    const [productos, setProductos] = useState<Producto[]>([]);
+    const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [modalPagoOpen, setModalPagoOpen] = useState(false);
 
     const fetchProductos = async () => {
         if (!token) {
@@ -41,7 +24,6 @@ const VentasList: React.FC = () => {
         }
 
         try {
-            console.log('Haciendo petición de productos con token:', token);
             const response = await fetch(`${API_BASE_URL}/inventory`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -54,8 +36,7 @@ const VentasList: React.FC = () => {
             }
 
             const data = await response.json();
-            console.log('Productos cargados:', data);
-            setProductos(data);
+            setProductosDisponibles(data);
         } catch (error) {
             console.error('Error al obtener productos:', error);
             setError(error instanceof Error ? error.message : 'Error al cargar productos');
@@ -64,62 +45,48 @@ const VentasList: React.FC = () => {
         }
     };
 
-    useEffect(() => {
+    React.useEffect(() => {
         fetchProductos();
     }, [token]);
 
-    const handleProductoSelect = (producto: Producto | null) => {
-        if (!producto) return;
-
+    const handleProductoSeleccionado = (producto: Producto) => {
         console.log('Producto seleccionado completo:', producto);
-        // Asegurarnos de que el precio sea un número válido
-        const precio = typeof producto.precio_compra_unitario === 'number' ? producto.precio_compra_unitario : 0;
-        console.log('Producto seleccionado con precio:', precio);
+        const precioUnitario = producto.precio_compra_unitario;
+        console.log('Producto seleccionado con precio:', precioUnitario);
 
-        const productoExistente = productosSeleccionados.find(p => p._id === producto._id);
+        const nuevoProducto: ProductoSeleccionado = {
+            ...producto,
+            unidades: 1,
+            precioUnitario: precioUnitario,
+            precioTotal: precioUnitario
+        };
 
-        if (productoExistente) {
-            // Si el producto ya está en la lista, incrementar la cantidad
-            setProductosSeleccionados(prev =>
-                prev.map(p =>
-                    p._id === producto._id
-                        ? { ...p, cantidad: p.cantidad + 1, subtotal: (p.cantidad + 1) * precio }
-                        : p
-                )
-            );
-        } else {
-            // Si es un producto nuevo, añadirlo a la lista
-            setProductosSeleccionados(prev => [
-                ...prev,
-                {
+        setProductosSeleccionados(prev => [...prev, nuevoProducto]);
+    };
+
+    const handleUnidadesChange = (index: number, nuevasUnidades: number) => {
+        if (nuevasUnidades < 1) return;
+
+        setProductosSeleccionados(prev => prev.map((producto, i) => {
+            if (i === index) {
+                return {
                     ...producto,
-                    precio_compra_unitario: precio, // Aseguramos que el precio sea un número
-                    cantidad: 1,
-                    subtotal: precio
-                }
-            ]);
-        }
+                    unidades: nuevasUnidades,
+                    precioTotal: producto.precioUnitario * nuevasUnidades
+                };
+            }
+            return producto;
+        }));
     };
 
-    const handleCantidadChange = (id: string, nuevaCantidad: number) => {
-        if (nuevaCantidad < 1) return;
-
-        setProductosSeleccionados(prev =>
-            prev.map(p =>
-                p._id === id
-                    ? { ...p, cantidad: nuevaCantidad, subtotal: nuevaCantidad * p.precio_compra_unitario }
-                    : p
-            )
-        );
+    const handleEliminarProducto = (index: number) => {
+        setProductosSeleccionados(prev => prev.filter((_, i) => i !== index));
     };
 
-    const handleEliminarProducto = (id: string) => {
-        setProductosSeleccionados(prev => prev.filter(p => p._id !== id));
-    };
-
-    const handleSocioSelect = (socio: Socio | null) => {
-        console.log('Socio seleccionado:', socio);
-        setSocioSeleccionado(socio);
+    const handleVentaCompletada = () => {
+        setProductosSeleccionados([]);
+        setClienteSeleccionado(null);
+        fetchProductos();
     };
 
     if (loading) {
@@ -140,6 +107,8 @@ const VentasList: React.FC = () => {
         );
     }
 
+    const total = productosSeleccionados.reduce((sum, producto) => sum + producto.precioTotal, 0);
+
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
             <Typography variant="h4" component="h1" gutterBottom>
@@ -147,25 +116,97 @@ const VentasList: React.FC = () => {
             </Typography>
 
             <Grid container spacing={3}>
-                {/* Panel de selección de productos y socio */}
+                {/* Panel de selección de productos y cliente */}
                 <Grid item xs={12} md={4}>
-                    <ProductoSelector
-                        productos={productos}
-                        isLoading={loading}
-                        onProductoSelect={handleProductoSelect}
-                    />
-                    <SocioSelector onSocioSelect={handleSocioSelect} />
+                    <Paper sx={{ p: 2 }}>
+                        <Typography variant="h6" gutterBottom>
+                            Seleccionar Cliente
+                        </Typography>
+                        <SocioSelector
+                            onClienteSeleccionado={setClienteSeleccionado}
+                            value={clienteSeleccionado}
+                        />
+                    </Paper>
                 </Grid>
 
                 {/* Lista de productos seleccionados */}
                 <Grid item xs={12} md={8}>
-                    <ProductosList
-                        productos={productosSeleccionados}
-                        onCantidadChange={handleCantidadChange}
-                        onEliminarProducto={handleEliminarProducto}
-                    />
+                    <Paper sx={{ p: 2 }}>
+                        <Typography variant="h6" gutterBottom>
+                            Seleccionar Productos
+                        </Typography>
+                        <ProductoSelector
+                            onProductoSeleccionado={handleProductoSeleccionado}
+                        />
+                    </Paper>
+
+                    <Paper sx={{ p: 2, mt: 2 }}>
+                        <Typography variant="h6" gutterBottom>
+                            Productos Seleccionados
+                        </Typography>
+                        <List>
+                            {productosSeleccionados.map((producto, index) => (
+                                <React.Fragment key={index}>
+                                    <ListItem>
+                                        <ListItemText
+                                            primary={producto.nombre}
+                                            secondary={`${producto.unidades} x ${producto.precioUnitario.toFixed(2)}€ = ${producto.precioTotal.toFixed(2)}€`}
+                                        />
+                                        <ListItemSecondaryAction>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <Button
+                                                    size="small"
+                                                    onClick={() => handleUnidadesChange(index, producto.unidades - 1)}
+                                                    disabled={producto.unidades <= 1}
+                                                >
+                                                    -
+                                                </Button>
+                                                <Typography>{producto.unidades}</Typography>
+                                                <Button
+                                                    size="small"
+                                                    onClick={() => handleUnidadesChange(index, producto.unidades + 1)}
+                                                >
+                                                    +
+                                                </Button>
+                                                <IconButton
+                                                    edge="end"
+                                                    aria-label="delete"
+                                                    onClick={() => handleEliminarProducto(index)}
+                                                >
+                                                    <DeleteIcon />
+                                                </IconButton>
+                                            </Box>
+                                        </ListItemSecondaryAction>
+                                    </ListItem>
+                                    {index < productosSeleccionados.length - 1 && <Divider />}
+                                </React.Fragment>
+                            ))}
+                        </List>
+                        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="h6">
+                                Total: {total.toFixed(2)}€
+                            </Typography>
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                size="large"
+                                onClick={() => setModalPagoOpen(true)}
+                                disabled={!clienteSeleccionado || productosSeleccionados.length === 0}
+                            >
+                                Realizar Pago
+                            </Button>
+                        </Box>
+                    </Paper>
                 </Grid>
             </Grid>
+
+            <PagoModal
+                open={modalPagoOpen}
+                onClose={() => setModalPagoOpen(false)}
+                productos={productosSeleccionados}
+                cliente={clienteSeleccionado}
+                onVentaCompletada={handleVentaCompletada}
+            />
         </Container>
     );
 };
