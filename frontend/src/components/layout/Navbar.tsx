@@ -23,7 +23,8 @@ import {
     Event as EventIcon,
     Logout as LogoutIcon,
     Home as HomeIcon,
-    Menu as MenuIcon
+    Menu as MenuIcon,
+    ShoppingCart as ShoppingCartIcon
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 
@@ -110,6 +111,9 @@ export const Navbar: React.FC = () => {
                     <MenuItem onClick={() => { navigate('/inventory'); handleMobileMenuClose(); }}>
                         <InventoryIcon sx={{ mr: 1 }} /> Inventario
                     </MenuItem>
+                    <MenuItem onClick={() => { navigate('/ventas'); handleMobileMenuClose(); }}>
+                        <ShoppingCartIcon sx={{ mr: 1 }} /> Ventas
+                    </MenuItem>
                     <MenuItem onClick={() => { navigate('/socios'); handleMobileMenuClose(); }}>
                         <PeopleIcon sx={{ mr: 1 }} /> Socios
                     </MenuItem>
@@ -144,6 +148,9 @@ export const Navbar: React.FC = () => {
                     </MenuItem>
                     <MenuItem onClick={() => { navigate('/inventory'); handleMobileMenuClose(); }}>
                         <InventoryIcon sx={{ mr: 1 }} /> Inventario
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/ventas'); handleMobileMenuClose(); }}>
+                        <ShoppingCartIcon sx={{ mr: 1 }} /> Ventas
                     </MenuItem>
                     <MenuItem onClick={() => { navigate('/reservas'); handleMobileMenuClose(); }}>
                         <EventIcon sx={{ mr: 1 }} /> Reservas
@@ -184,6 +191,7 @@ export const Navbar: React.FC = () => {
                             {user.role === 'ADMINISTRADOR' && (
                                 <>
                                     {renderNavButton('/inventory', 'Inventario', <InventoryIcon />)}
+                                    {renderNavButton('/ventas', 'Ventas', <ShoppingCartIcon />)}
                                     {renderNavButton('/socios', 'Socios', <PeopleIcon />)}
                                     {renderNavButton('/users', 'Usuarios', <PersonIcon />)}
                                     {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
@@ -199,6 +207,7 @@ export const Navbar: React.FC = () => {
                             {user.role === 'TRABAJADOR' && (
                                 <>
                                     {renderNavButton('/inventory', 'Inventario', <InventoryIcon />)}
+                                    {renderNavButton('/ventas', 'Ventas', <ShoppingCartIcon />)}
                                     {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
                                 </>
                             )}
