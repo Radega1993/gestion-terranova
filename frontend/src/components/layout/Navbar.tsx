@@ -26,7 +26,8 @@ import {
     Menu as MenuIcon,
     ShoppingCart as ShoppingCartIcon,
     AccountBalance as AccountBalanceIcon,
-    AttachMoney as AttachMoneyIcon
+    AttachMoney as AttachMoneyIcon,
+    ConfirmationNumber as ConfirmationNumberIcon
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 
@@ -131,6 +132,9 @@ export const Navbar: React.FC = () => {
                     <MenuItem onClick={() => { navigate('/reservas'); handleMobileMenuClose(); }}>
                         <EventIcon sx={{ mr: 1 }} /> Reservas
                     </MenuItem>
+                    <MenuItem onClick={() => { navigate('/invitaciones'); handleMobileMenuClose(); }}>
+                        <ConfirmationNumberIcon sx={{ mr: 1 }} /> Invitaciones
+                    </MenuItem>
                 </>
             )}
             {user?.role === 'JUNTA' && (
@@ -152,6 +156,9 @@ export const Navbar: React.FC = () => {
                     </MenuItem>
                     <MenuItem onClick={() => { navigate('/reservas'); handleMobileMenuClose(); }}>
                         <EventIcon sx={{ mr: 1 }} /> Reservas
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/invitaciones'); handleMobileMenuClose(); }}>
+                        <ConfirmationNumberIcon sx={{ mr: 1 }} /> Invitaciones
                     </MenuItem>
                 </>
             )}
@@ -208,6 +215,7 @@ export const Navbar: React.FC = () => {
                                     {renderNavButton('/socios', 'Socios', <PeopleIcon />)}
                                     {renderNavButton('/users', 'Usuarios', <PersonIcon />)}
                                     {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
+                                    {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />)}
                                 </>
                             )}
                             {user.role === 'JUNTA' && (
@@ -217,6 +225,7 @@ export const Navbar: React.FC = () => {
                                     {renderNavButton('/socios', 'Socios', <PeopleIcon />)}
                                     {renderNavButton('/users', 'Usuarios', <PersonIcon />)}
                                     {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
+                                    {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />)}
                                 </>
                             )}
                             {user.role === 'TRABAJADOR' && (

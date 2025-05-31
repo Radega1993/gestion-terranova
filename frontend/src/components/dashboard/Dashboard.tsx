@@ -22,7 +22,7 @@ const Dashboard: React.FC = () => {
             title: 'Inventario',
             path: '/inventory',
             description: 'Gestión de inventario',
-            roles: [UserRole.ADMINISTRADOR, UserRole.TRABAJADOR]
+            roles: [UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA]
         },
         {
             title: 'Usuarios',
@@ -35,6 +35,12 @@ const Dashboard: React.FC = () => {
             path: '/recaudaciones',
             description: 'Gestión de recaudaciones',
             roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA]
+        },
+        {
+            title: 'Invitaciones',
+            path: '/invitaciones',
+            description: 'Gestión de invitaciones de socios',
+            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]
         },
     ];
 

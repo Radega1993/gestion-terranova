@@ -18,6 +18,7 @@ import VentasList from './components/ventas/VentasList';
 import { ReservasList } from './components/reservas/ReservasList';
 import { DeudasList } from './components/deudas/DeudasList';
 import RecaudacionesList from './components/recaudaciones/RecaudacionesList';
+import InvitacionesList from './components/invitaciones/InvitacionesList';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -100,6 +101,14 @@ function App() {
                   element={
                     <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
                       <RecaudacionesList />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/invitaciones"
+                  element={
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
+                      <InvitacionesList />
                     </ProtectedRoute>
                   }
                 />
