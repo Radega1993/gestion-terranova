@@ -1,14 +1,19 @@
 import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
 import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UploadsService } from './uploads.service';
 import { UploadsController } from './uploads.controller';
+import { Socio, SocioSchema } from '../socios/schemas/socio.schema';
 
 @Module({
     imports: [
         ConfigModule,
+        MongooseModule.forFeature([
+            { name: Socio.name, schema: SocioSchema }
+        ]),
         MulterModule.register({
             storage: diskStorage({
                 destination: './uploads',

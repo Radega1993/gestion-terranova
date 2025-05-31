@@ -137,14 +137,6 @@ function App() {
                   }
                 />
                 <Route
-                  path="/stock"
-                  element={
-                    <ProtectedRoute>
-                      <div>Stock Module</div>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
                   path="/users"
                   element={
                     <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>

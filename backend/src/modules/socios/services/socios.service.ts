@@ -81,6 +81,15 @@ export class SociosService {
                 }
             }
 
+            // Si solo se está actualizando la foto, hacer una actualización simple
+            if (Object.keys(updateSocioDto).length === 1 && updateSocioDto.foto) {
+                return await this.socioModel.findByIdAndUpdate(
+                    id,
+                    { $set: { foto: updateSocioDto.foto } },
+                    { new: true, runValidators: true }
+                );
+            }
+
             // Preparar los datos de actualización
             const updateData: any = {};
 
@@ -108,7 +117,7 @@ export class SociosService {
                 }
             });
 
-            // Manejar objetos anidados
+            // Manejar objetos anidados solo si se proporcionan
             if (updateSocioDto.direccion) {
                 const direccionActual = (socio.direccion as any).toObject();
                 updateData.direccion = {
@@ -141,8 +150,17 @@ export class SociosService {
                 };
             }
 
-            if (updateSocioDto.asociados) {
-                updateData.asociados = updateSocioDto.asociados;
+            // Solo actualizar asociados si se proporcionan explícitamente y no están vacíos
+            if (updateSocioDto.asociados && Array.isArray(updateSocioDto.asociados) && updateSocioDto.asociados.length > 0) {
+                // Validar que cada asociado tenga los campos requeridos
+                const asociadosValidos = updateSocioDto.asociados.filter(asociado =>
+                    asociado && typeof asociado === 'object' &&
+                    asociado.nombre && asociado.codigo
+                );
+
+                if (asociadosValidos.length > 0) {
+                    updateData.asociados = asociadosValidos;
+                }
             }
 
             // Actualizar el socio usando findByIdAndUpdate

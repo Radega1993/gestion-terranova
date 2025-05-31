@@ -602,6 +602,102 @@ const SociosList: React.FC = () => {
         );
     };
 
+    const handleAsociadoFotoUpdate = async (socioId: string, asociado: any, file: File) => {
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            console.log('Subiendo imagen para asociado:', asociado.codigo);
+            const response = await fetch(`${API_BASE_URL}/uploads/image`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al subir la imagen');
+            }
+
+            const data = await response.json();
+            console.log('Imagen subida exitosamente:', data.filename);
+
+            // Obtener el socio actual
+            const socio = socios.find(s => s._id === socioId);
+            if (!socio) {
+                throw new Error('Socio no encontrado');
+            }
+
+            // Encontrar el asociado y actualizar su foto
+            const asociados = socio.asociados?.map(a => {
+                if (a.codigo === asociado.codigo) {
+                    return { ...a, foto: data.filename };
+                }
+                return a;
+            }) || [];
+
+            // Actualizar el socio con los asociados modificados
+            const updateResponse = await fetch(`${API_BASE_URL}/socios/${socioId}/asociados`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(asociados)
+            });
+
+            if (!updateResponse.ok) {
+                throw new Error('Error al actualizar la foto del asociado');
+            }
+
+            // Actualizar la lista de socios
+            fetchSocios();
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Foto actualizada correctamente',
+                showConfirmButton: false,
+                timer: 1500
+            });
+        } catch (err) {
+            console.error('Error al actualizar la foto:', err);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: err instanceof Error ? err.message : 'Error al actualizar la foto'
+            });
+        }
+    };
+
+    const renderAsociadoFotoButton = (socioId: string, asociado: any) => {
+        const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+            const file = event.target.files?.[0];
+            if (file) {
+                await handleAsociadoFotoUpdate(socioId, asociado, file);
+            }
+        };
+
+        return (
+            <Box>
+                <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    id={`file-input-asociado-${asociado.codigo}`}
+                    onChange={handleFileChange}
+                />
+                <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() => document.getElementById(`file-input-asociado-${asociado.codigo}`)?.click()}
+                >
+                    <PhotoCamera fontSize="small" />
+                </IconButton>
+            </Box>
+        );
+    };
+
     if (loading) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
@@ -776,6 +872,7 @@ const SociosList: React.FC = () => {
                                                                     <TableCell>Nombre Completo</TableCell>
                                                                     <TableCell>Fecha Nacimiento (MM/DD/AAAA)</TableCell>
                                                                     <TableCell>Código Socio</TableCell>
+                                                                    <TableCell>Acciones</TableCell>
                                                                 </TableRow>
                                                             </TableHead>
                                                             <TableBody>
@@ -787,6 +884,9 @@ const SociosList: React.FC = () => {
                                                                         <TableCell>{asociado.nombre}</TableCell>
                                                                         <TableCell>{asociado.fechaNacimiento ? new Date(asociado.fechaNacimiento).toLocaleDateString() : 'No disponible'}</TableCell>
                                                                         <TableCell>{asociado.codigo || 'No disponible'}</TableCell>
+                                                                        <TableCell>
+                                                                            {renderAsociadoFotoButton(socio._id, asociado)}
+                                                                        </TableCell>
                                                                     </TableRow>
                                                                 ))}
                                                             </TableBody>

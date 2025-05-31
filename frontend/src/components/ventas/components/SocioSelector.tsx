@@ -17,7 +17,7 @@ import { Cliente } from '../types';
 interface SocioSelectorProps {
     onClienteSeleccionado: (cliente: Cliente | null) => void;
     value: Cliente | null;
-    soloSocios?: boolean; // Nueva prop para controlar si solo se muestran socios
+    soloSocios?: boolean;
 }
 
 interface SocioResponse {
@@ -34,36 +34,36 @@ interface SocioResponse {
 export const SocioSelector: React.FC<SocioSelectorProps> = ({
     onClienteSeleccionado,
     value,
-    soloSocios = false // Por defecto mostrar todos
+    soloSocios = false
 }) => {
     const { token } = useAuthStore();
     const [clientes, setClientes] = useState<Cliente[]>([]);
-    const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     // Obtener socios
-    const { data: socios, isLoading } = useQuery<SocioResponse[]>({
+    const { data: socios, isLoading, error: queryError } = useQuery<SocioResponse[]>({
         queryKey: ['socios', token],
         queryFn: async () => {
             if (!token) {
-                console.error('No hay token disponible');
-                return [];
+                throw new Error('No hay token disponible');
             }
-            try {
-                const response = await axios.get(`${API_BASE_URL}/socios/simplified`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                return response.data;
-            } catch (error) {
-                console.error('Error al obtener socios:', error);
-                return [];
-            }
+            const response = await axios.get(`${API_BASE_URL}/socios/simplified`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            return response.data;
         },
         enabled: !!token
     });
+
+    // Actualizar el estado de error si hay un error en la query
+    useEffect(() => {
+        if (queryError) {
+            setError(queryError instanceof Error ? queryError.message : 'Error al cargar los socios');
+        }
+    }, [queryError]);
 
     // Crear una lista plana que incluya solo socios o socios y asociados según la prop
     const opciones = React.useMemo(() => {
@@ -87,7 +87,7 @@ export const SocioSelector: React.FC<SocioSelectorProps> = ({
         return opcionesPlanas;
     }, [socios, soloSocios]);
 
-    if (loading) {
+    if (isLoading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
                 <CircularProgress />

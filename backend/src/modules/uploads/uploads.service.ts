@@ -1,104 +1,87 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { join } from 'path';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Socio } from '../socios/schemas/socio.schema';
 
 @Injectable()
 export class UploadsService {
     private readonly logger = new Logger(UploadsService.name);
     private readonly uploadsDir = join(process.cwd(), 'uploads');
 
-    constructor() {
+    constructor(
+        @InjectModel(Socio.name) private readonly socioModel: Model<Socio>
+    ) {
         this.ensureUploadsDirectory();
     }
 
     private async ensureUploadsDirectory() {
         try {
             await fs.access(this.uploadsDir);
-            this.logger.debug(`Uploads directory exists at ${this.uploadsDir}`);
         } catch {
             await fs.mkdir(this.uploadsDir, { recursive: true });
-            this.logger.debug(`Created uploads directory at ${this.uploadsDir}`);
         }
     }
 
     async saveFile(file: Express.Multer.File): Promise<string> {
         try {
-            this.logger.debug(`Iniciando guardado de archivo: ${file?.originalname}`);
-            this.logger.debug(`Tamaño del archivo: ${file?.size} bytes`);
-            this.logger.debug(`Tipo MIME: ${file?.mimetype}`);
-
-            if (!file) {
-                this.logger.error('No file provided');
-                throw new Error('No file provided');
-            }
-
-            const timestamp = Date.now();
-            const filename = `${timestamp}-${file.originalname}`;
-            const filepath = join(this.uploadsDir, filename);
-
-            this.logger.debug(`Guardando archivo como: ${filename}`);
-            this.logger.debug(`Ruta completa: ${filepath}`);
-
-            // Usar el path del archivo temporal creado por Multer
-            await fs.copyFile(file.path, filepath);
-            this.logger.debug(`Archivo guardado exitosamente en: ${filepath}`);
-
-            // Verificar que el archivo se guardó correctamente
-            try {
-                const stats = await fs.stat(filepath);
-                this.logger.debug(`Verificación del archivo: ${filename}`);
-                this.logger.debug(`Tamaño del archivo guardado: ${stats.size} bytes`);
-
-                if (stats.size === 0) {
-                    this.logger.error(`Archivo guardado está vacío: ${filename}`);
-                    throw new Error('File is empty');
-                }
-
-                this.logger.debug(`Verificación exitosa del archivo: ${filename}`);
-            } catch (error) {
-                this.logger.error(`Error en la verificación del archivo: ${filename}`);
-                this.logger.error(`Error detallado: ${error.message}`);
-                throw new Error('File verification failed');
-            }
-
-            return filename;
+            // El archivo ya está guardado en disco por Multer, solo necesitamos devolver el nombre
+            return file.filename;
         } catch (error) {
             this.logger.error(`Error al guardar el archivo: ${error.message}`);
-            this.logger.error(`Stack trace: ${error.stack}`);
-            throw new Error('Error saving file');
+            throw new InternalServerErrorException('Error al guardar el archivo');
         }
     }
 
     async deleteFile(filename: string): Promise<void> {
         try {
-            this.logger.debug(`Iniciando eliminación del archivo: ${filename}`);
             const filepath = join(this.uploadsDir, filename);
-
-            try {
-                await fs.access(filepath);
-                this.logger.debug(`Archivo encontrado en: ${filepath}`);
-
-                await fs.unlink(filepath);
-                this.logger.debug(`Archivo eliminado exitosamente: ${filename}`);
-            } catch (error) {
-                if (error.code === 'ENOENT') {
-                    this.logger.debug(`Archivo no encontrado, omitiendo eliminación: ${filename}`);
-                    return;
-                }
-                this.logger.error(`Error al acceder al archivo: ${error.message}`);
-                throw error;
-            }
+            await fs.unlink(filepath);
         } catch (error) {
-            this.logger.error(`Error al eliminar el archivo: ${error.message}`);
-            this.logger.error(`Stack trace: ${error.stack}`);
-            throw new Error('Error deleting file');
+            this.logger.debug(`Archivo no encontrado, omitiendo eliminación: ${filename}`);
         }
     }
 
     async getFilePath(filename: string): Promise<string> {
-        this.logger.debug(`Obteniendo ruta del archivo: ${filename}`);
         const filepath = join(this.uploadsDir, filename);
-        this.logger.debug(`Ruta completa: ${filepath}`);
-        return filepath;
+        try {
+            await fs.access(filepath);
+            return filepath;
+        } catch (error) {
+            this.logger.error(`Archivo no encontrado: ${filename}`);
+            throw new NotFoundException('Archivo no encontrado');
+        }
+    }
+
+    async updateSocioFoto(socioId: string, foto: string): Promise<Socio> {
+        try {
+            // Primero obtenemos el socio actual para preservar sus datos
+            const socioActual = await this.socioModel.findById(socioId);
+            if (!socioActual) {
+                throw new NotFoundException('Socio no encontrado');
+            }
+
+            // Si hay una foto anterior, la eliminamos
+            if (socioActual.foto) {
+                await this.deleteFile(socioActual.foto);
+            }
+
+            // Actualizamos solo el campo foto, preservando el resto de datos
+            const socioActualizado = await this.socioModel.findByIdAndUpdate(
+                socioId,
+                { $set: { foto } },
+                { new: true, runValidators: true }
+            );
+
+            if (!socioActualizado) {
+                throw new NotFoundException('Error al actualizar la foto del socio');
+            }
+
+            return socioActualizado;
+        } catch (error) {
+            this.logger.error(`Error en updateSocioFoto: ${error.message}`);
+            throw new InternalServerErrorException('Error al actualizar la foto del socio');
+        }
     }
 } 
