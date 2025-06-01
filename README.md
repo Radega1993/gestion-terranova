@@ -1,6 +1,6 @@
 # Gestión Terranova
 
-Sistema de gestión para la Asociación de Vecinos Terranova.
+Sistema de gestión para asociaciones, desarrollado con NestJS y React.
 
 ## 🚀 Tecnologías
 
@@ -16,27 +16,18 @@ Sistema de gestión para la Asociación de Vecinos Terranova.
 
 ## 🔧 Instalación
 
-1. Clonar el repositorio:
-```bash
-git clone https://github.com/tu-usuario/gestion-terranova.git
-cd gestion-terranova
-```
+1. Descargue el archivo ZIP del proyecto y extráigalo en una ubicación de su elección.
 
-2. Instalar dependencias del backend:
-```bash
-cd backend
-npm install
-```
+2. Haga clic derecho en el archivo `install.ps1` y seleccione "Ejecutar con PowerShell como administrador".
 
-3. Instalar dependencias del frontend:
-```bash
-cd ../frontend
-npm install
-```
+3. El script de instalación realizará las siguientes acciones:
+   - Verificará e instalará Node.js si es necesario
+   - Verificará e instalará MongoDB si es necesario
+   - Creará los directorios necesarios
+   - Instalará las dependencias del backend y frontend
+   - Configurará los archivos de entorno
 
-4. Configurar variables de entorno:
-   - Copiar `.env.example` a `.env` en el directorio backend
-   - Ajustar las variables según tu entorno
+4. Espere a que la instalación se complete. Esto puede tomar varios minutos.
 
 ## 🚀 Desarrollo
 
@@ -81,3 +72,82 @@ npm run start:prod
 ## 📝 Licencia
 
 Este proyecto está bajo la Licencia MIT.
+
+## Requisitos del Sistema
+
+- Windows 11
+- Conexión a Internet (para la instalación inicial)
+- Mínimo 4GB de RAM
+- 2GB de espacio libre en disco
+- PowerShell 5.1 o superior
+- Permisos de administrador
+
+## Iniciar la Aplicación
+
+1. Haga doble clic en el archivo `start-app.bat`
+2. El script iniciará:
+   - MongoDB (si no está en ejecución)
+   - El servidor backend (puerto 3000)
+   - El servidor frontend (puerto 5173)
+   - Abrirá automáticamente la aplicación en su navegador predeterminado
+
+## Solución de Problemas
+
+### Problemas Comunes
+
+1. **Error al iniciar MongoDB**
+   - Verifique que MongoDB esté instalado correctamente
+   - Asegúrese de que el servicio MongoDB esté en ejecución
+   - Ejecute `net start MongoDB` como administrador
+
+2. **Error de puertos en uso**
+   - El backend usa el puerto 3000
+   - El frontend usa el puerto 5173
+   - Cierre cualquier aplicación que esté usando estos puertos
+   - Reinicie su computadora si el problema persiste
+
+3. **Error de conexión a la base de datos**
+   - Verifique que MongoDB esté en ejecución
+   - Compruebe que el archivo `.env` en la carpeta backend tenga la configuración correcta
+   - Asegúrese de que la base de datos `terranova` esté creada
+
+4. **Error al cargar la aplicación en el navegador**
+   - Verifique que los puertos 3000 y 5173 estén accesibles
+   - Compruebe que no haya un firewall bloqueando las conexiones
+   - Intente acceder manualmente a http://localhost:5173
+
+### Verificación de Servicios
+
+Para verificar que todo está funcionando correctamente:
+
+1. Backend: http://localhost:3000/api/health
+2. Frontend: http://localhost:5173
+3. MongoDB: `mongosh` en la terminal
+
+## Desinstalación
+
+1. Detenga todos los servicios:
+   - Cierre las ventanas de terminal del backend y frontend
+   - Ejecute `net stop MongoDB` como administrador
+
+2. Elimine los directorios:
+   - Backend: `backend`
+   - Frontend: `frontend`
+   - Datos de MongoDB: `C:\data\db`
+
+3. Desinstale MongoDB desde el Panel de Control
+
+## Soporte
+
+Si encuentra algún problema durante la instalación o el uso de la aplicación, por favor:
+
+1. Verifique los logs en las ventanas de terminal
+2. Consulte la sección de Solución de Problemas
+3. Contacte al soporte técnico
+
+## Notas Importantes
+
+- Mantenga la ventana de terminal abierta mientras use la aplicación
+- No cierre las ventanas de terminal del backend o frontend
+- Realice copias de seguridad regulares de la base de datos
+- Mantenga actualizado Node.js y MongoDB
