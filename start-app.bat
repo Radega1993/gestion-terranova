@@ -1,5 +1,5 @@
 @echo off
-title Gestión Terranova - Cargando...
+title Gestión Terranova - Iniciando...
 echo Iniciando Gestión Terranova...
 echo ============================
 
@@ -9,7 +9,8 @@ if %errorlevel% neq 0 (
     echo Iniciando MongoDB...
     net start MongoDB
     if %errorlevel% neq 0 (
-        msg * "❌ Error al iniciar MongoDB. Verifica la instalación."
+        echo Error al iniciar MongoDB. Por favor, verifique la instalación.
+        pause
         exit /b 1
     )
 )
@@ -20,47 +21,47 @@ if not exist "backend\uploads" (
     mkdir "backend\uploads"
 )
 
-REM Verificar puertos ocupados
+REM Verificar si los puertos ya están ocupados
 netstat -ano | findstr :3000 > nul
-if %errorlevel% equ 0 (
-    msg * "❌ Puerto 3000 en uso. Cierra la app que lo ocupa."
-    exit /b 1
-)
+set BACKEND_RUNNING=%errorlevel%
 
 netstat -ano | findstr :5173 > nul
-if %errorlevel% equ 0 (
-    msg * "❌ Puerto 5173 en uso. Cierra la app que lo ocupa."
-    exit /b 1
+set FRONTEND_RUNNING=%errorlevel%
+
+REM Si ambos están ocupados, solo abrir navegador
+if %BACKEND_RUNNING% equ 0 if %FRONTEND_RUNNING% equ 0 (
+    echo Backend y Frontend ya están en ejecución.
+    echo Abriendo la aplicación en el navegador...
+    start http://localhost:5173
+    exit /b 0
 )
 
-REM Iniciar el backend sin mostrar ventana
-echo Iniciando backend...
-start "" /min powershell -WindowStyle Hidden -Command "cd 'backend'; npm run start:dev"
-
-REM Esperar backend
-timeout /t 10 /nobreak > nul
-curl -s http://localhost:3000/api/health > nul
-if %errorlevel% neq 0 (
-    msg * "❌ El backend no responde. Revisa los logs."
-    exit /b 1
+REM Iniciar backend si no está corriendo
+if %BACKEND_RUNNING% neq 0 (
+    echo Iniciando el backend...
+    start "" /min powershell -WindowStyle Hidden -Command "cd 'backend'; npm run start:dev"
+    timeout /t 10 /nobreak > nul
 )
 
-REM Iniciar frontend sin mostrar ventana
-echo Iniciando frontend...
-start "" /min powershell -WindowStyle Hidden -Command "cd 'frontend'; npm run dev"
+REM Iniciar frontend si no está corriendo
+if %FRONTEND_RUNNING% neq 0 (
+    echo Iniciando el frontend...
+    start "" /min powershell -WindowStyle Hidden -Command "cd 'frontend'; npm run dev"
+    timeout /t 10 /nobreak > nul
+)
 
-REM Esperar frontend
-timeout /t 10 /nobreak > nul
+REM Verificar si el frontend está respondiendo antes de abrir el navegador
 curl -s http://localhost:5173 > nul
 if %errorlevel% neq 0 (
-    msg * "❌ El frontend no responde. Revisa los logs."
+    echo Error: El frontend no está respondiendo. Verifique los logs.
+    pause
     exit /b 1
 )
 
-REM Abrir navegador
+REM Abrir la aplicación en el navegador
 echo Abriendo la aplicación en el navegador...
 start http://localhost:5173
 
-REM Mensaje final
 echo.
-msg * "✅ Gestión Terranova está lista. Puedes usar la aplicación."
+echo La aplicación está iniciada y lista para usar.
+exit /b 0
