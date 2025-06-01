@@ -28,6 +28,15 @@ set BACKEND_RUNNING=%errorlevel%
 netstat -ano | findstr :5173 > nul
 set FRONTEND_RUNNING=%errorlevel%
 
+REM Si ambos están corriendo, solo abrir el navegador
+if %BACKEND_RUNNING% equ 0 if %FRONTEND_RUNNING% equ 0 (
+    echo Backend y Frontend ya están en ejecución.
+    echo Abriendo la aplicación en el navegador...
+    timeout /t 2 > nul
+    start "" "http://localhost:5173"
+    exit /b 0
+)
+
 REM Iniciar backend si no está corriendo
 if %BACKEND_RUNNING% neq 0 (
     echo Iniciando el backend...
@@ -44,29 +53,43 @@ if %FRONTEND_RUNNING% neq 0 (
     echo Frontend ya en ejecución.
 )
 
-REM Esperar unos segundos para que ambos servicios arranquen
-echo Esperando a que los servicios estén disponibles...
-timeout /t 10 /nobreak > nul
-
-REM Verificar si el backend está respondiendo
+REM Esperar a que el backend esté disponible
+echo Esperando al backend...
+set RETRIES=0
+:wait_backend
 curl -s http://localhost:3000/api/health > nul
-if %errorlevel% neq 0 (
-    echo Error: El backend no responde en http://localhost:3000/api/health
+if %errorlevel% equ 0 (
+    goto wait_frontend
+)
+set /a RETRIES+=1
+if %RETRIES% GEQ 20 (
+    echo ❌ Error: El backend no responde después de varios intentos.
     pause
     exit /b 1
 )
+timeout /t 1 /nobreak > nul
+goto wait_backend
 
-REM Verificar si el frontend está respondiendo
+:wait_frontend
+echo Esperando al frontend...
+set RETRIES=0
+:wait_frontend_loop
 curl -s http://localhost:5173 > nul
-if %errorlevel% neq 0 (
-    echo Error: El frontend no responde en http://localhost:5173
+if %errorlevel% equ 0 (
+    goto open_browser
+)
+set /a RETRIES+=1
+if %RETRIES% GEQ 20 (
+    echo ❌ Error: El frontend no responde después de varios intentos.
     pause
     exit /b 1
 )
+timeout /t 1 /nobreak > nul
+goto wait_frontend_loop
 
-REM Abrir navegador
+:open_browser
 echo Abriendo la aplicación en el navegador...
-start http://localhost:5173
+start "" "http://localhost:5173"
 
 echo.
 echo ✅ La aplicación está iniciada y lista para usar.
