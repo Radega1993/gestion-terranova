@@ -39,20 +39,20 @@ if (-not (Test-Path $uploadsPath)) {
 # Instalar dependencias del backend
 Write-Host "Instalando dependencias del backend..." -ForegroundColor Yellow
 Set-Location backend
-npm install
+npm install --legacy-peer-deps
 Set-Location ..
 
 # Instalar dependencias del frontend
 Write-Host "Instalando dependencias del frontend..." -ForegroundColor Yellow
 Set-Location frontend
-npm install
+npm install --legacy-peer-deps
 Set-Location ..
 
 # Crear archivo de configuración del backend
 $backendEnv = @"
 # Configuración del servidor
 PORT=3000
-MONGODB_URI=mongodb://localhost:27017/terranova
+MONGODB_URI=mongodb://127.0.0.1:27017/terranova
 JWT_SECRET=terranova_secret_key_2024
 JWT_EXPIRATION=24h
 
