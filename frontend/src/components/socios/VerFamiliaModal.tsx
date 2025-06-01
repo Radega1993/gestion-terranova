@@ -50,7 +50,7 @@ const VerFamiliaModal: React.FC<VerFamiliaModalProps> = ({
                 <Grid container spacing={3} alignItems="center">
                     <Grid item xs={12} sm={4} sx={{ display: 'flex', justifyContent: 'center' }}>
                         <Avatar
-                            src={foto ? `${API_BASE_URL}/uploads/${foto}` : undefined}
+                            src={foto ? `${API_BASE_URL.replace('/api', '')}/uploads/${foto}` : undefined}
                             alt={nombre}
                             sx={{
                                 width: 150,
