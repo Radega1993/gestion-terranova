@@ -71,6 +71,12 @@ interface Venta {
         precio: number;
         total: number;
     }>;
+    pagos?: Array<{
+        fecha: string;
+        monto: number;
+        metodoPago: string;
+        observaciones?: string;
+    }>;
 }
 
 const RecaudacionesList: React.FC = () => {
@@ -270,6 +276,7 @@ const RecaudacionesList: React.FC = () => {
                                     <TableCell>Pagado</TableCell>
                                     <TableCell>Estado</TableCell>
                                     <TableCell>Productos</TableCell>
+                                    <TableCell>Desglose Pagos</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -296,6 +303,20 @@ const RecaudacionesList: React.FC = () => {
                                             {venta.detalles.map((producto, index) => (
                                                 <div key={index}>
                                                     {producto.cantidad} x {producto.nombre} = {producto.total.toFixed(2)}€
+                                                </div>
+                                            ))}
+                                        </TableCell>
+                                        <TableCell>
+                                            {venta.pagos?.map((pago, index) => (
+                                                <div key={index}>
+                                                    {new Date(pago.fecha).toLocaleDateString('es-ES', {
+                                                        day: '2-digit',
+                                                        month: '2-digit',
+                                                        year: 'numeric',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
+                                                    })} - {pago.monto.toFixed(2)}€ ({pago.metodoPago})
+                                                    {pago.observaciones && <div style={{ fontSize: '0.8em', color: 'gray' }}>{pago.observaciones}</div>}
                                                 </div>
                                             ))}
                                         </TableCell>

@@ -170,24 +170,48 @@ export class VentasService {
     }
 
     async registrarPago(id: string, pagoVentaDto: PagoVentaDto) {
+        this.logger.debug(`Iniciando registro de pago para venta ${id}`);
+        this.logger.debug('Datos del pago recibidos:', pagoVentaDto);
+
         const venta = await this.ventaModel.findById(id);
         if (!venta) {
+            this.logger.error(`Venta ${id} no encontrada`);
             throw new NotFoundException(`Venta ${id} no encontrada`);
         }
 
-        const pendiente = venta.total - venta.pagado;
-        if (pagoVentaDto.pagado > pendiente) {
+        // Redondear todos los valores a 2 decimales
+        const total = Number(venta.total.toFixed(2));
+        const pagado = Number(venta.pagado.toFixed(2));
+        const montoPago = Number(pagoVentaDto.pagado.toFixed(2));
+
+        this.logger.debug('Datos de la venta (redondeados):', {
+            total,
+            pagado,
+            estado: venta.estado
+        });
+
+        const pendiente = Number((total - pagado).toFixed(2));
+        this.logger.debug(`Monto pendiente: ${pendiente}, Pago a registrar: ${montoPago}`);
+
+        if (montoPago > pendiente) {
+            this.logger.error(`El pago (${montoPago}) excede el monto pendiente (${pendiente})`);
             throw new BadRequestException('El pago excede el monto pendiente');
         }
 
-        const nuevoPagado = venta.pagado + pagoVentaDto.pagado;
-        const nuevoEstado = nuevoPagado === venta.total ? 'PAGADO' : 'PAGADO_PARCIAL';
+        const nuevoPagado = Number((pagado + montoPago).toFixed(2));
+        const nuevoEstado = nuevoPagado === total ? 'PAGADO' : 'PAGADO_PARCIAL';
+
+        this.logger.debug('Nuevos valores:', {
+            nuevoPagado,
+            nuevoEstado
+        });
 
         // Registrar el pago en el historial
         const pago = {
             fecha: new Date(),
-            monto: pagoVentaDto.pagado,
+            monto: montoPago,
             metodoPago: pagoVentaDto.metodoPago,
+            observaciones: pagoVentaDto.observaciones
         };
 
         venta.pagos = venta.pagos || [];
@@ -197,7 +221,10 @@ export class VentasService {
         venta.pagado = nuevoPagado;
         venta.estado = nuevoEstado;
 
-        return venta.save();
+        const ventaActualizada = await venta.save();
+        this.logger.debug('Venta actualizada:', ventaActualizada);
+
+        return ventaActualizada;
     }
 
     async getRecaudaciones(filtros: RecaudacionesFiltrosDto) {
@@ -318,28 +345,64 @@ export class VentasService {
         });
 
         // Transformar ventas al formato común
-        const ventasTransformadas = ventas.map(venta => ({
-            _id: venta._id,
-            tipo: 'VENTA',
-            fecha: venta.createdAt,
-            socio: {
-                codigo: venta.codigoSocio,
-                nombre: venta.nombreSocio
-            },
-            usuario: {
-                _id: venta.usuario._id,
-                username: venta.usuario.username
-            },
-            total: venta.total,
-            pagado: venta.pagado,
-            estado: venta.estado,
-            detalles: venta.productos.map(p => ({
-                nombre: p.nombre,
-                cantidad: p.unidades,
-                precio: p.precioUnitario,
-                total: p.precioTotal
-            }))
-        }));
+        const ventasTransformadas = ventas.flatMap(venta => {
+            // Si no hay pagos, devolver la venta como está
+            if (!venta.pagos || venta.pagos.length === 0) {
+                return [{
+                    _id: venta._id,
+                    tipo: 'VENTA',
+                    fecha: venta.createdAt,
+                    socio: {
+                        codigo: venta.codigoSocio,
+                        nombre: venta.nombreSocio
+                    },
+                    usuario: {
+                        _id: venta.usuario._id,
+                        username: venta.usuario.username
+                    },
+                    total: venta.total,
+                    pagado: venta.pagado,
+                    estado: venta.estado,
+                    detalles: venta.productos.map(p => ({
+                        nombre: p.nombre,
+                        cantidad: p.unidades,
+                        precio: p.precioUnitario,
+                        total: p.precioTotal
+                    })),
+                    pagos: []
+                }];
+            }
+
+            // Transformar cada pago en una fila independiente
+            return venta.pagos.map(pago => ({
+                _id: venta._id,
+                tipo: 'VENTA',
+                fecha: pago.fecha, // Usar la fecha del pago en lugar de la fecha de la venta
+                socio: {
+                    codigo: venta.codigoSocio,
+                    nombre: venta.nombreSocio
+                },
+                usuario: {
+                    _id: venta.usuario._id,
+                    username: venta.usuario.username
+                },
+                total: venta.total,
+                pagado: pago.monto, // Usar el monto del pago específico
+                estado: venta.estado,
+                detalles: venta.productos.map(p => ({
+                    nombre: p.nombre,
+                    cantidad: p.unidades,
+                    precio: p.precioUnitario,
+                    total: p.precioTotal
+                })),
+                pagos: [{
+                    fecha: pago.fecha,
+                    monto: pago.monto,
+                    metodoPago: pago.metodoPago,
+                    observaciones: pago.observaciones
+                }]
+            }));
+        });
 
         // Combinar y ordenar por fecha
         const recaudaciones = [...reservasTransformadas, ...ventasTransformadas]

@@ -1,4 +1,4 @@
-import { IsNumber, IsEnum, Min, Max } from 'class-validator';
+import { IsNumber, IsEnum, Min, Max, IsString } from 'class-validator';
 
 export enum MetodoPago {
     EFECTIVO = 'EFECTIVO',
@@ -12,4 +12,7 @@ export class PagoVentaDto {
 
     @IsEnum(MetodoPago)
     metodoPago: MetodoPago;
+
+    @IsString()
+    observaciones: string;
 } 

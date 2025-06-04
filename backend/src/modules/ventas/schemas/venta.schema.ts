@@ -13,6 +13,9 @@ export class Pago {
 
     @Prop({ required: true, enum: ['EFECTIVO', 'TARJETA'] })
     metodoPago: string;
+
+    @Prop({ type: String })
+    observaciones?: string;
 }
 
 @Schema({ timestamps: true })

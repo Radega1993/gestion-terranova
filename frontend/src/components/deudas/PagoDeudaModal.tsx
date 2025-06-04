@@ -34,6 +34,7 @@ export const PagoDeudaModal: React.FC<PagoDeudaModalProps> = ({
     const { token } = useAuthStore();
     const [pagado, setPagado] = useState<number>(0);
     const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA'>('EFECTIVO');
+    const [observaciones, setObservaciones] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
@@ -44,6 +45,16 @@ export const PagoDeudaModal: React.FC<PagoDeudaModalProps> = ({
             setLoading(true);
             setError(null);
 
+            console.log('Datos del pago:', {
+                ventaId: venta._id,
+                totalOriginal: venta.total,
+                yaPagado: venta.pagado,
+                pendiente: venta.total - venta.pagado,
+                montoAPagar: pagado,
+                metodoPago,
+                observaciones
+            });
+
             const response = await fetch(`${API_BASE_URL}/ventas/${venta._id}/pago`, {
                 method: 'POST',
                 headers: {
@@ -53,17 +64,27 @@ export const PagoDeudaModal: React.FC<PagoDeudaModalProps> = ({
                 body: JSON.stringify({
                     pagado,
                     metodoPago,
+                    observaciones
                 }),
             });
 
             if (!response.ok) {
-                throw new Error('Error al procesar el pago');
+                const errorData = await response.json();
+                console.error('Error en la respuesta:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    errorData
+                });
+                throw new Error(errorData.message || 'Error al procesar el pago');
             }
+
+            const responseData = await response.json();
+            console.log('Respuesta exitosa:', responseData);
 
             onPagoCompletado();
             onClose();
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Error detallado:', error);
             setError(error instanceof Error ? error.message : 'Error al procesar el pago');
         } finally {
             setLoading(false);
@@ -115,6 +136,16 @@ export const PagoDeudaModal: React.FC<PagoDeudaModalProps> = ({
                         </Select>
                     </FormControl>
 
+                    <TextField
+                        fullWidth
+                        label="Observaciones"
+                        value={observaciones}
+                        onChange={(e) => setObservaciones(e.target.value)}
+                        margin="normal"
+                        multiline
+                        rows={2}
+                    />
+
                     {metodoPago === 'EFECTIVO' && cambio > 0 && (
                         <Typography variant="h6" color="success.main" sx={{ mt: 2 }}>
                             Cambio a devolver: {cambio.toFixed(2)}€
@@ -133,7 +164,7 @@ export const PagoDeudaModal: React.FC<PagoDeudaModalProps> = ({
                 <Button
                     onClick={handleSubmit}
                     variant="contained"
-                    disabled={loading || pagado <= 0}
+                    disabled={loading || pagado <= 0 || pagado > pendiente + 0.01}
                 >
                     {loading ? 'Procesando...' : 'Pagar'}
                 </Button>

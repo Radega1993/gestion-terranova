@@ -16,7 +16,10 @@ import {
     Alert,
     Button,
     Chip,
-    IconButton
+    IconButton,
+    Dialog,
+    DialogTitle,
+    DialogContent,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -26,7 +29,9 @@ import { API_BASE_URL } from '../../config';
 import { useAuthStore } from '../../stores/authStore';
 import { Venta } from '../ventas/types';
 import { PagoDeudaModal } from './PagoDeudaModal';
+import { DeudasPDF } from './DeudasPDF';
 import PaymentIcon from '@mui/icons-material/Payment';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { SocioSelector } from '../ventas/components/SocioSelector';
 import { Cliente } from '../ventas/types';
 
@@ -44,6 +49,7 @@ export const DeudasList: React.FC = () => {
     const [modalPagoOpen, setModalPagoOpen] = useState(false);
     const [ventaSeleccionada, setVentaSeleccionada] = useState<Venta | null>(null);
     const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
+    const [showPDF, setShowPDF] = useState(false);
 
     const fetchVentas = async () => {
         try {
@@ -134,6 +140,25 @@ export const DeudasList: React.FC = () => {
         }
     };
 
+    const handleImprimirDeudas = () => {
+        if (!clienteSeleccionado) return;
+
+        // Obtener el código base del socio (sin el sufijo _XX)
+        const codigoBase = clienteSeleccionado.codigo.split('_')[0];
+
+        // Filtrar ventas que coincidan con el código base (socio principal y asociados)
+        const ventasFiltradas = ventas.filter(venta =>
+            venta.codigoSocio.startsWith(codigoBase)
+        );
+
+        if (ventasFiltradas.length === 0) {
+            setError('No hay deudas para imprimir');
+            return;
+        }
+
+        setShowPDF(true);
+    };
+
     if (loading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -177,11 +202,12 @@ export const DeudasList: React.FC = () => {
                         />
                     </Grid>
                     <Grid item xs={12} md={3}>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                             <Button
                                 variant="contained"
                                 onClick={handleBuscar}
                                 fullWidth
+                                size="large"
                             >
                                 Buscar
                             </Button>
@@ -189,8 +215,19 @@ export const DeudasList: React.FC = () => {
                                 variant="outlined"
                                 onClick={handleLimpiarFiltros}
                                 fullWidth
+                                size="large"
                             >
                                 Limpiar
+                            </Button>
+                            <Button
+                                variant="outlined"
+                                startIcon={<PictureAsPdfIcon />}
+                                onClick={handleImprimirDeudas}
+                                disabled={!clienteSeleccionado}
+                                fullWidth
+                                size="large"
+                            >
+                                Imprimir
                             </Button>
                         </Box>
                     </Grid>
@@ -213,6 +250,7 @@ export const DeudasList: React.FC = () => {
                             <TableCell>Pagado</TableCell>
                             <TableCell>Pendiente</TableCell>
                             <TableCell>Estado</TableCell>
+                            <TableCell>Observaciones</TableCell>
                             <TableCell>Acciones</TableCell>
                         </TableRow>
                     </TableHead>
@@ -220,7 +258,13 @@ export const DeudasList: React.FC = () => {
                         {ventas.map((venta) => (
                             <TableRow key={venta._id}>
                                 <TableCell>
-                                    {new Date(venta.createdAt).toLocaleDateString()}
+                                    {new Date(venta.createdAt).toLocaleString('es-ES', {
+                                        year: 'numeric',
+                                        month: '2-digit',
+                                        day: '2-digit',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                    })}
                                 </TableCell>
                                 <TableCell>
                                     {venta.nombreSocio} ({venta.codigoSocio})
@@ -232,6 +276,9 @@ export const DeudasList: React.FC = () => {
                                 </TableCell>
                                 <TableCell>
                                     {getEstadoChip(venta.estado)}
+                                </TableCell>
+                                <TableCell>
+                                    {venta.observaciones || '-'}
                                 </TableCell>
                                 <TableCell>
                                     <IconButton
@@ -246,7 +293,7 @@ export const DeudasList: React.FC = () => {
                         ))}
                         {ventas.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={7} align="center">
+                                <TableCell colSpan={8} align="center">
                                     No hay deudas pendientes
                                 </TableCell>
                             </TableRow>
@@ -264,6 +311,42 @@ export const DeudasList: React.FC = () => {
                 venta={ventaSeleccionada}
                 onPagoCompletado={handlePagoCompletado}
             />
+
+            <Dialog
+                open={showPDF}
+                onClose={() => setShowPDF(false)}
+                maxWidth="md"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        height: '90vh',
+                        maxHeight: '90vh'
+                    }
+                }}
+            >
+                <DialogTitle>
+                    Informe de Deudas
+                </DialogTitle>
+                <DialogContent sx={{
+                    p: 0,
+                    height: 'calc(90vh - 64px)',
+                    '& > div': {
+                        height: '100%'
+                    }
+                }}>
+                    {clienteSeleccionado && (
+                        <DeudasPDF
+                            socio={{
+                                codigo: clienteSeleccionado.codigo.split('_')[0],
+                                nombre: clienteSeleccionado.nombreCompleto.split(' (')[0]
+                            }}
+                            ventas={ventas.filter(venta =>
+                                venta.codigoSocio.startsWith(clienteSeleccionado.codigo.split('_')[0])
+                            )}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
         </Container>
     );
 }; 
