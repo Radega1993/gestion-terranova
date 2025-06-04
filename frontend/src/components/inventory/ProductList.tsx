@@ -26,7 +26,6 @@ import {
 } from '@mui/material';
 import { Edit as EditIcon, Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
 import { Product, ProductType, CreateProductDto, UpdateProductDto } from '../../types/product';
 import { API_BASE_URL } from '../../config';
 import { useAuthStore } from '../../stores/authStore';
@@ -50,20 +49,33 @@ const ProductList: React.FC = () => {
     const { data: products, isLoading } = useQuery<Product[]>({
         queryKey: ['products'],
         queryFn: async () => {
-            const response = await axios.get(`${API_BASE_URL}/inventory`, {
-                headers: { Authorization: `Bearer ${token}` }
+            const response = await fetch(`${API_BASE_URL}/inventory`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
             });
-            return response.data;
+            if (!response.ok) {
+                throw new Error('Error al cargar los productos');
+            }
+            return response.json();
         }
     });
 
     // Mutación para crear producto
     const createMutation = useMutation({
         mutationFn: async (newProduct: CreateProductDto) => {
-            const response = await axios.post(`${API_BASE_URL}/inventory`, newProduct, {
-                headers: { Authorization: `Bearer ${token}` }
+            const response = await fetch(`${API_BASE_URL}/inventory`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(newProduct)
             });
-            return response.data;
+            if (!response.ok) {
+                throw new Error('Error al crear el producto');
+            }
+            return response.json();
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -75,10 +87,18 @@ const ProductList: React.FC = () => {
     // Mutación para actualizar producto
     const updateMutation = useMutation({
         mutationFn: async ({ id, data }: { id: string; data: UpdateProductDto }) => {
-            const response = await axios.put(`${API_BASE_URL}/inventory/${id}`, data, {
-                headers: { Authorization: `Bearer ${token}` }
+            const response = await fetch(`${API_BASE_URL}/inventory/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
             });
-            return response.data;
+            if (!response.ok) {
+                throw new Error('Error al actualizar el producto');
+            }
+            return response.json();
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -90,10 +110,16 @@ const ProductList: React.FC = () => {
     // Mutación para eliminar producto
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
-            const response = await axios.delete(`${API_BASE_URL}/inventory/${id}`, {
-                headers: { Authorization: `Bearer ${token}` }
+            const response = await fetch(`${API_BASE_URL}/inventory/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
             });
-            return response.data;
+            if (!response.ok) {
+                throw new Error('Error al eliminar el producto');
+            }
+            return response.json();
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -103,12 +129,18 @@ const ProductList: React.FC = () => {
     // Mutación para cambiar estado activo/inactivo
     const toggleStatusMutation = useMutation({
         mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-            const response = await axios.patch(
-                `${API_BASE_URL}/inventory/${id}/status`,
-                { activo: isActive },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-            return response.data;
+            const response = await fetch(`${API_BASE_URL}/inventory/${id}/status`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ activo: isActive })
+            });
+            if (!response.ok) {
+                throw new Error('Error al cambiar el estado del producto');
+            }
+            return response.json();
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -172,12 +204,16 @@ const ProductList: React.FC = () => {
         formData.append('file', file);
 
         try {
-            await axios.post(`${API_BASE_URL}/inventory/import`, formData, {
+            const response = await fetch(`${API_BASE_URL}/inventory/import`, {
+                method: 'POST',
                 headers: {
-                    'Content-Type': 'multipart/form-data',
-                    Authorization: `Bearer ${token}`
-                }
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
             });
+            if (!response.ok) {
+                throw new Error('Error al importar el archivo Excel');
+            }
             queryClient.invalidateQueries({ queryKey: ['products'] });
         } catch (error) {
             console.error('Error importing Excel:', error);
@@ -187,12 +223,16 @@ const ProductList: React.FC = () => {
 
     const handleExportExcel = async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/inventory/export`, {
-                responseType: 'blob',
-                headers: { Authorization: `Bearer ${token}` }
+            const response = await fetch(`${API_BASE_URL}/inventory/export`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
             });
-
-            const url = window.URL.createObjectURL(new Blob([response.data]));
+            if (!response.ok) {
+                throw new Error('Error al exportar');
+            }
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
             link.setAttribute('download', 'productos.xlsx');

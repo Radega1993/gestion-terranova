@@ -19,249 +19,191 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Asociado } from '../../types/socio';
 import { useAuth } from '../../hooks/useAuth';
-import axiosInstance from '../../config/axios';
+import { API_BASE_URL } from '../../config';
 import Swal from 'sweetalert2';
 
-const AsociadosForm: React.FC = () => {
+interface AsociadosFormProps {
+    initialData?: Asociado[];
+    onSubmit: (data: Asociado[]) => void;
+    isLoading: boolean;
+}
+
+const AsociadosForm: React.FC<AsociadosFormProps> = ({ initialData, onSubmit, isLoading }) => {
     const navigate = useNavigate();
-    const { id } = useParams<{ id: string }>();
     const { token } = useAuth();
-    const [asociados, setAsociados] = useState<Asociado[]>([]);
+    const [asociados, setAsociados] = useState<Asociado[]>(initialData || []);
 
-    // Cargar datos del socio y sus asociados
-    const { data: socioData, isLoading } = useQuery({
-        queryKey: ['socio', id],
-        queryFn: async () => {
-            if (!id) return null;
-            const response = await axiosInstance.get(`/socios/${id}`);
-            return response.data;
-        },
-        enabled: !!id && !!token,
-        onSuccess: (data) => {
-            if (data?.asociados) {
-                setAsociados(data.asociados);
-            }
-        },
-    });
-
-    // Mutación para actualizar los asociados
-    const updateMutation = useMutation({
-        mutationFn: async (asociados: Asociado[]) => {
-            if (!id) throw new Error('No hay ID de socio');
-            const response = await axiosInstance.put(`/socios/${id}/asociados`, { asociados });
-            return response.data;
-        },
-        onSuccess: () => {
-            Swal.fire({
-                icon: 'success',
-                title: 'Miembros actualizados',
-                text: 'Los miembros asociados han sido actualizados correctamente'
-            });
-            navigate('/socios');
-        },
-        onError: (error) => {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'No se pudieron actualizar los miembros asociados'
-            });
-        },
-    });
-
-    // Añadir nuevo asociado
     const handleAddAsociado = () => {
-        setAsociados([...asociados, { nombre: '', fechaNacimiento: '' }]);
-    };
-
-    // Eliminar asociado
-    const handleDeleteAsociado = (index: number) => {
-        const newAsociados = [...asociados];
-        newAsociados.splice(index, 1);
-        setAsociados(newAsociados);
-    };
-
-    // Actualizar datos de asociado
-    const handleAsociadoChange = (index: number, field: keyof Asociado, value: string) => {
-        const newAsociados = [...asociados];
-        newAsociados[index] = { ...newAsociados[index], [field]: value };
-        setAsociados(newAsociados);
-    };
-
-    // Manejar cambio de foto
-    const handleFotoChange = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            if (file.size > 5 * 1024 * 1024) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: 'La imagen no puede ser mayor a 5MB'
-                });
-                return;
+        setAsociados([
+            ...asociados,
+            {
+                codigo: '',
+                nombre: '',
+                fechaNacimiento: new Date(),
+                parentesco: '',
+                telefono: '',
+                foto: ''
             }
-
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 800;
-                    const MAX_HEIGHT = 800;
-                    let width = img.width;
-                    let height = img.height;
-
-                    if (width > height) {
-                        if (width > MAX_WIDTH) {
-                            height *= MAX_WIDTH / width;
-                            width = MAX_WIDTH;
-                        }
-                    } else {
-                        if (height > MAX_HEIGHT) {
-                            width *= MAX_HEIGHT / height;
-                            height = MAX_HEIGHT;
-                        }
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx?.drawImage(img, 0, 0, width, height);
-
-                    const compressedImage = canvas.toDataURL('image/jpeg', 0.7);
-                    const newAsociados = [...asociados];
-                    newAsociados[index] = { ...newAsociados[index], foto: compressedImage };
-                    setAsociados(newAsociados);
-                };
-                img.src = reader.result as string;
-            };
-            reader.readAsDataURL(file);
-        }
+        ]);
     };
 
-    // Guardar cambios
-    const handleSubmit = async () => {
-        try {
-            await updateMutation.mutateAsync(asociados);
-        } catch (error) {
-            console.error('Error:', error);
-        }
+    const handleRemoveAsociado = (index: number) => {
+        setAsociados(asociados.filter((_, i) => i !== index));
     };
 
-    // Volver a la lista de socios
-    const handleCancel = () => {
-        navigate('/socios');
+    const handleChange = (index: number, field: keyof Asociado, value: any) => {
+        const newAsociados = [...asociados];
+        newAsociados[index] = {
+            ...newAsociados[index],
+            [field]: value
+        };
+        setAsociados(newAsociados);
     };
 
-    if (isLoading) {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-                <Typography>Cargando...</Typography>
-            </Box>
-        );
-    }
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSubmit(asociados);
+    };
 
     return (
-        <Card>
-            <CardContent>
-                <Box sx={{ p: 3 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                        <IconButton onClick={handleCancel}>
-                            <ArrowBackIcon />
-                        </IconButton>
-                        <Typography variant="h5" sx={{ ml: 2 }}>
-                            Gestión de Miembros Asociados
-                        </Typography>
-                    </Box>
+        <Box component="form" onSubmit={handleSubmit}>
+            <Paper sx={{ p: 3 }}>
+                <Grid container spacing={3}>
+                    <Grid item xs={12}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center">
+                            <Typography variant="h6">
+                                Miembros Asociados
+                            </Typography>
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                startIcon={<AddIcon />}
+                                onClick={handleAddAsociado}
+                            >
+                                Agregar Miembro
+                            </Button>
+                        </Box>
+                    </Grid>
 
-                    <Typography variant="subtitle1" gutterBottom>
-                        Socio: {socioData?.nombre.nombre} {socioData?.nombre.primerApellido}
-                    </Typography>
-
-                    <Box sx={{ mt: 3 }}>
-                        {asociados.map((asociado, index) => (
-                            <Paper key={index} elevation={1} sx={{ p: 2, mb: 2 }}>
-                                <Grid container spacing={2} alignItems="center">
-                                    <Grid item>
-                                        <Box sx={{ position: 'relative' }}>
-                                            <Avatar
-                                                src={asociado.foto}
-                                                sx={{ width: 80, height: 80 }}
-                                            />
-                                            <input
-                                                accept="image/*"
-                                                style={{ display: 'none' }}
-                                                id={`foto-asociado-${index}`}
-                                                type="file"
-                                                onChange={(e) => handleFotoChange(index, e)}
-                                            />
-                                            <label htmlFor={`foto-asociado-${index}`}>
-                                                <IconButton
-                                                    color="primary"
-                                                    component="span"
-                                                    sx={{
-                                                        position: 'absolute',
-                                                        bottom: 0,
-                                                        right: 0,
-                                                        bgcolor: 'background.paper'
-                                                    }}
-                                                >
-                                                    <PhotoCamera />
-                                                </IconButton>
-                                            </label>
-                                        </Box>
-                                    </Grid>
-                                    <Grid item xs>
-                                        <TextField
-                                            fullWidth
-                                            label="Nombre completo"
-                                            value={asociado.nombre}
-                                            onChange={(e) => handleAsociadoChange(index, 'nombre', e.target.value)}
-                                            required
-                                            sx={{ mb: 2 }}
-                                        />
-                                        <TextField
-                                            fullWidth
-                                            label="Fecha de nacimiento(MM/DD/AAAA)"
-                                            type="date"
-                                            value={asociado.fechaNacimiento || ''}
-                                            onChange={(e) => handleAsociadoChange(index, 'fechaNacimiento', e.target.value)}
-                                            InputLabelProps={{ shrink: true }}
-                                        />
-                                    </Grid>
-                                    <Grid item>
+                    {asociados.map((asociado, index) => (
+                        <Grid item xs={12} key={index}>
+                            <Card>
+                                <CardContent>
+                                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                                        <Typography variant="h6">
+                                            Miembro {index + 1}
+                                        </Typography>
                                         <IconButton
                                             color="error"
-                                            onClick={() => handleDeleteAsociado(index)}
+                                            onClick={() => handleRemoveAsociado(index)}
                                         >
                                             <DeleteIcon />
                                         </IconButton>
+                                    </Box>
+
+                                    <Grid container spacing={2}>
+                                        <Grid item xs={12} md={6}>
+                                            <TextField
+                                                fullWidth
+                                                label="Código"
+                                                value={asociado.codigo}
+                                                onChange={(e) => handleChange(index, 'codigo', e.target.value)}
+                                                required
+                                            />
+                                        </Grid>
+
+                                        <Grid item xs={12} md={6}>
+                                            <TextField
+                                                fullWidth
+                                                label="Nombre"
+                                                value={asociado.nombre}
+                                                onChange={(e) => handleChange(index, 'nombre', e.target.value)}
+                                                required
+                                            />
+                                        </Grid>
+
+                                        <Grid item xs={12} md={6}>
+                                            <TextField
+                                                fullWidth
+                                                label="Fecha de Nacimiento"
+                                                type="date"
+                                                value={asociado.fechaNacimiento ? new Date(asociado.fechaNacimiento).toISOString().split('T')[0] : ''}
+                                                onChange={(e) => handleChange(index, 'fechaNacimiento', new Date(e.target.value))}
+                                                required
+                                                InputLabelProps={{
+                                                    shrink: true,
+                                                }}
+                                            />
+                                        </Grid>
+
+                                        <Grid item xs={12} md={6}>
+                                            <TextField
+                                                fullWidth
+                                                label="Parentesco"
+                                                value={asociado.parentesco}
+                                                onChange={(e) => handleChange(index, 'parentesco', e.target.value)}
+                                                required
+                                            />
+                                        </Grid>
+
+                                        <Grid item xs={12} md={6}>
+                                            <TextField
+                                                fullWidth
+                                                label="Teléfono"
+                                                value={asociado.telefono}
+                                                onChange={(e) => handleChange(index, 'telefono', e.target.value)}
+                                            />
+                                        </Grid>
+
+                                        <Grid item xs={12} md={6}>
+                                            <Box display="flex" alignItems="center">
+                                                <Avatar
+                                                    src={asociado.foto}
+                                                    sx={{ width: 100, height: 100, mr: 2 }}
+                                                />
+                                                <Button
+                                                    variant="contained"
+                                                    component="label"
+                                                    startIcon={<PhotoCamera />}
+                                                >
+                                                    Subir Foto
+                                                    <input
+                                                        type="file"
+                                                        hidden
+                                                        accept="image/*"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) {
+                                                                const reader = new FileReader();
+                                                                reader.onloadend = () => {
+                                                                    handleChange(index, 'foto', reader.result);
+                                                                };
+                                                                reader.readAsDataURL(file);
+                                                            }
+                                                        }}
+                                                    />
+                                                </Button>
+                                            </Box>
+                                        </Grid>
                                     </Grid>
-                                </Grid>
-                            </Paper>
-                        ))}
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                    ))}
+                </Grid>
+            </Paper>
 
-                        <Button
-                            startIcon={<AddIcon />}
-                            onClick={handleAddAsociado}
-                            variant="outlined"
-                            sx={{ mt: 2 }}
-                        >
-                            Añadir miembro
-                        </Button>
-
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
-                            <Button
-                                variant="contained"
-                                onClick={handleSubmit}
-                                disabled={updateMutation.isLoading}
-                            >
-                                Guardar cambios
-                            </Button>
-                        </Box>
-                    </Box>
-                </Box>
-            </CardContent>
-        </Card>
+            <Box display="flex" justifyContent="flex-end" mt={3}>
+                <Button
+                    variant="contained"
+                    color="primary"
+                    type="submit"
+                    disabled={isLoading}
+                >
+                    {isLoading ? 'Guardando...' : 'Guardar'}
+                </Button>
+            </Box>
+        </Box>
     );
 };
 

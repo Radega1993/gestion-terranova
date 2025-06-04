@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Document, Page, Text, View, StyleSheet, PDFViewer } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import axios from 'axios';
+import { API_BASE_URL } from '../../config';
+import { useAuthStore } from '../../stores/authStore';
 
 const styles = StyleSheet.create({
     page: {
@@ -103,19 +104,28 @@ interface ResumenDetalladoPDFProps {
 
 export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas, fechaInicio, fechaFin }) => {
     const [categorias, setCategorias] = useState<string[]>([]);
+    const { token } = useAuthStore();
 
     useEffect(() => {
         const fetchCategorias = async () => {
             try {
-                const response = await axios.get('/api/inventory/types');
-                console.log('Categorías obtenidas:', response.data);
-                setCategorias(response.data);
+                const response = await fetch(`${API_BASE_URL}/inventory/types`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error('Error al obtener categorías');
+                }
+                const data = await response.json();
+                console.log('Categorías obtenidas:', data);
+                setCategorias(data);
             } catch (error) {
                 console.error('Error al obtener categorías:', error);
             }
         };
         fetchCategorias();
-    }, []);
+    }, [token]);
 
     // Agrupar productos vendidos
     const productosVendidos = ventas.reduce((acc: any, venta) => {

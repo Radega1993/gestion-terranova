@@ -36,7 +36,7 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { useAuthStore } from '../../stores/authStore';
 import { API_BASE_URL } from '../../config';
-import { Socio } from '../../types/socio';
+import { Socio, SocioWithId } from '../../types/socio';
 import { useNavigate } from 'react-router-dom';
 import { PhotoCamera, FamilyRestroom, Block, FileUpload, FileDownload } from '@mui/icons-material';
 import Swal from 'sweetalert2';
@@ -47,18 +47,20 @@ import {
     Block as BlockIcon,
     CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../../hooks/useAuth';
 
-interface SocioWithId extends Socio {
-    _id: string;
-    createdAt?: string;
+interface SociosListProps {
+    socios: SocioWithId[];
+    isLoading: boolean;
 }
 
-const SociosList: React.FC = () => {
+const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [selectedSocio, setSelectedSocio] = useState<SocioWithId | null>(null);
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: boolean }>({});
-    const [socios, setSocios] = useState<SocioWithId[]>([]);
+    const [sociosData, setSociosData] = useState<SocioWithId[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
@@ -78,6 +80,57 @@ const SociosList: React.FC = () => {
     const [socioSeleccionado, setSocioSeleccionado] = useState<SocioWithId | null>(null);
     const [openVerFamilia, setOpenVerFamilia] = useState(false);
     const [openToggleDialog, setOpenToggleDialog] = useState(false);
+    const { queryClient } = useQueryClient();
+
+    // Query para obtener la lista de socios
+    const { data: sociosDataData = [], isLoading: isLoadingData } = useQuery({
+        queryKey: ['socios', searchTerm],
+        queryFn: async () => {
+            const response = await fetch(`${API_BASE_URL}/socios?search=${searchTerm}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (!response.ok) {
+                throw new Error('Error al cargar los socios');
+            }
+            return response.json();
+        },
+        enabled: !!token,
+    });
+
+    // Mutación para eliminar un socio
+    const deleteMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const response = await fetch(`${API_BASE_URL}/socios/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (!response.ok) {
+                throw new Error('Error al eliminar el socio');
+            }
+            return response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['socios'] });
+            Swal.fire({
+                icon: 'success',
+                title: 'Socio eliminado',
+                text: 'El socio ha sido eliminado correctamente'
+            });
+            setOpenDeleteDialog(false);
+            setSelectedSocio(null);
+        },
+        onError: (error) => {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'No se pudo eliminar el socio'
+            });
+        },
+    });
 
     const fetchSocios = async () => {
         try {
@@ -93,7 +146,7 @@ const SociosList: React.FC = () => {
             }
 
             const data = await response.json();
-            setSocios(data);
+            setSociosData(data);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Error al cargar socios');
         } finally {
@@ -175,27 +228,14 @@ const SociosList: React.FC = () => {
         }
     };
 
-    const handleDelete = async (socioId: string) => {
-        if (!window.confirm('¿Estás seguro de que deseas eliminar este socio?')) {
-            return;
-        }
+    const handleDelete = (socio: SocioWithId) => {
+        setSelectedSocio(socio);
+        setOpenDeleteDialog(true);
+    };
 
-        try {
-            const response = await fetch(`${API_BASE_URL}/socios/${socioId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error('Error al eliminar socio');
-            }
-
-            fetchSocios();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Error al eliminar socio');
+    const confirmDelete = () => {
+        if (selectedSocio) {
+            deleteMutation.mutate(selectedSocio._id);
         }
     };
 
@@ -259,24 +299,6 @@ const SociosList: React.FC = () => {
         navigate(`/socios/editar/${socio._id}`);
     };
 
-    const handleDeleteClick = (socio: SocioWithId) => {
-        setSelectedSocio(socio);
-        setOpenDeleteDialog(true);
-    };
-
-    const handleCancelDelete = () => {
-        setOpenDeleteDialog(false);
-        setSelectedSocio(null);
-    };
-
-    const handleConfirmDelete = async () => {
-        if (selectedSocio?._id) {
-            await handleDelete(selectedSocio._id);
-            setOpenDeleteDialog(false);
-            setSelectedSocio(null);
-        }
-    };
-
     const toggleRowExpand = (id: string) => {
         if (!id) return;
         setExpandedRows(prev => ({
@@ -310,7 +332,7 @@ const SociosList: React.FC = () => {
             }
 
             // Actualizar el estado local inmediatamente
-            setSocios(prevSocios =>
+            setSociosData(prevSocios =>
                 prevSocios.map(s =>
                     s._id === socio._id
                         ? { ...s, active: !s.active }
@@ -624,7 +646,7 @@ const SociosList: React.FC = () => {
             console.log('Imagen subida exitosamente:', data.filename);
 
             // Obtener el socio actual
-            const socio = socios.find(s => s._id === socioId);
+            const socio = sociosData.find(s => s._id === socioId);
             if (!socio) {
                 throw new Error('Socio no encontrado');
             }
@@ -714,6 +736,12 @@ const SociosList: React.FC = () => {
         );
     }
 
+    const filteredSocios = sociosData.filter(socio =>
+        socio.nombre.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        socio.nombre.primerApellido.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        socio.socio.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     return (
         <Box sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
@@ -788,121 +816,115 @@ const SociosList: React.FC = () => {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {socios
-                                .filter(socio =>
-                                    socio.nombre.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                    socio.nombre.primerApellido.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                    socio.socio.toLowerCase().includes(searchTerm.toLowerCase())
-                                )
-                                .map((socio) => (
-                                    <React.Fragment key={socio._id}>
-                                        <TableRow
-                                            sx={{
-                                                backgroundColor: socio.active === false ? 'rgba(0, 0, 0, 0.04)' : 'inherit',
-                                                '&:hover': {
-                                                    backgroundColor: socio.active === false ? 'rgba(0, 0, 0, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-                                                },
-                                            }}
-                                        >
-                                            <TableCell>
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => toggleRowExpand(socio._id)}
-                                                >
-                                                    {expandedRows[socio._id] ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
-                                                </IconButton>
-                                            </TableCell>
-                                            <TableCell>
-                                                {renderFoto(socio.foto)}
-                                            </TableCell>
-                                            <TableCell>
-                                                {`${socio.nombre.nombre} ${socio.nombre.primerApellido} ${socio.nombre.segundoApellido || ''}`}
-                                            </TableCell>
-                                            <TableCell>{socio.socio}</TableCell>
-                                            <TableCell>{new Date(socio.fechaNacimiento).toLocaleDateString()}</TableCell>
-                                            <TableCell>
-                                                <Box>
-                                                    <Typography variant="body2">{socio.contacto?.telefonos?.[0] || 'No disponible'}</Typography>
-                                                    <Typography variant="body2">{socio.contacto?.emails?.[0] || 'No disponible'}</Typography>
-                                                </Box>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Box sx={{ display: 'flex', gap: 1 }}>
-                                                    <Tooltip title="Editar">
-                                                        <IconButton onClick={() => handleEditSocio(socio)}>
-                                                            <EditIcon />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                    <Tooltip title="Gestionar Miembros">
-                                                        <IconButton onClick={() => handleManageAsociados(socio)}>
-                                                            <GroupIcon />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                    <Tooltip title="Ver Familia">
-                                                        <IconButton
-                                                            onClick={() => handleOpenVerFamilia(socio)}
-                                                            color="primary"
-                                                        >
-                                                            <PeopleIcon />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                    {renderFotoButton(socio)}
-                                                    <Tooltip title={socio.active ? "Desactivar socio" : "Activar socio"}>
-                                                        <IconButton
-                                                            onClick={() => handleToggleClick(socio)}
-                                                            color={socio.active ? "success" : "error"}
-                                                        >
-                                                            {socio.active ? <CheckCircleIcon /> : <BlockIcon />}
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                </Box>
-                                            </TableCell>
-                                        </TableRow>
-                                        <TableRow>
-                                            <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={7}>
-                                                <Collapse in={expandedRows[socio._id]} timeout="auto" unmountOnExit>
-                                                    <Box sx={{ margin: 1 }}>
-                                                        <Typography variant="h6" gutterBottom component="div">
-                                                            Miembros Asociados
-                                                        </Typography>
-                                                        <Table size="small">
-                                                            <TableHead>
-                                                                <TableRow>
-                                                                    <TableCell>Foto</TableCell>
-                                                                    <TableCell>Nombre Completo</TableCell>
-                                                                    <TableCell>Fecha Nacimiento (MM/DD/AAAA)</TableCell>
-                                                                    <TableCell>Código Socio</TableCell>
-                                                                    <TableCell>Acciones</TableCell>
+                            {filteredSocios.map((socio) => (
+                                <React.Fragment key={socio._id}>
+                                    <TableRow
+                                        sx={{
+                                            backgroundColor: socio.active === false ? 'rgba(0, 0, 0, 0.04)' : 'inherit',
+                                            '&:hover': {
+                                                backgroundColor: socio.active === false ? 'rgba(0, 0, 0, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+                                            },
+                                        }}
+                                    >
+                                        <TableCell>
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => toggleRowExpand(socio._id)}
+                                            >
+                                                {expandedRows[socio._id] ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                                            </IconButton>
+                                        </TableCell>
+                                        <TableCell>
+                                            {renderFoto(socio.foto)}
+                                        </TableCell>
+                                        <TableCell>
+                                            {`${socio.nombre.nombre} ${socio.nombre.primerApellido} ${socio.nombre.segundoApellido || ''}`}
+                                        </TableCell>
+                                        <TableCell>{socio.socio}</TableCell>
+                                        <TableCell>{new Date(socio.fechaNacimiento).toLocaleDateString()}</TableCell>
+                                        <TableCell>
+                                            <Box>
+                                                <Typography variant="body2">{socio.contacto?.telefonos?.[0] || 'No disponible'}</Typography>
+                                                <Typography variant="body2">{socio.contacto?.emails?.[0] || 'No disponible'}</Typography>
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                                <Tooltip title="Editar">
+                                                    <IconButton onClick={() => handleEditSocio(socio)}>
+                                                        <EditIcon />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Gestionar Miembros">
+                                                    <IconButton onClick={() => handleManageAsociados(socio)}>
+                                                        <GroupIcon />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Ver Familia">
+                                                    <IconButton
+                                                        onClick={() => handleOpenVerFamilia(socio)}
+                                                        color="primary"
+                                                    >
+                                                        <PeopleIcon />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                {renderFotoButton(socio)}
+                                                <Tooltip title={socio.active ? "Desactivar socio" : "Activar socio"}>
+                                                    <IconButton
+                                                        onClick={() => handleToggleClick(socio)}
+                                                        color={socio.active ? "success" : "error"}
+                                                    >
+                                                        {socio.active ? <CheckCircleIcon /> : <BlockIcon />}
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </Box>
+                                        </TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={7}>
+                                            <Collapse in={expandedRows[socio._id]} timeout="auto" unmountOnExit>
+                                                <Box sx={{ margin: 1 }}>
+                                                    <Typography variant="h6" gutterBottom component="div">
+                                                        Miembros Asociados
+                                                    </Typography>
+                                                    <Table size="small">
+                                                        <TableHead>
+                                                            <TableRow>
+                                                                <TableCell>Foto</TableCell>
+                                                                <TableCell>Nombre Completo</TableCell>
+                                                                <TableCell>Fecha Nacimiento (MM/DD/AAAA)</TableCell>
+                                                                <TableCell>Código Socio</TableCell>
+                                                                <TableCell>Acciones</TableCell>
+                                                            </TableRow>
+                                                        </TableHead>
+                                                        <TableBody>
+                                                            {socio.asociados?.map((asociado, index) => (
+                                                                <TableRow key={`${socio._id}-asociado-${index}`}>
+                                                                    <TableCell>
+                                                                        {renderFotoAsociado(asociado.foto)}
+                                                                    </TableCell>
+                                                                    <TableCell>{asociado.nombre}</TableCell>
+                                                                    <TableCell>{asociado.fechaNacimiento ? new Date(asociado.fechaNacimiento).toLocaleDateString() : 'No disponible'}</TableCell>
+                                                                    <TableCell>{asociado.codigo || 'No disponible'}</TableCell>
+                                                                    <TableCell>
+                                                                        {renderAsociadoFotoButton(socio._id, asociado)}
+                                                                    </TableCell>
                                                                 </TableRow>
-                                                            </TableHead>
-                                                            <TableBody>
-                                                                {socio.asociados?.map((asociado, index) => (
-                                                                    <TableRow key={`${socio._id}-asociado-${index}`}>
-                                                                        <TableCell>
-                                                                            {renderFotoAsociado(asociado.foto)}
-                                                                        </TableCell>
-                                                                        <TableCell>{asociado.nombre}</TableCell>
-                                                                        <TableCell>{asociado.fechaNacimiento ? new Date(asociado.fechaNacimiento).toLocaleDateString() : 'No disponible'}</TableCell>
-                                                                        <TableCell>{asociado.codigo || 'No disponible'}</TableCell>
-                                                                        <TableCell>
-                                                                            {renderAsociadoFotoButton(socio._id, asociado)}
-                                                                        </TableCell>
-                                                                    </TableRow>
-                                                                ))}
-                                                            </TableBody>
-                                                        </Table>
-                                                    </Box>
-                                                </Collapse>
-                                            </TableCell>
-                                        </TableRow>
-                                    </React.Fragment>
-                                ))}
+                                                            ))}
+                                                        </TableBody>
+                                                    </Table>
+                                                </Box>
+                                            </Collapse>
+                                        </TableCell>
+                                    </TableRow>
+                                </React.Fragment>
+                            ))}
                         </TableBody>
                     </Table>
                 </TableContainer>
             </Box>
 
-            <Dialog open={openDeleteDialog} onClose={handleCancelDelete}>
+            <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)}>
                 <DialogTitle>Confirmar eliminación</DialogTitle>
                 <DialogContent>
                     <Typography>
@@ -910,8 +932,8 @@ const SociosList: React.FC = () => {
                     </Typography>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCancelDelete}>Cancelar</Button>
-                    <Button onClick={handleConfirmDelete} color="error">
+                    <Button onClick={() => setOpenDeleteDialog(false)}>Cancelar</Button>
+                    <Button onClick={confirmDelete} color="error">
                         Eliminar
                     </Button>
                 </DialogActions>

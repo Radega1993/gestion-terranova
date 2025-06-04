@@ -44,6 +44,13 @@ export const PagoModal: React.FC<PagoModalProps> = ({
     const pendiente = total - pagado;
     const cambio = pagado > total ? pagado - total : 0;
 
+    const handlePagadoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        // Remove leading zeros and convert to number
+        const numericValue = value === '' ? 0 : Number(value.replace(/^0+/, ''));
+        setPagado(numericValue);
+    };
+
     const handleSubmit = async () => {
         try {
             if (!cliente) {
@@ -51,7 +58,7 @@ export const PagoModal: React.FC<PagoModalProps> = ({
                 return;
             }
 
-            if (pagado < total && !observaciones) {
+            if (pagado < total && !observaciones.trim()) {
                 setError('Las observaciones son obligatorias para pagos parciales');
                 return;
             }
@@ -70,7 +77,7 @@ export const PagoModal: React.FC<PagoModalProps> = ({
                 total,
                 pagado,
                 metodoPago,
-                observaciones: observaciones || undefined
+                observaciones: observaciones.trim() || undefined
             };
 
             const response = await fetch(`${API_BASE_URL}/ventas`, {
@@ -143,7 +150,7 @@ export const PagoModal: React.FC<PagoModalProps> = ({
                             label="Cantidad Pagada"
                             type="number"
                             value={pagado}
-                            onChange={(e) => setPagado(Number(e.target.value))}
+                            onChange={handlePagadoChange}
                             InputProps={{ inputProps: { min: 0, step: 0.01 } }}
                         />
                     </Grid>
@@ -169,8 +176,9 @@ export const PagoModal: React.FC<PagoModalProps> = ({
                             rows={2}
                             value={observaciones}
                             onChange={(e) => setObservaciones(e.target.value)}
-                            error={pagado < total && !observaciones}
-                            helperText={pagado < total && !observaciones ? "Las observaciones son obligatorias para pagos parciales" : ""}
+                            error={pagado < total && !observaciones.trim()}
+                            helperText={pagado < total && !observaciones.trim() ? "Las observaciones son obligatorias para pagos parciales" : ""}
+                            required={pagado < total}
                         />
                     </Grid>
                 </Grid>
@@ -183,7 +191,12 @@ export const PagoModal: React.FC<PagoModalProps> = ({
             </DialogContent>
             <DialogActions>
                 <Button onClick={onClose}>Cancelar</Button>
-                <Button onClick={handleSubmit} variant="contained" color="primary">
+                <Button
+                    onClick={handleSubmit}
+                    variant="contained"
+                    color="primary"
+                    disabled={pagado < total && !observaciones.trim()}
+                >
                     Confirmar Venta
                 </Button>
             </DialogActions>

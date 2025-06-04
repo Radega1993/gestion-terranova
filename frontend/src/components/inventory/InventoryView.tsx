@@ -41,7 +41,6 @@ import {
 } from '@mui/icons-material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
 import { Product, ProductType, CreateProductDto, UpdateProductDto } from '../../types/product';
 import { UserRole } from '../../types/user';
 import { API_BASE_URL } from '../../config';
@@ -88,10 +87,20 @@ export const InventoryView: React.FC = () => {
     const queryClient = useQueryClient();
 
     const createMutation = useMutation({
-        mutationFn: (newProduct: CreateProductDto) =>
-            axios.post(`${API_BASE_URL}/inventory`, newProduct, {
-                headers: { Authorization: `Bearer ${token}` }
-            }),
+        mutationFn: async (newProduct: CreateProductDto) => {
+            const response = await fetch(`${API_BASE_URL}/inventory`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(newProduct)
+            });
+            if (!response.ok) {
+                throw new Error('Error al crear el producto');
+            }
+            return response.json();
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products'] });
             handleCloseDialog();
@@ -100,10 +109,20 @@ export const InventoryView: React.FC = () => {
     });
 
     const updateMutation = useMutation({
-        mutationFn: ({ id, data }: { id: string; data: UpdateProductDto }) =>
-            axios.put(`${API_BASE_URL}/inventory/${id}`, data, {
-                headers: { Authorization: `Bearer ${token}` }
-            }),
+        mutationFn: async ({ id, data }: { id: string; data: UpdateProductDto }) => {
+            const response = await fetch(`${API_BASE_URL}/inventory/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) {
+                throw new Error('Error al actualizar el producto');
+            }
+            return response.json();
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products'] });
             handleCloseDialog();
@@ -112,10 +131,18 @@ export const InventoryView: React.FC = () => {
     });
 
     const deleteMutation = useMutation({
-        mutationFn: (id: string) =>
-            axios.delete(`${API_BASE_URL}/inventory/${id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            }),
+        mutationFn: async (id: string) => {
+            const response = await fetch(`${API_BASE_URL}/inventory/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (!response.ok) {
+                throw new Error('Error al eliminar el producto');
+            }
+            return response.json();
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products'] });
             fetchProducts();
@@ -123,10 +150,20 @@ export const InventoryView: React.FC = () => {
     });
 
     const toggleActiveMutation = useMutation({
-        mutationFn: (id: string) =>
-            axios.put(`${API_BASE_URL}/inventory/${id}/toggle-active`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            }),
+        mutationFn: async (id: string) => {
+            const response = await fetch(`${API_BASE_URL}/inventory/${id}/toggle-active`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+            });
+            if (!response.ok) {
+                throw new Error('Error al cambiar el estado del producto');
+            }
+            return response.json();
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products'] });
             fetchProducts();
@@ -168,10 +205,17 @@ export const InventoryView: React.FC = () => {
                 url = `${API_BASE_URL}/inventory/search?query=${encodeURIComponent(searchQuery)}&field=${searchField}`;
             }
 
-            const response = await axios.get(url, {
-                headers: { Authorization: `Bearer ${token}` }
+            const response = await fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
             });
-            setProducts(response.data);
+            if (!response.ok) {
+                throw new Error('Error al cargar los productos');
+            }
+            const data = await response.json();
+            console.log('Datos de productos recibidos:', data);
+            setProducts(data);
         } catch (error) {
             console.error('Error:', error);
         } finally {
@@ -183,10 +227,16 @@ export const InventoryView: React.FC = () => {
         // Cargar tipos de productos al montar el componente
         const fetchProductTypes = async () => {
             try {
-                const response = await axios.get(`${API_BASE_URL}/inventory/types`, {
-                    headers: { Authorization: `Bearer ${token}` }
+                const response = await fetch(`${API_BASE_URL}/inventory/types`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
                 });
-                setProductTypes(response.data);
+                if (!response.ok) {
+                    throw new Error('Error al cargar los tipos de productos');
+                }
+                const data = await response.json();
+                setProductTypes(data);
             } catch (error) {
                 console.error('Error fetching product types:', error);
             }
@@ -273,11 +323,16 @@ export const InventoryView: React.FC = () => {
 
     const handleExport = async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/inventory/export`, {
-                responseType: 'blob',
-                headers: { Authorization: `Bearer ${token}` }
+            const response = await fetch(`${API_BASE_URL}/inventory/export`, {
+                method: 'GET',
+                headers: { Authorization: `Bearer ${token}` },
+                responseType: 'blob'
             });
-            const url = window.URL.createObjectURL(new Blob([response.data]));
+            if (!response.ok) {
+                throw new Error('Error al exportar');
+            }
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
             link.setAttribute('download', 'productos.xlsx');
@@ -312,11 +367,8 @@ export const InventoryView: React.FC = () => {
             field: 'precio_compra_unitario',
             headerName: 'Precio Unitario',
             width: 130,
-            valueFormatter: (params: { value: number }) => {
-                if (typeof params.value === 'number') {
-                    return `€${params.value.toFixed(2)}`;
-                }
-                return '';
+            renderCell: (params) => {
+                return `${params.row.precio_compra_unitario.toFixed(2)} €`;
             }
         },
         {

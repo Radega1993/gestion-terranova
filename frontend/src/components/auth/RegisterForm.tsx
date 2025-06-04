@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import axios from 'axios';
 import {
     Container,
     Paper,
@@ -15,6 +14,7 @@ import {
     MenuItem,
 } from '@mui/material';
 import { UserRole } from '../../types/user';
+import { API_BASE_URL } from '../../config';
 
 interface RegisterFormData {
     nombre: string;
@@ -36,8 +36,17 @@ const RegisterForm: React.FC = () => {
 
     const registerMutation = useMutation({
         mutationFn: async (data: Omit<RegisterFormData, 'confirmPassword'>) => {
-            const response = await axios.post('http://localhost:3000/users', data);
-            return response.data;
+            const response = await fetch(`${API_BASE_URL}/users`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) {
+                throw new Error('Error al registrar usuario');
+            }
+            return response.json();
         },
         onSuccess: () => {
             navigate('/login');

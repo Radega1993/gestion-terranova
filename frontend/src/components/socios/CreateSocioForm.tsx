@@ -25,11 +25,9 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import PhotoCamera from '@mui/icons-material/PhotoCamera';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AxiosError } from 'axios';
 import { CreateSocioInput, Nombre, Direccion, Banco, Contacto, Asociado, Socio } from '../../types/socio';
 import RemoveIcon from '@mui/icons-material/Remove';
 import { useAuthStore } from '../../stores/authStore';
-import axiosInstance from '../../config/axios';
 import { API_BASE_URL } from '../../config';
 import { createSocio, updateSocio } from '../../services/socios';
 import Swal from 'sweetalert2';
@@ -125,13 +123,16 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
             if (!editMode || !id) return null;
 
             console.log('Cargando datos del socio:', id);
-            const response = await axiosInstance.get(`/socios/${id}`, {
+            const response = await fetch(`${API_BASE_URL}/socios/${id}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
             });
-            console.log('Datos del socio cargados:', response.data);
-            return response.data;
+            if (!response.ok) {
+                throw new Error('Error al cargar el socio');
+            }
+            console.log('Datos del socio cargados:', await response.json());
+            return response.json();
         },
         enabled: editMode && !!id && !!token,
     });
@@ -140,12 +141,15 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     const { data: lastSocioNumber, isLoading: isLoadingLastNumber } = useQuery({
         queryKey: ['lastSocioNumber'],
         queryFn: async () => {
-            const response = await axiosInstance.get('/socios/last-number', {
+            const response = await fetch(`${API_BASE_URL}/socios/last-number`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
             });
-            return response.data;
+            if (!response.ok) {
+                throw new Error('Error al obtener el último número de socio');
+            }
+            return response.json();
         },
         enabled: !editMode && !!token,
     });
@@ -158,12 +162,16 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
         }
 
         try {
-            const response = await axiosInstance.get(`/socios/validate-number/${number}`, {
+            const response = await fetch(`${API_BASE_URL}/socios/validate-number/${number}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
             });
-            return response.data.available;
+            if (!response.ok) {
+                throw new Error('Error al validar número de socio');
+            }
+            const data = await response.json();
+            return data.available;
         } catch (error) {
             console.error('Error validating socio number:', error);
             return false;
@@ -223,22 +231,34 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
 
             if (editMode && id) {
                 console.log('Enviando actualización al backend:', id, cleanData);
-                const response = await axiosInstance.put(`/socios/${id}`, cleanData, {
+                const response = await fetch(`${API_BASE_URL}/socios/${id}`, {
+                    method: 'PUT',
                     headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(cleanData)
                 });
-                console.log('Respuesta del backend:', response.data);
-                return response.data;
+                if (!response.ok) {
+                    throw new Error('Error al actualizar el socio');
+                }
+                console.log('Respuesta del backend:', await response.json());
+                return response.json();
             } else {
                 console.log('Enviando creación al backend:', cleanData);
-                const response = await axiosInstance.post('/socios', cleanData, {
+                const response = await fetch(`${API_BASE_URL}/socios`, {
+                    method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(cleanData)
                 });
-                console.log('Respuesta del backend:', response.data);
-                return response.data;
+                if (!response.ok) {
+                    throw new Error('Error al crear el socio');
+                }
+                console.log('Respuesta del backend:', await response.json());
+                return response.json();
             }
         },
         onSuccess: (data) => {
@@ -252,9 +272,9 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
             queryClient.invalidateQueries({ queryKey: ['socios'] });
             navigate('/socios');
         },
-        onError: (error: AxiosError) => {
+        onError: (error: Error) => {
             console.error('Error en la mutación:', error);
-            setFormError(error.response?.data?.message || 'Error al guardar el socio');
+            setFormError(error.message || 'Error al guardar el socio');
         }
     });
 
@@ -340,18 +360,21 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                 formData.append('file', file);
 
                 console.log('Subiendo imagen para socio:', id);
-                const response = await axiosInstance.post('/uploads/image', formData, {
+                const response = await fetch(`${API_BASE_URL}/uploads/image`, {
+                    method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'multipart/form-data'
-                    }
+                    },
+                    body: formData
                 });
 
-                if (response.data.filename) {
-                    console.log('Imagen subida exitosamente:', response.data.filename);
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Imagen subida exitosamente:', data.filename);
                     setFormData(prev => ({
                         ...prev,
-                        foto: response.data.filename
+                        foto: data.filename
                     }));
                 }
             } catch (error) {

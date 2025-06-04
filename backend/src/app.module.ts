@@ -14,19 +14,19 @@ import { InvitacionesModule } from './modules/invitaciones/invitaciones.module';
 import { UserRole } from './modules/users/types/user-roles.enum';
 
 @Module({
-  imports: [
-    ConfigModule.forRoot(),
-    MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/gestion-terranova'),
-    AuthModule,
-    UsersModule,
-    SociosModule,
-    InventoryModule,
-    VentasModule,
-    ReservasModule,
-    UploadsModule,
-    InvitacionesModule
-  ],
-  controllers: [AppController],
-  providers: [AppService],
+    imports: [
+        ConfigModule.forRoot(),
+        MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/gestion-terranova'),
+        AuthModule,
+        UsersModule,
+        SociosModule,
+        InventoryModule,
+        VentasModule,
+        ReservasModule,
+        UploadsModule,
+        InvitacionesModule
+    ],
+    controllers: [AppController],
+    providers: [AppService],
 })
 export class AppModule { }
