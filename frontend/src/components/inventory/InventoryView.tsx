@@ -214,7 +214,6 @@ export const InventoryView: React.FC = () => {
                 throw new Error('Error al cargar los productos');
             }
             const data = await response.json();
-            console.log('Datos de productos recibidos:', data);
             setProducts(data);
         } catch (error) {
             console.error('Error:', error);
@@ -626,12 +625,13 @@ export const InventoryView: React.FC = () => {
                                             type="number"
                                             label="Precio Unitario"
                                             value={formData.precio_compra_unitario}
-                                            onChange={(e) =>
+                                            onChange={(e) => {
+                                                const value = e.target.value.replace(',', '.');
                                                 setFormData({
                                                     ...formData,
-                                                    precio_compra_unitario: Number(e.target.value)
-                                                })
-                                            }
+                                                    precio_compra_unitario: Number(value)
+                                                });
+                                            }}
                                             required
                                         />
                                     </Box>

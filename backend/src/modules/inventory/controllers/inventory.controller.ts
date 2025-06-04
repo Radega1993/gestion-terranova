@@ -56,10 +56,40 @@ export class InventoryController {
 
     @Get('export')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
-    async exportToExcel(@Res() res: Response) {
+    async exportProducts(@Res() res: Response) {
         this.logger.debug('Exporting products to Excel');
         try {
-            const buffer = await this.inventoryService.exportToExcel();
+            const products = await this.inventoryService.findAll();
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Productos');
+
+            // Configurar columnas
+            worksheet.columns = [
+                { header: 'Nombre', key: 'nombre', width: 30 },
+                { header: 'Tipo', key: 'tipo', width: 20 },
+                { header: 'Unidad de Medida', key: 'unidad_medida', width: 15 },
+                { header: 'Stock Actual', key: 'stock_actual', width: 15 },
+                { header: 'Precio Compra Unitario', key: 'precio_compra_unitario', width: 20 }
+            ];
+
+            // Estilo para el encabezado
+            worksheet.getRow(1).font = { bold: true };
+            worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+            // Añadir datos
+            products.forEach(product => {
+                worksheet.addRow({
+                    nombre: product.nombre,
+                    tipo: product.tipo,
+                    unidad_medida: product.unidad_medida,
+                    stock_actual: product.stock_actual,
+                    precio_compra_unitario: product.precio_compra_unitario
+                });
+            });
+
+            // Generar buffer
+            const buffer = await workbook.xlsx.writeBuffer();
+
             res.set({
                 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 'Content-Disposition': 'attachment; filename=productos.xlsx',
@@ -170,49 +200,6 @@ export class InventoryController {
     async toggleActive(@Param('id') id: string) {
         this.logger.debug(`Toggling active status for product with ID: ${id}`);
         return this.inventoryService.toggleActive(id);
-    }
-
-    @Get('export')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR)
-    async exportProducts() {
-        const products = await this.inventoryService.findAll();
-
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Productos');
-
-        // Configurar columnas
-        worksheet.columns = [
-            { header: 'Nombre', key: 'nombre', width: 30 },
-            { header: 'Tipo', key: 'tipo', width: 20 },
-            { header: 'Unidad de Medida', key: 'unidad_medida', width: 15 },
-            { header: 'Stock Actual', key: 'stock_actual', width: 15 },
-            { header: 'Precio Compra Unitario', key: 'precio_compra_unitario', width: 20 },
-            { header: 'Activo', key: 'activo', width: 10 }
-        ];
-
-        // Estilo para el encabezado
-        worksheet.getRow(1).font = { bold: true };
-        worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
-
-        // Añadir datos
-        products.forEach(product => {
-            worksheet.addRow({
-                nombre: product.nombre,
-                tipo: product.tipo,
-                unidad_medida: product.unidad_medida,
-                stock_actual: product.stock_actual,
-                precio_compra_unitario: product.precio_compra_unitario,
-                activo: product.activo ? 'Sí' : 'No'
-            });
-        });
-
-        // Generar buffer
-        const buffer = await workbook.xlsx.writeBuffer();
-
-        return {
-            buffer,
-            filename: 'inventario.xlsx'
-        };
     }
 
     @Post('import')
