@@ -1,14 +1,42 @@
-import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
-import { MetodoPago } from '../schemas/reserva.schema';
+import { IsEnum, IsNumber, IsOptional, IsString, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { MetodoPago, EstadoReserva } from '../schemas/reserva.schema';
 
-export class LiquidarReservaDto {
+class PagoDto {
     @IsNumber()
-    montoAbonado: number;
+    monto: number;
 
     @IsEnum(MetodoPago)
     metodoPago: MetodoPago;
 
     @IsString()
+    fecha: string;
+}
+
+class SuplementoDto {
+    @IsString()
+    id: string;
+
+    @IsNumber()
+    @IsOptional()
+    cantidad?: number;
+}
+
+export class LiquidarReservaDto {
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => SuplementoDto)
+    suplementos: SuplementoDto[];
+
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => PagoDto)
+    pagos: PagoDto[];
+
+    @IsString()
     @IsOptional()
     observaciones?: string;
+
+    @IsEnum(EstadoReserva)
+    estado: EstadoReserva;
 } 

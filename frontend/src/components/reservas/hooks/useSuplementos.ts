@@ -25,16 +25,60 @@ export const useSuplementos = () => {
     // Mutación para guardar suplementos
     const saveSuplementosMutation = useMutation({
         mutationFn: async (suplementos: Suplemento[]) => {
-            const response = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(suplementos)
-            });
-            if (!response.ok) throw new Error('Error al guardar suplementos');
-            return await response.json();
+            const results = await Promise.all(
+                suplementos.map(async (suplemento) => {
+                    try {
+                        // Asegurarnos de que el suplemento tenga un id válido
+                        if (!suplemento.id) {
+                            suplemento.id = `suplemento-${suplemento.nombre.toLowerCase().replace(/\s+/g, '-')}`;
+                        }
+
+                        const suplementoData = {
+                            id: suplemento.id,
+                            nombre: suplemento.nombre,
+                            precio: suplemento.precio,
+                            tipo: suplemento.tipo,
+                            activo: suplemento.activo
+                        };
+
+                        if (suplemento._id) {
+                            // Si tiene ID, actualizar
+                            const response = await fetch(`${API_BASE_URL}/servicios/suplementos/${suplemento._id}`, {
+                                method: 'PATCH',
+                                headers: {
+                                    'Authorization': `Bearer ${token}`,
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify(suplementoData)
+                            });
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || 'Error al actualizar suplemento');
+                            }
+                            return await response.json();
+                        } else {
+                            // Si no tiene ID, crear nuevo
+                            const response = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${token}`,
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify(suplementoData)
+                            });
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || 'Error al crear suplemento');
+                            }
+                            return await response.json();
+                        }
+                    } catch (error) {
+                        console.error('Error en operación de suplemento:', error);
+                        throw error;
+                    }
+                })
+            );
+            return results;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['suplementos'] });

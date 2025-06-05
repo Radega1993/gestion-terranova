@@ -21,18 +21,8 @@ import {
 } from '@mui/material';
 import { Close as CloseIcon, Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { ChromePicker } from 'react-color';
-import { API_BASE_URL } from '../../config';
-import { useAuthStore } from '../../stores/authStore';
-
-interface Servicio {
-    _id?: string;
-    id: string;
-    nombre: string;
-    precio: number;
-    color: string;
-    colorConObservaciones: string;
-    activo: boolean;
-}
+import { useServicios } from './hooks/useServicios';
+import { Servicio } from './types';
 
 interface GestionServiciosProps {
     open: boolean;
@@ -56,7 +46,8 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
         message: '',
         severity: 'success' as 'success' | 'error'
     });
-    const { token } = useAuthStore();
+
+    const { saveServiciosMutation, deleteServicioMutation } = useServicios();
 
     // Actualizar los estados cuando cambian los props
     useEffect(() => {
@@ -67,6 +58,7 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
 
     const handleAddServicio = () => {
         const newServicio: Servicio = {
+            _id: '',  // Se generará en el backend
             id: '',
             nombre: '',
             precio: 0,
@@ -88,30 +80,7 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
                 throw new Error('Servicio no encontrado');
             }
 
-            const response = await fetch(`${API_BASE_URL}/servicios/${servicio._id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Error al eliminar servicio');
-            }
-
-            // Actualizar la lista de servicios después de eliminar
-            const updatedResponse = await fetch(`${API_BASE_URL}/servicios`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-            if (!updatedResponse.ok) throw new Error('Error al obtener servicios');
-            const updatedData = await updatedResponse.json();
-            setServiciosEdit(updatedData);
-
+            await deleteServicioMutation.mutateAsync(servicio._id);
             setSnackbar({
                 open: true,
                 message: 'Servicio eliminado correctamente',
@@ -129,7 +98,6 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
 
     const handleSaveServicio = () => {
         if (!editingServicio) return;
-
 
         if (!editingServicio.nombre.trim()) {
             alert('El nombre del servicio es obligatorio');
@@ -163,100 +131,52 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
         setEditingServicio(null);
     };
 
-    const handleSaveServicios = async (servicios: Servicio[]) => {
+    const handleSave = async () => {
         try {
-            for (const servicio of servicios) {
-                try {
-                    if (servicio._id) {
-                        // Si tiene ID, intentar actualizar
-                        const response = await fetch(`${API_BASE_URL}/servicios/${servicio._id}`, {
-                            method: 'PATCH',
-                            headers: {
-                                'Authorization': `Bearer ${token}`,
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify(servicio)
-                        });
-                        if (!response.ok) throw new Error('Error al actualizar servicio');
-                    } else {
-                        // Si no tiene ID, crear como nuevo
-                        const response = await fetch(`${API_BASE_URL}/servicios`, {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${token}`,
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify(servicio)
-                        });
-                        if (!response.ok) throw new Error('Error al crear servicio');
-                    }
-                } catch (error) {
-                    if (error instanceof Error && error.message.includes('404')) {
-                        // Si no existe, crear como nuevo
-                        const response = await fetch(`${API_BASE_URL}/servicios`, {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${token}`,
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify(servicio)
-                        });
-                        if (!response.ok) throw new Error('Error al crear servicio');
-                    } else {
-                        throw error;
-                    }
+            // Filtrar solo los servicios que han sido modificados
+            const modifiedServicios = serviciosEdit.filter((servicio) => {
+                // Si es un servicio nuevo (no tiene _id), incluirlo
+                if (!servicio._id) {
+                    return true;
                 }
-            }
-            // Recargar servicios después de guardar
-            const updatedResponse = await fetch(`${API_BASE_URL}/servicios`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
+
+                // Buscar el servicio original
+                const originalServicio = servicios.find(s => s.id === servicio.id);
+                if (!originalServicio) {
+                    return true;
+                }
+
+                // Comparar los campos relevantes
+                const hasChanges = (
+                    originalServicio.nombre !== servicio.nombre ||
+                    originalServicio.precio !== servicio.precio ||
+                    originalServicio.color !== servicio.color ||
+                    originalServicio.colorConObservaciones !== servicio.colorConObservaciones ||
+                    originalServicio.activo !== servicio.activo
+                );
+
+                return hasChanges;
             });
-            if (!updatedResponse.ok) throw new Error('Error al obtener servicios');
-            const updatedData = await updatedResponse.json();
-            setServiciosEdit(updatedData);
+
+            if (modifiedServicios.length > 0) {
+                await saveServiciosMutation.mutateAsync(modifiedServicios);
+                setSnackbar({
+                    open: true,
+                    message: 'Servicios guardados correctamente',
+                    severity: 'success'
+                });
+            } else {
+                console.log('No hay servicios modificados para guardar');
+            }
+            onClose();
         } catch (error) {
             console.error('Error al guardar servicios:', error);
-            throw error;
+            setSnackbar({
+                open: true,
+                message: error instanceof Error ? error.message : 'Error al guardar los servicios',
+                severity: 'error'
+            });
         }
-    };
-
-    const handleSave = () => {
-
-
-        // Filtrar solo los servicios que han sido modificados
-        const modifiedServicios = serviciosEdit.filter((servicio) => {
-            // Si es un servicio nuevo (no tiene id), incluirlo
-            if (!servicio.id) {
-                return true;
-            }
-
-            // Buscar el servicio original
-            const originalServicio = servicios.find(s => s.id === servicio.id);
-            if (!originalServicio) {
-                return true;
-            }
-
-            // Comparar los campos relevantes
-            const hasChanges = (
-                originalServicio.nombre !== servicio.nombre ||
-                originalServicio.precio !== servicio.precio ||
-                originalServicio.color !== servicio.color ||
-                originalServicio.colorConObservaciones !== servicio.colorConObservaciones ||
-                originalServicio.activo !== servicio.activo
-            );
-
-            return hasChanges;
-        });
-
-        if (modifiedServicios.length > 0) {
-            onSaveServicios(modifiedServicios);
-        } else {
-            console.log('No hay servicios modificados para guardar');
-        }
-        onClose();
     };
 
     return (

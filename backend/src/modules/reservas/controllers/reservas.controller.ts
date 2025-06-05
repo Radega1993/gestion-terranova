@@ -35,7 +35,6 @@ export class ReservasController {
     @Get()
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async findAll() {
-        this.logger.debug('Recibida petición para obtener todas las reservas');
         try {
             const reservas = await this.reservasService.findAll();
             this.logger.debug(`Encontradas ${reservas.length} reservas`);
@@ -49,7 +48,6 @@ export class ReservasController {
     @Get('usuario/:usuarioId')
     async findByUsuario(@Param('usuarioId') usuarioId: string) {
         try {
-            this.logger.debug(`Buscando reservas para el usuario: ${usuarioId}`);
             const reservas = await this.reservasService.findByUsuario(usuarioId);
             this.logger.debug(`Encontradas ${reservas.length} reservas`);
             return reservas;
@@ -62,7 +60,6 @@ export class ReservasController {
     @Get('fecha')
     async findByFecha(@Query('fecha') fechaStr: string) {
         try {
-            this.logger.debug(`Buscando reservas para la fecha: ${fechaStr}`);
             const fecha = new Date(fechaStr);
 
             if (isNaN(fecha.getTime())) {
@@ -81,7 +78,6 @@ export class ReservasController {
     @Get(':id')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     findOne(@Param('id') id: string) {
-        this.logger.debug(`Recibida petición para obtener reserva con ID: ${id}`);
         try {
             return this.reservasService.findOne(id);
         } catch (error) {
@@ -93,7 +89,6 @@ export class ReservasController {
     @Patch(':id')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     update(@Param('id') id: string, @Body() updateReservaDto: UpdateReservaDto, @Request() req) {
-        this.logger.debug(`Recibida petición para actualizar reserva con ID: ${id}`);
         try {
             return this.reservasService.update(id, updateReservaDto, req.user._id);
         } catch (error) {
@@ -105,7 +100,6 @@ export class ReservasController {
     @Delete(':id')
     @Roles(UserRole.ADMINISTRADOR)
     async remove(@Param('id') id: string) {
-        this.logger.debug(`Recibida petición para eliminar reserva con ID: ${id}`);
         try {
             await this.reservasService.remove(id);
             return { message: 'Reserva eliminada exitosamente' };
@@ -124,7 +118,6 @@ export class ReservasController {
     @Post(':id/cancelar')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     cancelar(@Param('id') id: string, @Body() cancelarReservaDto: CancelarReservaDto, @Request() req) {
-        this.logger.debug(`Recibida petición para cancelar reserva con ID: ${id}`);
         try {
             return this.reservasService.cancelar(id, cancelarReservaDto, req.user._id);
         } catch (error) {
@@ -140,9 +133,13 @@ export class ReservasController {
     // }
 
     @Post(':id/liquidar')
+    @Patch(':id/liquidar')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
-    liquidar(@Param('id') id: string, @Body() liquidarReservaDto: LiquidarReservaDto, @Request() req) {
-        this.logger.debug(`Recibida petición para liquidar reserva con ID: ${id}`);
+    async liquidar(
+        @Param('id') id: string,
+        @Body() liquidarReservaDto: LiquidarReservaDto,
+        @Request() req
+    ): Promise<Reserva> {
         try {
             return this.reservasService.liquidar(id, liquidarReservaDto, req.user._id);
         } catch (error) {

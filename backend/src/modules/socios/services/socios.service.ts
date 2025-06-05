@@ -18,24 +18,46 @@ export class SociosService {
         private uploadsService: UploadsService
     ) { }
 
-    async create(createSocioDto: CreateSocioDto): Promise<Socio> {
-        try {
-            // Procesar la fecha de nacimiento si existe
-            if (createSocioDto.fechaNacimiento) {
-                try {
-                    const fechaNacimiento = new Date(createSocioDto.fechaNacimiento);
-                    if (!isNaN(fechaNacimiento.getTime())) {
-                        createSocioDto.fechaNacimiento = fechaNacimiento;
-                    } else {
-                        delete createSocioDto.fechaNacimiento;
-                    }
-                } catch (error) {
-                    this.logger.error(`Error procesando fecha de nacimiento: ${error.message}`);
-                    delete createSocioDto.fechaNacimiento;
+    private sanitizeData(data: any): any {
+        if (!data) return data;
+
+        const sanitizeString = (value: any): string => {
+            if (!value) return '';
+            try {
+                const str = String(value).trim();
+                return str.normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^\x20-\x7E]/g, '');
+            } catch (error) {
+                return '';
+            }
+        };
+
+        const sanitizeObject = (obj: any): any => {
+            if (!obj || typeof obj !== 'object') return obj;
+
+            const result = Array.isArray(obj) ? [] : {};
+
+            for (const [key, value] of Object.entries(obj)) {
+                if (typeof value === 'string') {
+                    result[key] = sanitizeString(value);
+                } else if (typeof value === 'object' && value !== null) {
+                    result[key] = sanitizeObject(value);
+                } else {
+                    result[key] = value;
                 }
             }
 
-            const createdSocio = new this.socioModel(createSocioDto);
+            return result;
+        };
+
+        return sanitizeObject(data);
+    }
+
+    async create(createSocioDto: CreateSocioDto): Promise<Socio> {
+        try {
+            const sanitizedData = this.sanitizeData(createSocioDto);
+            const createdSocio = new this.socioModel(sanitizedData);
             return await createdSocio.save();
         } catch (error) {
             this.logger.error(`Error creating socio: ${error.message}`);
@@ -67,112 +89,10 @@ export class SociosService {
 
     async update(id: string, updateSocioDto: UpdateSocioDto): Promise<Socio> {
         try {
-            const socio = await this.socioModel.findById(id);
-            if (!socio) {
-                throw new NotFoundException(`Socio con ID ${id} no encontrado`);
-            }
-
-            // Si hay una nueva foto y existe una foto anterior, eliminarla
-            if (updateSocioDto.foto && socio.foto) {
-                try {
-                    await this.uploadsService.deleteFile(socio.foto);
-                } catch (error) {
-                    this.logger.warn(`No se pudo eliminar la foto anterior: ${error.message}`);
-                }
-            }
-
-            // Si solo se está actualizando la foto, hacer una actualización simple
-            if (Object.keys(updateSocioDto).length === 1 && updateSocioDto.foto) {
-                return await this.socioModel.findByIdAndUpdate(
-                    id,
-                    { $set: { foto: updateSocioDto.foto } },
-                    { new: true, runValidators: true }
-                );
-            }
-
-            // Preparar los datos de actualización
-            const updateData: any = {};
-
-            // Manejar campos simples
-            const simpleFields = [
-                'socio', 'casa', 'totalSocios', 'numPersonas', 'adheridos', 'menor3Años',
-                'cuota', 'dni', 'notas', 'active', 'foto', 'fechaBaja',
-                'motivoBaja', 'observaciones', 'rgpd', 'fechaNacimiento'
-            ];
-
-            simpleFields.forEach(field => {
-                if (updateSocioDto[field] !== undefined) {
-                    if (field === 'fechaNacimiento' && updateSocioDto[field]) {
-                        try {
-                            const fechaNacimiento = new Date(updateSocioDto[field]);
-                            if (!isNaN(fechaNacimiento.getTime())) {
-                                updateData[field] = fechaNacimiento;
-                            }
-                        } catch (error) {
-                            this.logger.error(`Error procesando fecha de nacimiento: ${error.message}`);
-                        }
-                    } else {
-                        updateData[field] = updateSocioDto[field];
-                    }
-                }
-            });
-
-            // Manejar objetos anidados solo si se proporcionan
-            if (updateSocioDto.direccion) {
-                const direccionActual = (socio.direccion as any).toObject();
-                updateData.direccion = {
-                    ...direccionActual,
-                    ...updateSocioDto.direccion
-                };
-            }
-
-            if (updateSocioDto.nombre) {
-                const nombreActual = (socio.nombre as any).toObject();
-                updateData.nombre = {
-                    ...nombreActual,
-                    ...updateSocioDto.nombre
-                };
-            }
-
-            if (updateSocioDto.banco) {
-                const bancoActual = (socio.banco as any)?.toObject() || {};
-                updateData.banco = {
-                    ...bancoActual,
-                    ...updateSocioDto.banco
-                };
-            }
-
-            if (updateSocioDto.contacto) {
-                const contactoActual = (socio.contacto as any).toObject();
-                updateData.contacto = {
-                    ...contactoActual,
-                    ...updateSocioDto.contacto
-                };
-            }
-
-            // Solo actualizar asociados si se proporcionan explícitamente y no están vacíos
-            if (updateSocioDto.asociados && Array.isArray(updateSocioDto.asociados) && updateSocioDto.asociados.length > 0) {
-                // Validar que cada asociado tenga los campos requeridos
-                const asociadosValidos = updateSocioDto.asociados.filter(asociado =>
-                    asociado && typeof asociado === 'object' &&
-                    asociado.nombre && asociado.codigo
-                );
-
-                if (asociadosValidos.length > 0) {
-                    updateData.asociados = asociadosValidos;
-                }
-            }
-
-            // Actualizar el socio usando findByIdAndUpdate
-            const socioActualizado = await this.socioModel.findByIdAndUpdate(
-                id,
-                { $set: updateData },
-                { new: true, runValidators: true }
-            );
-
-            return socioActualizado;
+            const sanitizedData = this.sanitizeData(updateSocioDto);
+            return await this.socioModel.findByIdAndUpdate(id, sanitizedData, { new: true }).exec();
         } catch (error) {
-            this.logger.error(`Error actualizando socio con ID ${id}:`, error);
+            this.logger.error(`Error updating socio: ${error.message}`);
             throw error;
         }
     }
@@ -332,37 +252,25 @@ export class SociosService {
 
     async updateAsociados(id: string, asociados: Asociado[]): Promise<Socio> {
         try {
-            this.logger.debug(`Updating asociados for socio ${id}`);
-            const socio = await this.socioModel.findById(id);
-            if (!socio) {
-                throw new NotFoundException(`Socio con ID ${id} no encontrado`);
-            }
-
-            // Eliminar fotos de asociados que ya no existen
-            const oldAsociados = socio.asociados || [];
-            const newAsociadosIds = asociados.map(a => a._id?.toString()).filter(Boolean);
-            const deletedAsociados = oldAsociados.filter(a => a._id && !newAsociadosIds.includes(a._id.toString()));
-
-            for (const asociado of deletedAsociados) {
-                if (asociado.foto) {
-                    try {
-                        await this.uploadsService.deleteFile(asociado.foto);
-                    } catch (error) {
-                        this.logger.warn(`No se pudo eliminar la foto del asociado: ${error.message}`);
-                    }
-                }
-            }
-
-            socio.asociados = asociados;
-            return await socio.save();
+            const sanitizedAsociados = this.sanitizeData(asociados);
+            return await this.socioModel.findByIdAndUpdate(
+                id,
+                { $set: { asociados: sanitizedAsociados } },
+                { new: true }
+            ).exec();
         } catch (error) {
-            this.logger.error(`Error updating asociados for socio ${id}:`, error);
+            this.logger.error(`Error updating asociados: ${error.message}`);
             throw error;
         }
     }
 
-    async findBySocioCode(socio: string): Promise<Socio | null> {
-        return this.socioModel.findOne({ socio }).exec();
+    async findBySocioCode(socioCode: string): Promise<Socio | null> {
+        try {
+            return await this.socioModel.findOne({ socio: socioCode }).exec();
+        } catch (error) {
+            this.logger.error(`Error finding socio by code: ${error.message}`);
+            throw error;
+        }
     }
 
     async getSimplifiedList(): Promise<any[]> {

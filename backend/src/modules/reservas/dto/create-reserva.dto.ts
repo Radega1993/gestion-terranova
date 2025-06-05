@@ -1,6 +1,6 @@
 import { IsDate, IsMongoId, IsNumber, IsOptional, IsString, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
-import { MetodoPago } from '../schemas/reserva.schema';
+import { MetodoPago, EstadoReserva } from '../schemas/reserva.schema';
 
 class SuplementoDto {
     @IsString()
@@ -44,4 +44,8 @@ export class CreateReservaDto {
     @IsEnum(MetodoPago)
     @IsOptional()
     metodoPago?: MetodoPago;
+
+    @IsEnum(EstadoReserva)
+    @IsOptional()
+    estado?: EstadoReserva;
 } 

@@ -25,16 +25,36 @@ export const useServicios = () => {
     // Mutación para guardar servicios
     const saveServiciosMutation = useMutation({
         mutationFn: async (servicios: Servicio[]) => {
-            const response = await fetch(`${API_BASE_URL}/servicios`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(servicios)
-            });
-            if (!response.ok) throw new Error('Error al guardar servicios');
-            return await response.json();
+            const results = await Promise.all(
+                servicios.map(async (servicio) => {
+                    if (servicio._id) {
+                        // Si tiene ID, actualizar
+                        const response = await fetch(`${API_BASE_URL}/servicios/${servicio._id}`, {
+                            method: 'PATCH',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(servicio)
+                        });
+                        if (!response.ok) throw new Error('Error al actualizar servicio');
+                        return await response.json();
+                    } else {
+                        // Si no tiene ID, crear nuevo
+                        const response = await fetch(`${API_BASE_URL}/servicios`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(servicio)
+                        });
+                        if (!response.ok) throw new Error('Error al crear servicio');
+                        return await response.json();
+                    }
+                })
+            );
+            return results;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['servicios'] });

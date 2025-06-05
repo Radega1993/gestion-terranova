@@ -110,11 +110,30 @@ const RecaudacionesList: React.FC = () => {
         try {
             setLoading(true);
             setError(null);
-            console.log('Filtros enviados:', filtros);
+
+            // Ajustar las fechas para incluir todo el día
+            let fechaInicio = filtros.fechaInicio;
+            let fechaFin = filtros.fechaFin;
+
+            if (fechaInicio) {
+                fechaInicio = new Date(fechaInicio);
+                fechaInicio.setHours(0, 0, 0, 0);
+            }
+
+            if (fechaFin) {
+                fechaFin = new Date(fechaFin);
+                fechaFin.setHours(23, 59, 59, 999);
+            }
+
+            console.log('Filtros enviados:', {
+                ...filtros,
+                fechaInicio: fechaInicio?.toISOString(),
+                fechaFin: fechaFin?.toISOString()
+            });
 
             const response = await fetch(`${API_BASE_URL}/ventas/recaudaciones?${new URLSearchParams({
-                ...(filtros.fechaInicio && { fechaInicio: filtros.fechaInicio.toISOString() }),
-                ...(filtros.fechaFin && { fechaFin: filtros.fechaFin.toISOString() }),
+                ...(fechaInicio && { fechaInicio: fechaInicio.toISOString() }),
+                ...(fechaFin && { fechaFin: fechaFin.toISOString() }),
                 ...(filtros.codigoSocio && { codigoSocio: filtros.codigoSocio }),
                 ...(filtros.usuario && { usuario: filtros.usuario })
             })}`, {
@@ -131,10 +150,6 @@ const RecaudacionesList: React.FC = () => {
             const data = await response.json();
             console.log('Datos recibidos:', data);
             setVentas(data);
-            console.log('Número de registros:', data.length);
-            if (data.length > 0) {
-                console.log('Primer registro:', data[0]);
-            }
         } catch (error: any) {
             console.error('Error completo:', error);
             setError(error.message || 'Error desconocido');
@@ -206,10 +221,6 @@ const RecaudacionesList: React.FC = () => {
                                 variant="outlined"
                                 startIcon={<PdfIcon />}
                                 onClick={() => {
-                                    console.log('Abriendo Resumen General');
-                                    console.log('Fecha Inicio:', filtros.fechaInicio);
-                                    console.log('Fecha Fin:', filtros.fechaFin);
-                                    console.log('Ventas:', ventas);
                                     setShowResumenGeneral(true);
                                 }}
                                 disabled={ventas.length === 0}
@@ -276,7 +287,6 @@ const RecaudacionesList: React.FC = () => {
                                     <TableCell>Pagado</TableCell>
                                     <TableCell>Estado</TableCell>
                                     <TableCell>Productos</TableCell>
-                                    <TableCell>Desglose Pagos</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -303,20 +313,6 @@ const RecaudacionesList: React.FC = () => {
                                             {venta.detalles.map((producto, index) => (
                                                 <div key={index}>
                                                     {producto.cantidad} x {producto.nombre} = {producto.total.toFixed(2)}€
-                                                </div>
-                                            ))}
-                                        </TableCell>
-                                        <TableCell>
-                                            {venta.pagos?.map((pago, index) => (
-                                                <div key={index}>
-                                                    {new Date(pago.fecha).toLocaleDateString('es-ES', {
-                                                        day: '2-digit',
-                                                        month: '2-digit',
-                                                        year: 'numeric',
-                                                        hour: '2-digit',
-                                                        minute: '2-digit'
-                                                    })} - {pago.monto.toFixed(2)}€ ({pago.metodoPago})
-                                                    {pago.observaciones && <div style={{ fontSize: '0.8em', color: 'gray' }}>{pago.observaciones}</div>}
                                                 </div>
                                             ))}
                                         </TableCell>

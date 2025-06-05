@@ -20,7 +20,7 @@ export class ReservasService {
             const reserva = new this.reservaModel({
                 ...createReservaDto,
                 usuarioCreacion: usuarioId,
-                estado: 'PENDIENTE'
+                estado: createReservaDto.estado || 'PENDIENTE'
             });
             return await reserva.save();
         } catch (error) {
@@ -126,24 +126,29 @@ export class ReservasService {
                 throw new NotFoundException(`Reserva con ID ${id} no encontrada`);
             }
 
-            if (reserva.estado === EstadoReserva.LIQUIDADA) {
-                throw new BadRequestException('La reserva ya está liquidada');
+            if (reserva.estado === EstadoReserva.COMPLETADA) {
+                throw new BadRequestException('La reserva ya está completada');
             }
 
             if (reserva.estado === EstadoReserva.CANCELADA) {
                 throw new BadRequestException('No se puede liquidar una reserva cancelada');
             }
 
+            // Calcular el monto total abonado
+            const montoTotalAbonado = liquidarReservaDto.pagos.reduce((total, pago) => total + pago.monto, 0);
+
             const reservaLiquidada = await this.reservaModel.findByIdAndUpdate(
                 id,
                 {
-                    estado: EstadoReserva.LIQUIDADA,
-                    usuarioActualizacion: usuarioId
+                    estado: EstadoReserva.COMPLETADA,
+                    montoAbonado: montoTotalAbonado,
+                    metodoPago: liquidarReservaDto.pagos[liquidarReservaDto.pagos.length - 1].metodoPago,
+                    observaciones: liquidarReservaDto.observaciones,
+                    suplementos: liquidarReservaDto.suplementos
                 },
                 { new: true }
             )
                 .populate('socio', 'nombre')
-                .populate('servicios.servicio', 'nombre')
                 .populate('suplementos.suplemento', 'nombre')
                 .exec();
 
@@ -210,17 +215,27 @@ export class ReservasService {
 
     async findByFecha(fecha: Date): Promise<Reserva[]> {
         try {
+            // Establecer la hora de inicio al principio del día (00:00:00)
             const inicioDia = new Date(fecha);
             inicioDia.setHours(0, 0, 0, 0);
 
+            // Establecer la hora de fin al final del día (23:59:59.999)
             const finDia = new Date(fecha);
             finDia.setHours(23, 59, 59, 999);
 
-            return await this.reservaModel.find({
-                fecha: { $gte: inicioDia, $lte: finDia }
+            this.logger.debug(`Buscando reservas entre ${inicioDia.toISOString()} y ${finDia.toISOString()}`);
+
+            const reservas = await this.reservaModel.find({
+                fecha: {
+                    $gte: inicioDia,
+                    $lte: finDia
+                }
             })
                 .populate('socio', 'nombre')
                 .exec();
+
+            this.logger.debug(`Encontradas ${reservas.length} reservas para la fecha ${fecha.toISOString()}`);
+            return reservas;
         } catch (error) {
             this.logger.error(`Error al buscar reservas para la fecha ${fecha}:`, error);
             throw new BadRequestException('Error al buscar las reservas por fecha');

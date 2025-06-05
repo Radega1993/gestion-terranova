@@ -215,6 +215,18 @@ export class InventoryController {
             errors: []
         };
 
+        // Función para sanitizar strings y evitar errores de UTF-8
+        function sanitizeString(value: any): string {
+            if (!value) return '';
+            try {
+                return String(value)
+                    .replace(/[^\x20-\x7EáéíóúÁÉÍÓÚñÑüÜçÇ]/g, '') // Solo caracteres imprimibles y acentuados comunes
+                    .trim();
+            } catch {
+                return '';
+            }
+        }
+
         // Procesar productos
         for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
             const row = worksheet.getRow(rowNumber);
@@ -223,9 +235,9 @@ export class InventoryController {
             if (!row.getCell(1).value) continue;
 
             const productData = {
-                nombre: row.getCell(1).value?.toString() || '',
-                tipo: row.getCell(2).value?.toString() || '',
-                unidad_medida: row.getCell(3).value?.toString() || '',
+                nombre: sanitizeString(row.getCell(1).value),
+                tipo: sanitizeString(row.getCell(2).value),
+                unidad_medida: sanitizeString(row.getCell(3).value),
                 stock_actual: Number(row.getCell(4).value) || 0,
                 precio_compra_unitario: Number(row.getCell(5).value) || 0,
                 activo: row.getCell(6).value?.toString()?.toLowerCase() === 'sí'

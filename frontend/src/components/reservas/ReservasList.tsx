@@ -195,8 +195,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         suplementos: suplementosList,
         isLoadingSuplementos,
         saveSuplementosMutation,
-        deleteSuplementoMutation,
-        updateSuplementos
+        deleteSuplementoMutation
     } = useSuplementos();
 
     const {
@@ -273,7 +272,6 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         } else {
             setSelectedReserva(null);
             const fechaInicial = selectedDate ? selectedDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-            console.log('Fecha inicial para nueva reserva:', fechaInicial);
             setFormData({
                 servicio: '',
                 fecha: fechaInicial,
@@ -313,6 +311,30 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 return;
             }
 
+            // Verificar si ya existe una reserva para el mismo servicio y fecha
+            const reservaExistente = reservas.find(r =>
+                r.tipoInstalacion.toLowerCase() === servicioSeleccionado.nombre.toLowerCase() &&
+                isSameDay(new Date(r.fecha), fecha) &&
+                r.estado !== 'CANCELADA'
+            );
+
+            if (reservaExistente) {
+                const result = await Swal.fire({
+                    title: 'Reserva existente',
+                    text: 'Ya existe una reserva para este servicio en esta fecha. ¿Deseas añadir esta reserva a la lista de espera?',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#3085d6',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'Sí, añadir a lista de espera',
+                    cancelButtonText: 'No, cancelar'
+                });
+
+                if (!result.isConfirmed) {
+                    return;
+                }
+            }
+
             const suplementosUnicos = formData.suplementos.reduce((acc: any[], current) => {
                 const existingIndex = acc.findIndex(item => item.id === current.id);
                 const suplementoInfo = suplementosList.find(s => s.id === current.id);
@@ -345,13 +367,28 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 precio: calcularPrecioTotal(),
                 observaciones: formData.observaciones,
                 montoAbonado: formData.montoAbonado || 0,
-                metodoPago: formData.metodoPago || ''
+                metodoPago: formData.metodoPago || '',
+                estado: reservaExistente ? 'LISTA_ESPERA' : 'PENDIENTE'
             };
 
-            reservaMutation.mutate(reservaData);
+            await reservaMutation.mutateAsync(reservaData);
+
+            // Mostrar confirmación y cerrar el modal
+            await Swal.fire({
+                title: '¡Reserva creada!',
+                text: reservaExistente ? 'La reserva ha sido añadida a la lista de espera.' : 'La reserva ha sido creada correctamente.',
+                icon: 'success',
+                confirmButtonColor: '#3085d6'
+            });
+
+            handleCloseDialog();
         } catch (error) {
             console.error('Error preparing reserva data:', error);
-            alert('Ha ocurrido un error al preparar los datos de la reserva');
+            setSnackbar({
+                open: true,
+                message: 'Ha ocurrido un error al crear la reserva',
+                severity: 'error'
+            });
         }
     };
 
@@ -408,7 +445,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         let precioTotal = 0;
         const servicio = servicios.find(s => s.id === formData.servicio);
         if (servicio) {
-            precioTotal += servicio.precio;
+            precioTotal += Number(servicio.precio);
         }
 
         // Calcular precio de suplementos sin duplicados
@@ -417,10 +454,12 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
             const suplemento = suplementosList.find(s => s.id === sup.id);
             if (suplemento) {
                 const cantidad = sup.cantidad || 1;
-                const precio = suplemento.tipo === 'fijo' ? suplemento.precio : suplemento.precio * cantidad;
+                const precio = suplemento.tipo === 'fijo'
+                    ? Number(suplemento.precio)
+                    : Number(suplemento.precio) * cantidad;
                 suplementosPrecios.set(sup.id, {
                     nombre: suplemento.nombre,
-                    precio: precio,
+                    precio: Number(precio.toFixed(2)),
                     cantidad: cantidad,
                     tipo: suplemento.tipo
                 });
@@ -429,22 +468,19 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
 
         // Sumar los precios únicos
         suplementosPrecios.forEach(({ precio }) => {
-            precioTotal += precio;
+            precioTotal += Number(precio);
         });
 
-        return precioTotal;
+        return Number(precioTotal.toFixed(2));
     };
 
     const getReservasForDate = (date: Date) => {
-        console.log('Buscando reservas para fecha:', date);
-        console.log('Reservas disponibles:', reservas);
         const reservasDelDia = reservas.filter(reserva => {
             const reservaDate = new Date(reserva.fecha);
             const esMismoDia = isSameDay(reservaDate, date);
 
             return esMismoDia;
         });
-        console.log('Reservas encontradas para el día:', reservasDelDia);
         return reservasDelDia;
     };
 
@@ -466,20 +502,13 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
 
         // Si tiene observaciones
         if (reserva.observaciones) {
-            return '#f57c00'; // Naranja oscuro
+            const servicio = servicios.find(s => s.nombre.toLowerCase() === reserva.tipoInstalacion.toLowerCase());
+            return servicio?.colorConObservaciones || '#f57c00'; // Color del servicio con observaciones
         }
 
         // Color por defecto según el tipo de instalación
-        switch (reserva.tipoInstalacion.toUpperCase()) {
-            case 'SALON':
-                return '#1976d2'; // Azul
-            case 'PISCINA':
-                return '#2196f3'; // Azul claro
-            case 'BBQ':
-                return '#4caf50'; // Verde
-            default:
-                return '#757575'; // Gris
-        }
+        const servicio = servicios.find(s => s.nombre.toLowerCase() === reserva.tipoInstalacion.toLowerCase());
+        return servicio?.color || '#757575'; // Color del servicio o gris por defecto
     };
 
     const renderDayContent = (day: Date) => {
@@ -715,7 +744,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
     const handleSaveServicios = async (servicios: Servicio[]) => {
         try {
             const response = await fetch(`${API_BASE_URL}/servicios`, {
-                method: 'PATCH',
+                method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -750,25 +779,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
 
     const handleSaveSuplementos = async (suplementos: Suplemento[]) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(suplementos)
-            });
-            if (!response.ok) throw new Error('Error al guardar suplementos');
-
-            const updatedResponse = await fetch(`${API_BASE_URL}/servicios/suplementos`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-            if (!updatedResponse.ok) throw new Error('Error al obtener suplementos');
-            updateSuplementos(await updatedResponse.json());
-
+            await saveSuplementosMutation.mutateAsync(suplementos);
             setSnackbar({
                 open: true,
                 message: 'Suplementos guardados correctamente',
@@ -836,7 +847,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 const precio = suplemento.tipo === 'fijo' ? suplemento.precio : suplemento.precio * cantidad;
                 suplementosPrecios.set(sup.id, {
                     nombre: suplemento.nombre,
-                    precio: precio,
+                    precio: Number(precio.toFixed(2)),
                     cantidad: cantidad,
                     tipo: suplemento.tipo
                 });
@@ -848,16 +859,16 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>Resumen del Precio</Typography>
                 {servicio && (
                     <Typography sx={{ mb: 1 }}>
-                        Servicio: {servicio.precio}€
+                        Servicio: {Number(servicio.precio).toFixed(2)}€
                     </Typography>
                 )}
                 {Array.from(suplementosPrecios.values()).map(({ nombre, precio, cantidad, tipo }, index) => (
                     <Typography key={index} sx={{ mb: 1 }}>
-                        {nombre}{tipo === 'porHora' && cantidad > 1 ? ` (${cantidad})` : ''}: {precio}€
+                        {nombre}{tipo === 'porHora' && cantidad > 1 ? ` (${cantidad})` : ''}: {Number(precio).toFixed(2)}€
                     </Typography>
                 ))}
                 <Typography variant="h6" sx={{ mt: 2, color: 'primary.main' }}>
-                    Total: {calcularPrecioTotal()}€
+                    Total: {Number(calcularPrecioTotal()).toFixed(2)}€
                 </Typography>
             </Box>
         );
@@ -1377,12 +1388,10 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                                     <Autocomplete
                                         options={socios.filter(s => s.active)}
                                         getOptionLabel={(option) => {
-                                            console.log('Renderizando opción:', option);
                                             return `${option.nombre.nombre} ${option.nombre.primerApellido} (${option.socio})`;
                                         }}
                                         value={socios.find(s => s._id === formData.socio) || null}
                                         onChange={(_, newValue) => {
-                                            console.log('Nuevo valor seleccionado:', newValue);
                                             setFormData({ ...formData, socio: newValue?._id || '' });
                                         }}
                                         renderInput={(params) => (

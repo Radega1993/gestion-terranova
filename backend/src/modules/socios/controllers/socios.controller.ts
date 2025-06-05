@@ -76,6 +76,64 @@ export class SociosController {
         let currentSocio = null;
         let asociados = [];
         let existingSocioId = null;
+        let emptyRowCount = 0;
+
+        // Función para sanitizar strings
+        const sanitizeString = (value: any): string => {
+            if (!value) return '';
+            try {
+                // Convertir a string y eliminar caracteres no válidos
+                const str = String(value).trim();
+                // Reemplazar caracteres especiales y acentos
+                return str.normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '') // Eliminar diacríticos
+                    .replace(/[^\x20-\x7E]/g, ''); // Mantener solo caracteres ASCII imprimibles
+            } catch (error) {
+                this.logger.error(`Error sanitizando string: ${error.message}`);
+                return '';
+            }
+        };
+
+        // Función robusta para procesar cualquier valor de fecha
+        function parseToValidDate(value: any): Date | undefined {
+            if (!value) return undefined;
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                if (!trimmed || trimmed === '--') return undefined;
+                // Si es un string ISO o MM/DD/YYYY
+                const date = new Date(trimmed);
+                if (!isNaN(date.getTime())) return date;
+                // Probar MM/DD/YYYY
+                const match = trimmed.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                if (match) {
+                    const [, month, day, year] = match;
+                    const d = new Date(Number(year), Number(month) - 1, Number(day));
+                    if (!isNaN(d.getTime())) return d;
+                }
+                return undefined;
+            }
+            if (value instanceof Date && !isNaN(value.getTime())) return value;
+            if (typeof value === 'number') {
+                // Excel almacena fechas como días desde 1900-01-01
+                const excelEpoch = new Date(1900, 0, 1);
+                const millisecondsPerDay = 24 * 60 * 60 * 1000;
+                const date = new Date(excelEpoch.getTime() + (value - 1) * millisecondsPerDay);
+                return !isNaN(date.getTime()) ? date : undefined;
+            }
+            return undefined;
+        }
+
+        // Limpieza de emails y teléfonos
+        function cleanEmail(value: any): string {
+            if (!value) return '';
+            if (typeof value === 'string') return value.replace(/[, ]+$/, '').trim();
+            return '';
+        }
+        function cleanTelefono(value: any): string {
+            if (!value) return '';
+            if (typeof value === 'string') return value.replace(/[, ]+$/, '').trim();
+            return '';
+        }
 
         // Convert worksheet to array for sequential processing
         const rows = worksheet.getRows(1, worksheet.rowCount);
@@ -86,38 +144,38 @@ export class SociosController {
 
         this.logger.debug(`Total de filas encontradas: ${rows.length}`);
 
-        // Función para procesar fechas de Excel
-        const processExcelDate = (dateValue: any): Date | undefined => {
-            if (!dateValue) return undefined;
-
-            try {
-                if (typeof dateValue === 'number') {
-                    // Excel dates are stored as numbers
-                    const date = new Date((dateValue - 25569) * 86400 * 1000);
-                    return isNaN(date.getTime()) ? undefined : date;
-                } else if (typeof dateValue === 'string') {
-                    // Intentar parsear la fecha en formato MM/DD/YYYY
-                    const [month, day, year] = dateValue.split('/').map(Number);
-                    if (month && day && year) {
-                        const date = new Date(year, month - 1, day);
-                        return isNaN(date.getTime()) ? undefined : date;
-                    }
-                    return undefined;
-                }
-            } catch (error) {
-                this.logger.error(`Error procesando fecha: ${error.message}`);
-                return undefined;
+        // Función para procesar email
+        const processEmail = (value: any): string => {
+            if (!value) return '';
+            if (typeof value === 'string') return value.trim();
+            if (typeof value === 'object' && value !== null) {
+                // Intentar extraer el email del objeto
+                if (value.text) return value.text.trim();
+                if (value.hyperlink) return value.hyperlink.trim();
+                if (value.value) return value.value.trim();
             }
-            return undefined;
+            return '';
         };
 
         // Skip header row
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
-            const codigo = row.getCell(1).value?.toString();
+            const codigo = sanitizeString(row.getCell(1).value);
+            // Log de todos los valores de la fila para debug
+            const filaValores = row.values ? (Array.isArray(row.values) ? row.values : Object.values(row.values)) : [];
+            this.logger.debug(`Fila ${i} valores: ${JSON.stringify(filaValores)}`);
+
             if (!codigo) {
-                this.logger.debug(`Fila ${i}: Sin código, saltando...`);
+                emptyRowCount++;
+                this.logger.debug(`Fila ${i}: Sin código, saltando... (${emptyRowCount} vacías seguidas)`);
+                // Si hay más de 10 filas vacías seguidas, detenemos la importación
+                if (emptyRowCount > 10) {
+                    this.logger.warn(`Se encontraron más de 10 filas seguidas vacías. Deteniendo la importación en la fila ${i}.`);
+                    break;
+                }
                 continue;
+            } else {
+                emptyRowCount = 0; // Reinicia el contador si hay datos
             }
 
             this.logger.debug(`Procesando fila ${i} con código: ${codigo}`);
@@ -191,62 +249,59 @@ export class SociosController {
                 }
 
                 this.logger.debug(`Iniciando procesamiento de nuevo socio: ${codigo}`);
-                // Start new socio
-                const fechaNacimiento = processExcelDate(row.getCell(25).value);
-
-                currentSocio = {
+                // OMITIR FECHA DE NACIMIENTO: No procesar ni asignar fechaNacimiento
+                const socioData: any = {
                     socio: codigo,
                     nombre: {
-                        nombre: row.getCell(2).value?.toString() || '',
-                        primerApellido: row.getCell(3).value?.toString() || '',
-                        segundoApellido: row.getCell(4).value?.toString() || ''
+                        nombre: sanitizeString(row.getCell(2).value) || '',
+                        primerApellido: sanitizeString(row.getCell(3).value) || 'Sin Apellido',
+                        segundoApellido: sanitizeString(row.getCell(4).value) || ''
                     },
                     direccion: {
-                        calle: row.getCell(5).value?.toString() || '',
-                        numero: row.getCell(6).value?.toString() || '',
-                        piso: row.getCell(7).value?.toString() || '',
-                        poblacion: row.getCell(8).value?.toString() || '',
-                        cp: row.getCell(9).value?.toString() || '',
-                        provincia: row.getCell(10).value?.toString() || ''
+                        calle: sanitizeString(row.getCell(5).value) || 'Sin Calle',
+                        numero: sanitizeString(row.getCell(6).value) || 'S/N',
+                        piso: sanitizeString(row.getCell(7).value) || '',
+                        poblacion: sanitizeString(row.getCell(8).value) || 'Sin Población',
+                        cp: sanitizeString(row.getCell(9).value) || '',
+                        provincia: sanitizeString(row.getCell(10).value) || ''
                     },
                     contacto: {
-                        telefonos: [row.getCell(11).value?.toString() || ''],
-                        emails: [row.getCell(12).value?.toString() || '']
+                        telefonos: [cleanTelefono(row.getCell(11).value) || ''],
+                        emails: [cleanEmail(row.getCell(12).value) || '']
                     },
-                    dni: row.getCell(13).value?.toString() || '',
+                    dni: sanitizeString(row.getCell(13).value) || '',
                     casa: Number(row.getCell(14).value) || 1,
                     totalSocios: Number(row.getCell(15).value) || 1,
                     menor3Años: Number(row.getCell(16).value) || 0,
                     cuota: Number(row.getCell(17).value) || 0,
                     banco: {
-                        iban: row.getCell(18).value?.toString() || '',
-                        entidad: row.getCell(19).value?.toString() || '',
-                        oficina: row.getCell(20).value?.toString() || '',
-                        dc: row.getCell(21).value?.toString() || '',
-                        cuenta: row.getCell(22).value?.toString() || ''
+                        iban: sanitizeString(row.getCell(18).value) || '',
+                        entidad: sanitizeString(row.getCell(19).value) || '',
+                        oficina: sanitizeString(row.getCell(20).value) || '',
+                        dc: sanitizeString(row.getCell(21).value) || '',
+                        cuenta: sanitizeString(row.getCell(22).value) || ''
                     },
-                    notas: row.getCell(23).value?.toString() || '',
-                    observaciones: row.getCell(24).value?.toString() || '',
-                    fechaNacimiento,
+                    notas: sanitizeString(row.getCell(23).value) || '',
+                    observaciones: sanitizeString(row.getCell(24).value) || '',
                     active: true,
                     rgpd: true
                 };
-                this.logger.debug(`Datos del socio ${codigo} procesados correctamente`);
+                this.logger.debug(`Socio principal procesado: ${JSON.stringify(socioData)}`);
+                currentSocio = socioData;
                 asociados = [];
             } else {
                 // Procesar asociado
                 this.logger.debug(`Procesando asociado ${codigo}`);
-                const fechaNacimiento = processExcelDate(row.getCell(3).value);
-
-                const asociado = {
+                const asociado: any = {
                     codigo: codigo,
-                    nombre: row.getCell(2).value?.toString() || '',
-                    fechaNacimiento,
-                    telefono: row.getCell(4).value?.toString() || '',
-                    foto: row.getCell(5).value?.toString() || ''
+                    nombre: sanitizeString(row.getCell(2).value) || '',
+                    primerApellido: sanitizeString(row.getCell(3).value) || '',
+                    segundoApellido: sanitizeString(row.getCell(4).value) || '',
+                    telefono: cleanTelefono(row.getCell(11).value) || '',
+                    email: cleanEmail(row.getCell(12).value) || '',
+                    foto: ''
                 };
-
-                // Si tenemos un socio existente, añadir el asociado directamente
+                this.logger.debug(`Asociado procesado: ${JSON.stringify(asociado)}`);
                 if (existingSocioId) {
                     this.logger.debug(`Añadiendo asociado ${codigo} a socio existente ${existingSocioId}`);
                     try {
@@ -407,13 +462,6 @@ export class SociosController {
                         nombre: asociado.nombre,
                         telefono: asociado.telefono || ''
                     });
-
-                    // Set fechaNacimiento if it exists
-                    if (asociado.fechaNacimiento) {
-                        const fechaNacimientoCell = row.getCell(25); // Using the 'fechaNacimiento' column
-                        fechaNacimientoCell.value = asociado.fechaNacimiento;
-                        fechaNacimientoCell.numFmt = 'dd/mm/yyyy';
-                    }
                 });
             }
         });

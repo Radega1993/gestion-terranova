@@ -155,11 +155,11 @@ export const ReservaPDF: React.FC<ReservaPDFProps> = ({ reserva, socio, servicio
                     <View style={styles.section}>
                         <View style={styles.row}>
                             <Text style={styles.label}>Número de Socio:</Text>
-                            <Text style={styles.value}>{socio.numeroSocio}</Text>
+                            <Text style={styles.value}>{socio.socio}</Text>
                         </View>
                         <View style={styles.row}>
                             <Text style={styles.label}>Nombre:</Text>
-                            <Text style={styles.value}>{`${socio.nombre} ${socio.apellidos}`}</Text>
+                            <Text style={styles.value}>{`${socio.nombre.nombre} ${socio.nombre.primerApellido} ${socio.nombre.segundoApellido || ''}`}</Text>
                         </View>
                         <View style={styles.row}>
                             <Text style={styles.label}>Instalación:</Text>
