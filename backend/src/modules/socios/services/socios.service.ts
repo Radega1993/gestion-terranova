@@ -6,8 +6,8 @@ import { CreateSocioDto } from '../dto/create-socio.dto';
 import { UpdateSocioDto } from '../dto/update-socio.dto';
 import { UploadsService } from '../../uploads/uploads.service';
 import { Asociado } from '../schemas/asociado.schema';
-import { CreateMiembroDto } from '../dto/create-miembro.dto';
-import { UpdateMiembroDto } from '../dto/update-miembro.dto';
+import { CreateAsociadoDto } from '../dto/create-asociado.dto';
+import { UpdateAsociadoDto } from '../dto/update-asociado.dto';
 
 @Injectable()
 export class SociosService {
@@ -205,7 +205,7 @@ export class SociosService {
         return socio.save();
     }
 
-    async addAsociado(socioId: string, createMiembroDto: CreateMiembroDto) {
+    async addAsociado(socioId: string, createMiembroDto: CreateAsociadoDto) {
         const socio = await this.socioModel.findById(socioId);
         if (!socio) {
             throw new NotFoundException('Socio no encontrado');
@@ -236,7 +236,7 @@ export class SociosService {
         return asociado;
     }
 
-    async updateAsociado(socioId: string, asociadoId: string, updateMiembroDto: UpdateMiembroDto) {
+    async updateAsociado(socioId: string, asociadoId: string, updateMiembroDto: UpdateAsociadoDto) {
         const socio = await this.socioModel.findById(socioId);
         if (!socio) {
             throw new NotFoundException('Socio no encontrado');

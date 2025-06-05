@@ -85,13 +85,6 @@ export class CreateSocioDto {
     totalSocios: number;
 
     @IsNumber()
-    numPersonas: number;
-
-    @IsNumber()
-    @IsOptional()
-    adheridos?: number;
-
-    @IsNumber()
     @IsOptional()
     menor3Años?: number;
 

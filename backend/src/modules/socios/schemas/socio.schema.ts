@@ -78,12 +78,6 @@ export class Socio extends Document {
     @Prop({ required: true, default: 1 })
     totalSocios: number;
 
-    @Prop({ required: true, default: 1 })
-    numPersonas: number;
-
-    @Prop({ default: 0 })
-    adheridos: number;
-
     @Prop({ default: 0 })
     menor3Años: number;
 

@@ -16,6 +16,7 @@ import {
     DialogActions,
     TextField,
     Alert,
+    MenuItem,
 } from '@mui/material';
 import { Edit as EditIcon, Block as BlockIcon, CheckCircle as CheckCircleIcon } from '@mui/icons-material';
 import { useAuthStore } from '../../stores/authStore';
@@ -266,9 +267,9 @@ const UsersList = () => {
                             required
                         >
                             {Object.values(UserRole).map((role) => (
-                                <option key={role} value={role}>
+                                <MenuItem key={role} value={role}>
                                     {role}
-                                </option>
+                                </MenuItem>
                             ))}
                         </TextField>
                     </DialogContent>
