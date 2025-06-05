@@ -522,7 +522,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                     <ReservaIndicator
                         key={reserva._id}
                         color={getReservaColor(reserva)}
-                        title={`${reserva.tipoInstalacion}: ${reserva.socio.nombre.nombre} ${reserva.socio.nombre.primerApellido} - ${reserva.estado}`}
+                        title={`${reserva.tipoInstalacion}: ${reserva.socio ? `${reserva.socio.nombre.nombre} ${reserva.socio.nombre.primerApellido}` : 'Socio no disponible'} - ${reserva.estado}`}
                     />
                 ))}
             </Box>
@@ -1102,7 +1102,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                                                             Socio
                                                         </Typography>
                                                         <Typography variant="body1">
-                                                            {reserva.socio.nombre.nombre} {reserva.socio.nombre.primerApellido} {reserva.socio.nombre.segundoApellido || ''}
+                                                            {reserva.socio ? `${reserva.socio.nombre.nombre} ${reserva.socio.nombre.primerApellido} ${reserva.socio.nombre.segundoApellido || ''}` : 'Socio no disponible'}
                                                         </Typography>
                                                     </Box>
                                                     <Box sx={{ mb: 2 }}>
@@ -1244,7 +1244,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                     {selectedReservaForPDF && (
                         <ReservaPDF
                             reserva={selectedReservaForPDF}
-                            socio={socios.find(s => s._id === selectedReservaForPDF.socio._id)}
+                            socio={selectedReservaForPDF.socio ? socios.find(s => s._id === selectedReservaForPDF.socio._id) : null}
                             servicio={servicios.find(s => s.nombre.toLowerCase() === selectedReservaForPDF.tipoInstalacion.toLowerCase())}
                             suplementosList={suplementosList}
                         />
@@ -1272,7 +1272,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                     {selectedReservaForPDF && selectedLiquidacionData && (
                         <LiquidacionPDF
                             reserva={selectedReservaForPDF}
-                            socio={socios.find(s => s._id === selectedReservaForPDF.socio._id)}
+                            socio={selectedReservaForPDF.socio ? socios.find(s => s._id === selectedReservaForPDF.socio._id) : null}
                             servicio={servicios.find(s => s.id === selectedReservaForPDF.tipoInstalacion.toLowerCase())}
                             liquidacionData={selectedLiquidacionData}
                         />

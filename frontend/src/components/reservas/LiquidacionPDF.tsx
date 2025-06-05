@@ -65,6 +65,11 @@ interface LiquidacionPDFProps {
 }
 
 export const LiquidacionPDF: React.FC<LiquidacionPDFProps> = ({ reserva, socio, servicio, liquidacionData }) => {
+    // Asegurarse de que los datos necesarios estén presentes
+    if (!reserva || !servicio) {
+        return null;
+    }
+
     return (
         <PDFViewer style={{ width: '100%', height: '100vh' }}>
             <Document>
@@ -75,14 +80,23 @@ export const LiquidacionPDF: React.FC<LiquidacionPDFProps> = ({ reserva, socio, 
                     </View>
 
                     <View style={styles.section}>
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Número de Socio:</Text>
-                            <Text style={styles.value}>{socio.numeroSocio}</Text>
-                        </View>
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Nombre:</Text>
-                            <Text style={styles.value}>{`${socio.nombre} ${socio.apellidos}`}</Text>
-                        </View>
+                        {socio ? (
+                            <>
+                                <View style={styles.row}>
+                                    <Text style={styles.label}>Número de Socio:</Text>
+                                    <Text style={styles.value}>{socio.socio}</Text>
+                                </View>
+                                <View style={styles.row}>
+                                    <Text style={styles.label}>Nombre:</Text>
+                                    <Text style={styles.value}>{`${socio.nombre.nombre} ${socio.nombre.primerApellido} ${socio.nombre.segundoApellido || ''}`}</Text>
+                                </View>
+                            </>
+                        ) : (
+                            <View style={styles.row}>
+                                <Text style={styles.label}>Socio:</Text>
+                                <Text style={styles.value}>No disponible</Text>
+                            </View>
+                        )}
                         <View style={styles.row}>
                             <Text style={styles.label}>Instalación:</Text>
                             <Text style={styles.value}>{servicio.nombre}</Text>
