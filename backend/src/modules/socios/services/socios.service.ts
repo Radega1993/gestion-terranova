@@ -389,12 +389,50 @@ export class SociosService {
 
     async updateAsociados(id: string, asociados: Asociado[]): Promise<Socio> {
         try {
-            const sanitizedAsociados = this.sanitizeData(asociados);
-            return await this.socioModel.findByIdAndUpdate(
+            this.logger.debug('Iniciando actualización de asociados');
+            this.logger.debug(`Datos recibidos: ${JSON.stringify(asociados)}`);
+
+            // Obtener el socio actual
+            const socio = await this.socioModel.findById(id);
+            if (!socio) {
+                throw new NotFoundException('Socio no encontrado');
+            }
+
+            // Validar y procesar cada asociado
+            const asociadosProcesados = socio.asociados?.map(asociadoExistente => {
+                // Buscar el asociado actualizado en la lista recibida
+                const asociadoActualizado = asociados.find(a => a.codigo === asociadoExistente.codigo);
+
+                if (asociadoActualizado) {
+                    // Si encontramos el asociado, actualizamos solo la foto
+                    return {
+                        codigo: asociadoExistente.codigo,
+                        nombre: asociadoExistente.nombre,
+                        fechaNacimiento: asociadoExistente.fechaNacimiento,
+                        telefono: asociadoExistente.telefono || '',
+                        foto: asociadoActualizado.foto
+                    };
+                }
+
+                // Si no encontramos el asociado, mantenemos el existente sin cambios
+                return asociadoExistente;
+            }) || [];
+
+            this.logger.debug(`Asociados procesados: ${JSON.stringify(asociadosProcesados)}`);
+
+            // Actualizar el socio con los asociados procesados
+            const updatedSocio = await this.socioModel.findByIdAndUpdate(
                 id,
-                { $set: { asociados: sanitizedAsociados } },
-                { new: true }
+                { $set: { asociados: asociadosProcesados } },
+                { new: true, runValidators: true }
             ).exec();
+
+            if (!updatedSocio) {
+                throw new NotFoundException('Error al actualizar los asociados');
+            }
+
+            this.logger.debug('Asociados actualizados correctamente');
+            return updatedSocio;
         } catch (error) {
             this.logger.error(`Error updating asociados: ${error.message}`);
             throw error;

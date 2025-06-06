@@ -651,13 +651,19 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                 throw new Error('Socio no encontrado');
             }
 
-            // Encontrar el asociado y actualizar su foto
+            // Encontrar el asociado y actualizar su foto manteniendo todos los datos existentes
             const asociados = socio.asociados?.map(a => {
                 if (a.codigo === asociado.codigo) {
-                    return { ...a, foto: data.filename };
+                    // Mantener todos los datos existentes y solo actualizar la foto
+                    return {
+                        ...a,
+                        foto: data.filename
+                    };
                 }
                 return a;
             }) || [];
+
+            console.log('Asociados a actualizar:', asociados);
 
             // Actualizar el socio con los asociados modificados
             const updateResponse = await fetch(`${API_BASE_URL}/socios/${socioId}/asociados`, {
@@ -670,7 +676,8 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
             });
 
             if (!updateResponse.ok) {
-                throw new Error('Error al actualizar la foto del asociado');
+                const errorData = await updateResponse.json();
+                throw new Error(errorData.message || 'Error al actualizar la foto del asociado');
             }
 
             // Actualizar la lista de socios

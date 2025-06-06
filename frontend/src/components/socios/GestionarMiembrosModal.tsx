@@ -342,7 +342,7 @@ const GestionarMiembrosModal: React.FC<GestionarMiembrosModalProps> = ({
                                     <TableRow key={asociado.codigo}>
                                         <TableCell>
                                             <Avatar
-                                                src={asociado.foto ? `${API_BASE_URL}/uploads/${asociado.foto}` : undefined}
+                                                src={asociado.foto ? `${API_BASE_URL.replace('/api', '')}/uploads/${asociado.foto}` : undefined}
                                                 alt={asociado.nombre}
                                                 onClick={() => handleOpenMiembroForm(asociado)}
                                                 sx={{
