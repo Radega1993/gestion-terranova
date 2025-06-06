@@ -7,15 +7,15 @@ import {
     Button,
     TextField,
     Grid,
-    Box,
-    Avatar,
-    IconButton
+    Box
 } from '@mui/material';
-import { PhotoCamera as PhotoCameraIcon } from '@mui/icons-material';
 import { Socio } from '../../types/socio';
 import { API_BASE_URL } from '../../config';
 import { useAuthStore } from '../../stores/authStore';
-import Swal from 'sweetalert2';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { es } from 'date-fns/locale';
 
 interface MiembroFormProps {
     open: boolean;
@@ -25,6 +25,19 @@ interface MiembroFormProps {
     socio: Socio;
 }
 
+interface FormData {
+    nombre: string;
+    fechaNacimiento: Date | null;
+    telefono: string;
+}
+
+interface DataToSubmit {
+    nombre: string;
+    fechaNacimiento?: Date | string;
+    telefono: string;
+    [key: string]: any;
+}
+
 const MiembroForm: React.FC<MiembroFormProps> = ({
     open,
     onClose,
@@ -32,34 +45,26 @@ const MiembroForm: React.FC<MiembroFormProps> = ({
     miembro,
     socio
 }) => {
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<FormData>({
         nombre: '',
-        fechaNacimiento: '',
-        telefono: '',
-        foto: ''
+        fechaNacimiento: null,
+        telefono: ''
     });
-    const [previewUrl, setPreviewUrl] = useState<string>('');
     const { token } = useAuthStore();
 
     useEffect(() => {
         if (miembro) {
             setFormData({
                 nombre: miembro.nombre || '',
-                fechaNacimiento: miembro.fechaNacimiento
-                    ? new Date(miembro.fechaNacimiento).toISOString().split('T')[0]
-                    : '',
-                telefono: miembro.telefono || '',
-                foto: miembro.foto || ''
+                fechaNacimiento: miembro.fechaNacimiento ? new Date(miembro.fechaNacimiento) : null,
+                telefono: miembro.telefono || ''
             });
-            setPreviewUrl(miembro.foto ? `${API_BASE_URL}/uploads/${miembro.foto}` : '');
         } else {
             setFormData({
                 nombre: '',
-                fechaNacimiento: '',
-                telefono: '',
-                foto: ''
+                fechaNacimiento: null,
+                telefono: ''
             });
-            setPreviewUrl('');
         }
     }, [miembro]);
 
@@ -71,72 +76,27 @@ const MiembroForm: React.FC<MiembroFormProps> = ({
         }));
     };
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        // Validar tipo de archivo
-        if (!file.type.startsWith('image/')) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'Por favor, selecciona un archivo de imagen válido'
-            });
-            return;
-        }
-
-        // Validar tamaño (máximo 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'La imagen no debe superar los 5MB'
-            });
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-            const response = await fetch(`${API_BASE_URL}/uploads/image`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                },
-                body: formData
-            });
-
-            if (!response.ok) {
-                throw new Error('Error al subir la imagen');
-            }
-
-            const data = await response.json();
-            setFormData(prev => ({
-                ...prev,
-                foto: data.filename
-            }));
-            setPreviewUrl(`${API_BASE_URL}/uploads/${data.filename}`);
-
-            Swal.fire({
-                icon: 'success',
-                title: 'Éxito',
-                text: 'Imagen subida correctamente'
-            });
-        } catch (error) {
-            console.error('Error al subir la imagen:', error);
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'Error al subir la imagen'
-            });
-        }
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await onSubmit(formData);
+            // Preparar los datos para enviar al backend
+            const dataToSubmit: DataToSubmit = {
+                nombre: formData.nombre,
+                telefono: formData.telefono
+            };
+
+            // Solo incluir la fecha si existe y es válida
+            if (formData.fechaNacimiento) {
+                // Asegurarnos de que la fecha sea válida
+                const fecha = new Date(formData.fechaNacimiento);
+                if (!isNaN(fecha.getTime())) {
+                    // Enviar la fecha como string ISO y dejar que el backend la convierta a Date
+                    dataToSubmit.fechaNacimiento = fecha.toISOString();
+                }
+            }
+
+            console.log('Enviando datos al backend:', dataToSubmit);
+            await onSubmit(dataToSubmit);
         } catch (error) {
             console.error('Error al guardar el asociado:', error);
         }
@@ -150,40 +110,6 @@ const MiembroForm: React.FC<MiembroFormProps> = ({
             <form onSubmit={handleSubmit}>
                 <DialogContent>
                     <Grid container spacing={2}>
-                        <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-                            <Box sx={{ position: 'relative' }}>
-                                <Avatar
-                                    src={previewUrl}
-                                    alt={formData.nombre}
-                                    sx={{ width: 100, height: 100 }}
-                                />
-                                <input
-                                    accept="image/*"
-                                    style={{ display: 'none' }}
-                                    id="icon-button-file"
-                                    type="file"
-                                    onChange={handleFileChange}
-                                />
-                                <label htmlFor="icon-button-file">
-                                    <IconButton
-                                        color="primary"
-                                        aria-label="upload picture"
-                                        component="span"
-                                        sx={{
-                                            position: 'absolute',
-                                            bottom: 0,
-                                            right: 0,
-                                            backgroundColor: 'white',
-                                            '&:hover': {
-                                                backgroundColor: 'white'
-                                            }
-                                        }}
-                                    >
-                                        <PhotoCameraIcon />
-                                    </IconButton>
-                                </label>
-                            </Box>
-                        </Grid>
                         <Grid item xs={12}>
                             <TextField
                                 fullWidth
@@ -195,15 +121,25 @@ const MiembroForm: React.FC<MiembroFormProps> = ({
                             />
                         </Grid>
                         <Grid item xs={12} sm={6}>
-                            <TextField
-                                fullWidth
-                                label="Fecha de Nacimiento(MM/DD/AAAA)"
-                                name="fechaNacimiento"
-                                type="date"
-                                value={formData.fechaNacimiento}
-                                onChange={handleChange}
-                                InputLabelProps={{ shrink: true }}
-                            />
+                            <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+                                <DatePicker
+                                    label="Fecha de Nacimiento"
+                                    value={formData.fechaNacimiento}
+                                    onChange={(date) => {
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            fechaNacimiento: date
+                                        }));
+                                    }}
+                                    maxDate={new Date()} // No permitir fechas futuras
+                                    slotProps={{
+                                        textField: {
+                                            fullWidth: true,
+                                            margin: "normal"
+                                        }
+                                    }}
+                                />
+                            </LocalizationProvider>
                         </Grid>
                         <Grid item xs={12} sm={6}>
                             <TextField

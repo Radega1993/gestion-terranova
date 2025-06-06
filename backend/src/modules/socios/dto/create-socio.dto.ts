@@ -19,7 +19,8 @@ export class DireccionDto {
     calle: string;
 
     @IsString()
-    numero: string;
+    @IsOptional()
+    numero?: string;
 
     @IsString()
     @IsOptional()

@@ -1,12 +1,12 @@
-import { IsString, IsOptional, IsDate } from 'class-validator';
+import { IsString, IsOptional, IsDateString } from 'class-validator';
 
 export class CreateAsociadoDto {
     @IsString()
     nombre: string;
 
     @IsOptional()
-    @IsDate()
-    fechaNacimiento?: Date;
+    @IsDateString()
+    fechaNacimiento?: string;
 
     @IsOptional()
     @IsString()

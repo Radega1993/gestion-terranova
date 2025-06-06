@@ -31,6 +31,10 @@ import { useAuthStore } from '../../stores/authStore';
 import { API_BASE_URL } from '../../config';
 import { createSocio, updateSocio } from '../../services/socios';
 import Swal from 'sweetalert2';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { es } from 'date-fns/locale';
 
 // Pasos del formulario - Reorganizados para mejor flujo
 const steps = ['Datos Personales', 'Dirección y Contacto', 'Datos Económicos'];
@@ -38,9 +42,71 @@ const steps = ['Datos Personales', 'Dirección y Contacto', 'Datos Económicos']
 interface CreateSocioFormProps {
     viewOnly?: boolean;
     editMode?: boolean;
+    initialData?: Partial<Socio>;
+    onSubmit?: (data: Partial<Socio>) => void;
+    isLoading?: boolean;
 }
 
-const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, editMode = false }) => {
+interface CreateSocioInput {
+    nombre: Nombre;
+    socio: string;
+    direccion: Direccion;
+    contacto: Contacto;
+    banco: Banco;
+    asociados: Asociado[];
+    foto: string;
+    active: boolean;
+    fechaNacimiento?: string;
+    // ... other fields ...
+}
+
+// Función auxiliar para formatear la fecha a YYYY-MM-DD (formato requerido por input type="date")
+const formatDateForInput = (date: Date | string | undefined): string => {
+    if (!date) return '';
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+// Función auxiliar para formatear la fecha a DD/MM/YYYY
+const formatDateForDisplay = (date: Date | string | undefined): string => {
+    if (!date) return '';
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+};
+
+// Función para validar el formato de fecha DD/MM/YYYY
+const isValidDateFormat = (dateStr: string): boolean => {
+    const regex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+    if (!regex.test(dateStr)) return false;
+    const [, day, month, year] = dateStr.match(regex) || [];
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+    return date.getDate() === Number(day) &&
+        date.getMonth() === Number(month) - 1 &&
+        date.getFullYear() === Number(year);
+};
+
+// Función para convertir de DD/MM/YYYY a YYYY-MM-DD
+const convertToISODate = (dateStr: string): string => {
+    if (!dateStr) return '';
+    const [day, month, year] = dateStr.split('/');
+    return `${year}-${month}-${day}`;
+};
+
+const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
+    viewOnly = false,
+    editMode = false,
+    initialData,
+    onSubmit,
+    isLoading = false
+}) => {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
     const location = useLocation();
@@ -50,6 +116,8 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     const [expandedAsociados, setExpandedAsociados] = useState<{ [key: number]: boolean }>({});
     const { token } = useAuthStore();
     const queryClient = useQueryClient();
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     // Verificar autenticación al montar el componente
     useEffect(() => {
@@ -101,8 +169,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
         },
         casa: 0,
         totalSocios: 0,
-        numPersonas: 0,
-        adheridos: 0,
         menor3Años: 0,
         cuota: 0,
         rgpd: false,
@@ -110,11 +176,41 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
         notas: '',
         foto: '',
         asociados: [],
-        isActive: true,
-        fechaNacimiento: new Date().toISOString().split('T')[0]
+        active: true,
+        fechaNacimiento: ''
     };
 
-    const [formData, setFormData] = useState<CreateSocioInput>(initialFormState);
+    const [formData, setFormData] = useState<Partial<Socio>>({
+        nombre: { nombre: '', primerApellido: '', segundoApellido: '' },
+        socio: '',
+        direccion: {
+            calle: '',
+            numero: '1',
+            poblacion: '',
+            cp: '',
+            provincia: ''
+        },
+        contacto: {
+            telefonos: [''],
+            email: ['']
+        },
+        banco: {
+            iban: '',
+            entidad: '',
+            oficina: '',
+            dc: '',
+            cuenta: ''
+        },
+        asociados: [],
+        foto: '',
+        active: true,
+        rgpd: false,
+        casa: 1,
+        totalSocios: 1,
+        menor3Años: 0,
+        cuota: 0,
+        fechaNacimiento: undefined
+    });
 
     // Cargar datos del socio si estamos en modo edición
     const { data: socioData, isLoading: isLoadingSocio } = useQuery({
@@ -131,28 +227,134 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
             if (!response.ok) {
                 throw new Error('Error al cargar el socio');
             }
-            console.log('Datos del socio cargados:', await response.json());
-            return response.json();
+            const data = await response.json();
+            console.log('Datos del socio cargados:', data);
+            return data;
         },
         enabled: editMode && !!id && !!token,
     });
 
     // Obtener el último número de socio
-    const { data: lastSocioNumber, isLoading: isLoadingLastNumber } = useQuery({
+    const { data: lastSocioNumber, isLoading: isLoadingLastNumber, error: lastNumberError } = useQuery({
         queryKey: ['lastSocioNumber'],
         queryFn: async () => {
-            const response = await fetch(`${API_BASE_URL}/socios/last-number`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
+            console.log('Iniciando petición para obtener último número de socio');
+            try {
+                const response = await fetch(`${API_BASE_URL}/socios/last-number`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                console.log('Respuesta recibida:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Error en la respuesta:', errorText);
+                    throw new Error(`Error al obtener el último número de socio: ${response.status} ${errorText}`);
                 }
-            });
-            if (!response.ok) {
-                throw new Error('Error al obtener el último número de socio');
+
+                const text = await response.text();
+                console.log('Respuesta texto:', text);
+
+                try {
+                    const data = JSON.parse(text);
+                    console.log('Número de socio obtenido del backend:', data);
+                    return data.number;
+                } catch (parseError) {
+                    console.error('Error al parsear JSON:', parseError);
+                    throw new Error('Error al procesar la respuesta del servidor');
+                }
+            } catch (error) {
+                console.error('Error en la petición:', error);
+                throw error;
             }
-            return response.json();
         },
         enabled: !editMode && !!token,
+        retry: 3,
+        retryDelay: 1000
     });
+
+    // Efecto para inicializar el formulario
+    useEffect(() => {
+        console.log('useEffect ejecutándose - editMode:', editMode, 'lastSocioNumber:', lastSocioNumber, 'error:', lastNumberError);
+
+        if (editMode && socioData) {
+            console.log('Inicializando formulario con datos de edición:', socioData);
+            setFormData({
+                ...socioData,
+                fechaNacimiento: socioData.fechaNacimiento ? new Date(socioData.fechaNacimiento) : undefined,
+                banco: socioData.banco || {
+                    iban: '',
+                    entidad: '',
+                    oficina: '',
+                    dc: '',
+                    cuenta: ''
+                },
+                contacto: socioData.contacto || {
+                    telefonos: [''],
+                    email: ['']
+                },
+                asociados: socioData.asociados || [],
+                foto: socioData.foto || '',
+                active: socioData.active,
+                rgpd: socioData.rgpd || false
+            });
+        } else if (!editMode) {
+            console.log('Modo creación - lastSocioNumber:', lastSocioNumber, 'isLoading:', isLoadingLastNumber);
+
+            if (lastNumberError) {
+                console.error('Error al obtener el número de socio:', lastNumberError);
+                setFormError('Error al obtener el número de socio. Por favor, inténtalo de nuevo.');
+                return;
+            }
+
+            if (isLoadingLastNumber) {
+                console.log('Cargando número de socio...');
+                return;
+            }
+
+            if (lastSocioNumber) {
+                console.log('Inicializando formulario con nuevo número:', lastSocioNumber);
+                setFormData(prev => ({
+                    ...prev,
+                    nombre: { nombre: '', primerApellido: '', segundoApellido: '' },
+                    socio: lastSocioNumber,
+                    direccion: {
+                        calle: '',
+                        numero: '1',
+                        piso: '',
+                        poblacion: '',
+                        cp: '',
+                        provincia: ''
+                    },
+                    contacto: {
+                        telefonos: [''],
+                        email: ['']
+                    },
+                    banco: {
+                        iban: '',
+                        entidad: '',
+                        oficina: '',
+                        dc: '',
+                        cuenta: ''
+                    },
+                    asociados: [],
+                    foto: '',
+                    active: true,
+                    rgpd: false,
+                    casa: 1,
+                    totalSocios: 1,
+                    menor3Años: 0,
+                    cuota: 0,
+                    fechaNacimiento: undefined
+                }));
+            } else {
+                console.log('No se pudo obtener el número de socio');
+                setFormError('No se pudo obtener el número de socio. Por favor, inténtalo de nuevo.');
+            }
+        }
+    }, [editMode, socioData, lastSocioNumber, isLoadingLastNumber, lastNumberError]);
 
     // Validar número de socio
     const validateSocioNumber = async (number: string) => {
@@ -181,132 +383,73 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     // Mutación para crear/actualizar socio
     const mutation = useMutation({
         mutationFn: async (data: CreateSocioInput) => {
-            const socioData = {
-                ...data,
-                nombre: {
-                    nombre: data.nombre.nombre || '',
-                    primerApellido: data.nombre.primerApellido || '',
-                    segundoApellido: data.nombre.segundoApellido || '',
-                },
-                direccion: {
-                    calle: data.direccion.calle || '',
-                    numero: data.direccion.numero || '',
-                    piso: data.direccion.piso || '',
-                    poblacion: data.direccion.poblacion || '',
-                    cp: data.direccion.cp || '',
-                    provincia: data.direccion.provincia || '',
-                },
-                contacto: {
-                    telefonos: data.contacto.telefonos.filter(t => t.trim() !== ''),
-                    emails: data.contacto.emails.filter(e => e.trim() !== ''),
-                },
-                banco: data.banco ? {
-                    entidad: data.banco.entidad || '',
-                    oficina: data.banco.oficina || '',
-                    dc: data.banco.dc || '',
-                    cuenta: data.banco.cuenta || '',
-                    iban: data.banco.iban || '',
-                } : undefined,
-                fechaNacimiento: data.fechaNacimiento || undefined,
-                cuota: data.cuota || 0,
-                rgpd: data.rgpd || false,
-                isActive: data.isActive || false,
-                foto: data.foto || ''
-            };
+            try {
+                const url = editMode && id ? `${API_BASE_URL}/socios/${id}` : `${API_BASE_URL}/socios`;
+                const method = editMode ? 'PUT' : 'POST';
 
-            // Limpiar campos vacíos
-            const cleanData = Object.fromEntries(
-                Object.entries(socioData).filter(([_, value]) => {
-                    if (value === null || value === undefined || value === '') return false;
-                    if (typeof value === 'object' && !Array.isArray(value)) {
-                        return Object.values(value).some(v => v !== null && v !== undefined && v !== '');
-                    }
-                    return true;
-                })
-            );
+                // Preparar los datos para enviar
+                const dataToSend = {
+                    ...data,
+                    fechaNacimiento: data.fechaNacimiento instanceof Date ? data.fechaNacimiento : undefined,
+                    contacto: {
+                        ...data.contacto,
+                        emails: (data.contacto?.emails || [])
+                            .filter(email => email && email.trim() !== '')
+                            .map(email => email.trim())
+                    },
+                    // Filtrar asociados vacíos
+                    asociados: (data.asociados || [])
+                        .filter(asociado => asociado && asociado.nombre && asociado.nombre.trim() !== '')
+                        .map(asociado => ({
+                            ...asociado,
+                            nombre: asociado.nombre.trim(),
+                            codigo: asociado.codigo || `${data.socio}-${Math.random().toString(36).substr(2, 9)}`
+                        }))
+                };
 
-            console.log('Datos originales del formulario:', data);
-            console.log('Datos preparados antes de limpiar:', socioData);
-            console.log('Datos limpios a enviar:', cleanData);
+                console.log('Enviando datos al servidor:', dataToSend);
 
-            if (editMode && id) {
-                console.log('Enviando actualización al backend:', id, cleanData);
-                const response = await fetch(`${API_BASE_URL}/socios/${id}`, {
-                    method: 'PUT',
+                const response = await fetch(url, {
+                    method,
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(cleanData)
+                    body: JSON.stringify(dataToSend)
                 });
+
                 if (!response.ok) {
-                    throw new Error('Error al actualizar el socio');
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Error al guardar el socio');
                 }
-                console.log('Respuesta del backend:', await response.json());
-                return response.json();
-            } else {
-                console.log('Enviando creación al backend:', cleanData);
-                const response = await fetch(`${API_BASE_URL}/socios`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(cleanData)
-                });
-                if (!response.ok) {
-                    throw new Error('Error al crear el socio');
-                }
-                console.log('Respuesta del backend:', await response.json());
-                return response.json();
+
+                const responseData = await response.json();
+                return responseData;
+            } catch (error) {
+                console.error('Error en la mutación:', error);
+                throw error;
             }
         },
-        onSuccess: (data) => {
-            console.log('Respuesta del servidor:', data);
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['socios'] });
             Swal.fire({
                 icon: 'success',
-                title: id ? 'Socio actualizado correctamente' : 'Socio creado correctamente',
+                title: editMode ? 'Socio actualizado' : 'Socio creado',
+                text: editMode ? 'El socio ha sido actualizado correctamente' : 'El socio ha sido creado correctamente',
                 showConfirmButton: false,
                 timer: 1500
             });
-            queryClient.invalidateQueries({ queryKey: ['socios'] });
             navigate('/socios');
         },
-        onError: (error: Error) => {
-            console.error('Error en la mutación:', error);
-            setFormError(error.message || 'Error al guardar el socio');
+        onError: (error) => {
+            console.error('Error:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: error instanceof Error ? error.message : 'Error al guardar el socio'
+            });
         }
     });
-
-    // Actualizar el formulario con los datos del socio cuando se cargan
-    useEffect(() => {
-        if (editMode && socioData) {
-            setFormData({
-                ...socioData,
-                // Asegurarse de que los campos opcionales tengan valores por defecto
-                banco: socioData.banco || {
-                    iban: '',
-                    entidad: '',
-                    oficina: '',
-                    dc: '',
-                    cuenta: ''
-                },
-                contacto: {
-                    telefonos: socioData.contacto?.telefonos || [''],
-                    emails: socioData.contacto?.emails || ['']
-                },
-                asociados: socioData.asociados || [],
-                especiales: socioData.especiales || [],
-                // Mantener la foto original
-                foto: socioData.foto || ''
-            });
-        } else if (!editMode && lastSocioNumber) {
-            setFormData(prev => ({
-                ...prev,
-                socio: lastSocioNumber
-            }));
-        }
-    }, [editMode, socioData, lastSocioNumber]);
 
     // Manejo de cambios en el número de socio
     const handleSocioNumberChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -496,11 +639,9 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
         const asociados = [
             ...(formData.asociados || []),
             {
-                _id: new Date().getTime().toString(), // Generamos un ID temporal
                 nombre: '',
                 fechaNacimiento: '',
                 parentesco: '',
-                fotografia: '',
                 foto: ''
             },
         ];
@@ -581,11 +722,46 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
     // Enviar formulario
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setLoading(true);
+        setError(null);
+
         try {
-            await mutation.mutateAsync(formData);
+            const dataToSubmit = {
+                ...formData,
+                fechaNacimiento: formData.fechaNacimiento instanceof Date ? formData.fechaNacimiento : undefined,
+                contacto: {
+                    ...formData.contacto,
+                    emails: (formData.contacto?.emails || [])
+                        .filter(email => email && email.trim() !== '')
+                        .map(email => email.trim())
+                },
+                // Filtrar asociados vacíos
+                asociados: (formData.asociados || [])
+                    .filter(asociado => asociado && asociado.nombre && asociado.nombre.trim() !== '')
+                    .map(asociado => ({
+                        ...asociado,
+                        nombre: asociado.nombre.trim(),
+                        codigo: asociado.codigo || `${formData.socio}-${Math.random().toString(36).substr(2, 9)}`
+                    }))
+            };
+
+            console.log('Enviando datos:', dataToSubmit);
+
+            await mutation.mutateAsync(dataToSubmit);
+
+            if (onSubmit) {
+                onSubmit(dataToSubmit);
+            }
         } catch (error) {
-            console.error('Error:', error);
-            // Mostrar mensaje de error al usuario
+            console.error('Error al guardar:', error);
+            setError(error instanceof Error ? error.message : 'Error al guardar el socio');
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Error al guardar el socio. Por favor, inténtalo de nuevo.'
+            });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -620,18 +796,25 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                                 />
                             </Grid>
                             <Grid item xs={12} sm={6}>
-                                <TextField
-                                    required
-                                    fullWidth
-                                    label="Fecha de Nacimiento(MM/DD/AAAA)"
-                                    name="fechaNacimiento"
-                                    type="date"
-                                    value={formData.fechaNacimiento || ''}
-                                    onChange={handleInputChange}
-                                    InputLabelProps={{
-                                        shrink: true,
-                                    }}
-                                />
+                                <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+                                    <DatePicker
+                                        label="Fecha de Nacimiento"
+                                        value={formData.fechaNacimiento ? new Date(formData.fechaNacimiento) : null}
+                                        onChange={(date) => {
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                fechaNacimiento: date || undefined
+                                            }));
+                                        }}
+                                        maxDate={new Date()} // No permitir fechas futuras
+                                        slotProps={{
+                                            textField: {
+                                                fullWidth: true,
+                                                margin: "normal"
+                                            }
+                                        }}
+                                    />
+                                </LocalizationProvider>
                             </Grid>
                             <Grid item xs={12} sm={6}>
                                 <TextField
@@ -670,7 +853,7 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                                 <FormControlLabel
                                     control={
                                         <Checkbox
-                                            checked={formData.rgpd}
+                                            checked={formData.rgpd || false}
                                             onChange={handleInputChange}
                                             name="rgpd"
                                             color="primary"
@@ -705,7 +888,7 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
             <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
                     <Typography variant="subtitle2" gutterBottom>
-                        Número de casa *
+                        Número de casa
                     </Typography>
                     <TextField
                         fullWidth
@@ -716,7 +899,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({ viewOnly = false, edi
                         InputProps={{
                             inputProps: { min: 1 }
                         }}
-                        required
                     />
                 </Grid>
 

@@ -457,10 +457,11 @@ export class SociosController {
             // Add asociados if any
             if (socio.asociados && socio.asociados.length > 0) {
                 socio.asociados.forEach(asociado => {
-                    const row = worksheet.addRow({
+                    worksheet.addRow({
                         codigo: asociado.codigo,
                         nombre: asociado.nombre,
-                        telefono: asociado.telefono || ''
+                        telefono: asociado.telefono || '',
+                        fechaNacimiento: asociado.fechaNacimiento ? new Date(asociado.fechaNacimiento).toLocaleDateString() : ''
                     });
                 });
             }
@@ -518,7 +519,13 @@ export class SociosController {
                 throw new BadRequestException('Error al guardar el archivo');
             }
 
-            const socio = await this.sociosService.update(id, { foto: filename });
+            const socio = await this.sociosService.update(id, {
+                foto: filename,
+                _id: undefined,
+                __v: undefined,
+                createdAt: undefined,
+                updatedAt: undefined
+            });
             return socio;
         } catch (error) {
             this.logger.error('Error updating foto:', error);
@@ -547,7 +554,7 @@ export class SociosController {
     }
 
     @Post(':id/asociados')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async addAsociado(
         @Param('id') id: string,
         @Body() createMiembroDto: CreateAsociadoDto
@@ -556,12 +563,15 @@ export class SociosController {
     }
 
     @Put(':id/asociados/:asociadoId')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async updateAsociado(
         @Param('id') id: string,
         @Param('asociadoId') asociadoId: string,
         @Body() updateMiembroDto: UpdateAsociadoDto
     ) {
+        this.logger.debug('Controlador: Iniciando actualización de asociado');
+        this.logger.debug(`Controlador: Datos recibidos: ${JSON.stringify(updateMiembroDto)}`);
+        this.logger.debug(`Controlador: Tipo de fechaNacimiento: ${typeof updateMiembroDto.fechaNacimiento}`);
         return this.sociosService.updateAsociado(id, asociadoId, updateMiembroDto);
     }
 
@@ -575,7 +585,7 @@ export class SociosController {
     }
 
     @Put(':id/asociados')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async updateAsociados(
         @Param('id') id: string,
         @Body() asociados: Asociado[]
