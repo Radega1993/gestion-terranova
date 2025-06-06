@@ -138,11 +138,16 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
                     unidades: 0,
                     precioUnitario: venta.detalles[0].precio,
                     total: 0,
-                    categoria: 'RESERVAS'
+                    categoria: 'RESERVAS',
+                    ventas: new Set() // Añadimos un Set para rastrear las ventas únicas
                 };
             }
-            acc[key].unidades += 1;
-            acc[key].total += venta.pagado;
+            // Solo incrementamos si esta venta no ha sido contada antes
+            if (!acc[key].ventas.has(venta._id)) {
+                acc[key].unidades += 1;
+                acc[key].total += venta.pagado;
+                acc[key].ventas.add(venta._id);
+            }
         } else {
             console.log('Procesando detalles de venta:', venta.detalles);
             venta.detalles.forEach((producto) => {
@@ -166,11 +171,16 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
                         unidades: 0,
                         precioUnitario: producto.precio,
                         total: 0,
-                        categoria: categoria
+                        categoria: categoria,
+                        ventas: new Set() // Añadimos un Set para rastrear las ventas únicas
                     };
                 }
-                acc[key].unidades += producto.cantidad;
-                acc[key].total += producto.total;
+                // Solo incrementamos si esta venta no ha sido contada antes para este producto
+                if (!acc[key].ventas.has(venta._id)) {
+                    acc[key].unidades += producto.cantidad;
+                    acc[key].total += producto.total;
+                    acc[key].ventas.add(venta._id);
+                }
             });
         }
         return acc;
@@ -181,6 +191,11 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
     // Convertir a array y ordenar por total
     const productosOrdenados = Object.values(productosVendidos)
         .filter((producto: any) => producto.nombre) // Filtrar productos sin nombre
+        .map((producto: any) => {
+            // Eliminamos el Set de ventas antes de ordenar
+            const { ventas, ...productoSinVentas } = producto;
+            return productoSinVentas;
+        })
         .sort((a: any, b: any) => b.total - a.total);
 
     console.log('Productos ordenados:', productosOrdenados);
