@@ -17,8 +17,15 @@ import {
     TextField,
     Alert,
     MenuItem,
+    InputAdornment,
 } from '@mui/material';
-import { Edit as EditIcon, Block as BlockIcon, CheckCircle as CheckCircleIcon } from '@mui/icons-material';
+import {
+    Edit as EditIcon,
+    Block as BlockIcon,
+    CheckCircle as CheckCircleIcon,
+    Visibility as VisibilityIcon,
+    VisibilityOff as VisibilityOffIcon
+} from '@mui/icons-material';
 import { useAuthStore } from '../../stores/authStore';
 import { API_BASE_URL } from '../../config';
 import { User, UserRole } from '../../types/user';
@@ -36,6 +43,7 @@ const UsersList = () => {
     const [openDialog, setOpenDialog] = useState(false);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
     const [formData, setFormData] = useState<FormData>({
         username: '',
         password: '',
@@ -86,6 +94,7 @@ const UsersList = () => {
                 apellidos: '',
             });
         }
+        setShowPassword(false);
         setOpenDialog(true);
     };
 
@@ -99,6 +108,7 @@ const UsersList = () => {
             nombre: '',
             apellidos: '',
         });
+        setShowPassword(false);
         setError(null);
     };
 
@@ -107,10 +117,9 @@ const UsersList = () => {
         try {
             const userData: Partial<FormData> = { ...formData };
 
-            // Solo incluir password si se ha proporcionado uno
-            if (!userData.password) {
-                const { password, ...userDataWithoutPassword } = userData;
-                Object.assign(userData, userDataWithoutPassword);
+            // Si estamos editando y no se ha introducido contraseña, eliminarla del objeto
+            if (selectedUser && !userData.password) {
+                delete userData.password;
             }
 
             const url = selectedUser
@@ -157,6 +166,10 @@ const UsersList = () => {
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Error al cambiar el estado del usuario');
         }
+    };
+
+    const handleClickShowPassword = () => {
+        setShowPassword(!showPassword);
     };
 
     return (
@@ -250,12 +263,25 @@ const UsersList = () => {
                         <TextField
                             margin="dense"
                             label="Contraseña"
-                            type="password"
+                            type={showPassword ? 'text' : 'password'}
                             fullWidth
                             value={formData.password}
                             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                             required={!selectedUser}
                             helperText={selectedUser ? "Dejar en blanco para mantener la contraseña actual" : ""}
+                            InputProps={{
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton
+                                            aria-label="toggle password visibility"
+                                            onClick={handleClickShowPassword}
+                                            edge="end"
+                                        >
+                                            {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                ),
+                            }}
                         />
                         <TextField
                             select
