@@ -9,7 +9,12 @@ const Dashboard: React.FC = () => {
     const { userRole } = useAuthStore();
 
     const modules = [
-        { title: 'Deudas', path: '/deudas', description: 'Gestión de deudas' },
+        {
+            title: 'Deudas',
+            path: '/deudas',
+            description: 'Gestión de deudas',
+            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]
+        },
         {
             title: 'Reservas',
             path: '/reservas',
@@ -34,7 +39,7 @@ const Dashboard: React.FC = () => {
             title: 'Recaudaciones',
             path: '/recaudaciones',
             description: 'Gestión de recaudaciones',
-            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA]
+            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]
         },
         {
             title: 'Invitaciones',

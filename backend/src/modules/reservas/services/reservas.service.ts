@@ -15,8 +15,25 @@ export class ReservasService {
         @InjectModel(Reserva.name) private reservaModel: Model<Reserva>
     ) { }
 
+    private validateReservationDate(fecha: Date): void {
+        const today = new Date();
+        const maxDate = new Date();
+        maxDate.setDate(today.getDate() + 40);
+
+        if (fecha < today) {
+            throw new BadRequestException('No se pueden hacer reservas en fechas pasadas');
+        }
+
+        if (fecha > maxDate) {
+            throw new BadRequestException('No se pueden hacer reservas con más de 40 días de antelación');
+        }
+    }
+
     async create(createReservaDto: CreateReservaDto, usuarioId: string): Promise<Reserva> {
         try {
+            // Validar la fecha de la reserva
+            this.validateReservationDate(new Date(createReservaDto.fecha));
+
             const reserva = new this.reservaModel({
                 ...createReservaDto,
                 usuarioCreacion: usuarioId,
@@ -25,6 +42,9 @@ export class ReservasService {
             return await reserva.save();
         } catch (error) {
             this.logger.error('Error al crear reserva:', error);
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
             throw new BadRequestException('Error al crear la reserva');
         }
     }
@@ -65,6 +85,11 @@ export class ReservasService {
 
     async update(id: string, updateReservaDto: UpdateReservaDto, usuarioId: string): Promise<Reserva> {
         try {
+            // Si se está actualizando la fecha, validarla
+            if (updateReservaDto.fecha) {
+                this.validateReservationDate(new Date(updateReservaDto.fecha));
+            }
+
             const reserva = await this.reservaModel.findById(id);
 
             if (!reserva) {

@@ -19,7 +19,7 @@ export class UploadsController {
     constructor(private readonly uploadsService: UploadsService) { }
 
     @Post('image')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     @UseInterceptors(FileInterceptor('file', {
         storage: diskStorage({
             destination: './uploads',
@@ -88,7 +88,7 @@ export class UploadsController {
     }
 
     @Post('socio/:id/foto')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     @UseInterceptors(FileInterceptor('file'))
     async uploadSocioFoto(
         @Param('id') id: string,

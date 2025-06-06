@@ -16,14 +16,14 @@ export class VentasController {
     constructor(private readonly ventasService: VentasService) { }
 
     @Get()
-    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA)
     async findAll(@Query() filters: VentaFiltersDto) {
         this.logger.debug('Obteniendo todas las ventas');
         return this.ventasService.findAll(filters);
     }
 
     @Get('cliente/:codigo')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA)
     async findByCliente(
         @Param('codigo') codigo: string,
         @Query() filters: VentaFiltersDto
@@ -33,7 +33,7 @@ export class VentasController {
     }
 
     @Get('usuario')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA)
     async findByUsuario(
         @Request() req,
         @Query() filters: VentaFiltersDto
@@ -43,7 +43,7 @@ export class VentasController {
     }
 
     @Get('pendientes')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     findPendientes(
         @Query('fechaInicio') fechaInicio?: string,
         @Query('fechaFin') fechaFin?: string,
@@ -59,14 +59,14 @@ export class VentasController {
     }
 
     @Post()
-    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA)
     async create(@Body() createVentaDto: CreateVentaDto, @Request() req) {
         this.logger.debug('Creando nueva venta');
         return this.ventasService.create(createVentaDto, req.user._id);
     }
 
     @Post(':id/pago')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA)
     async registrarPago(
         @Param('id') id: string,
         @Body() pagoVentaDto: PagoVentaDto,
@@ -75,7 +75,7 @@ export class VentasController {
     }
 
     @Get('recaudaciones')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async getRecaudaciones(
         @Query('fechaInicio') fechaInicio?: string,
         @Query('fechaFin') fechaFin?: string,

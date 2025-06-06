@@ -810,7 +810,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                                 <TableCell>Foto</TableCell>
                                 <TableCell>Nombre Completo</TableCell>
                                 <TableCell>Código</TableCell>
-                                <TableCell>Fecha Nacimiento (MM/DD/AAAA)</TableCell>
+                                <TableCell>Fecha Nacimiento (DD/MM/AAAA)</TableCell>
                                 <TableCell>Contacto</TableCell>
                                 <TableCell>Acciones</TableCell>
                             </TableRow>
@@ -841,7 +841,11 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                                             {`${socio.nombre.nombre} ${socio.nombre.primerApellido} ${socio.nombre.segundoApellido || ''}`}
                                         </TableCell>
                                         <TableCell>{socio.socio}</TableCell>
-                                        <TableCell>{new Date(socio.fechaNacimiento).toLocaleDateString()}</TableCell>
+                                        <TableCell>{socio.fechaNacimiento ? new Date(socio.fechaNacimiento).toLocaleDateString('es-ES', {
+                                            day: '2-digit',
+                                            month: '2-digit',
+                                            year: 'numeric'
+                                        }) : 'No disponible'}</TableCell>
                                         <TableCell>
                                             <Box>
                                                 <Typography variant="body2">{socio.contacto?.telefonos?.[0] || 'No disponible'}</Typography>
@@ -892,7 +896,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                                                             <TableRow>
                                                                 <TableCell>Foto</TableCell>
                                                                 <TableCell>Nombre Completo</TableCell>
-                                                                <TableCell>Fecha Nacimiento (MM/DD/AAAA)</TableCell>
+                                                                <TableCell>Fecha Nacimiento (DD/MM/AAAA)</TableCell>
                                                                 <TableCell>Código Socio</TableCell>
                                                                 <TableCell>Acciones</TableCell>
                                                             </TableRow>
@@ -904,7 +908,11 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                                                                         {renderFotoAsociado(asociado.foto)}
                                                                     </TableCell>
                                                                     <TableCell>{asociado.nombre}</TableCell>
-                                                                    <TableCell>{asociado.fechaNacimiento ? new Date(asociado.fechaNacimiento).toLocaleDateString() : 'No disponible'}</TableCell>
+                                                                    <TableCell>{asociado.fechaNacimiento ? new Date(asociado.fechaNacimiento).toLocaleDateString('es-ES', {
+                                                                        day: '2-digit',
+                                                                        month: '2-digit',
+                                                                        year: 'numeric'
+                                                                    }) : 'No disponible'}</TableCell>
                                                                     <TableCell>{asociado.codigo || 'No disponible'}</TableCell>
                                                                     <TableCell>
                                                                         {renderAsociadoFotoButton(socio._id, asociado)}

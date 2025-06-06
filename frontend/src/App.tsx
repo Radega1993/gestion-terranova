@@ -67,7 +67,7 @@ function App() {
                 <Route
                   path="/deudas"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]}>
                       <DeudasList />
                     </ProtectedRoute>
                   }
@@ -83,7 +83,7 @@ function App() {
                 <Route
                   path="/ventas"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.TRABAJADOR]}>
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA]}>
                       <VentasList />
                     </ProtectedRoute>
                   }
@@ -91,7 +91,7 @@ function App() {
                 <Route
                   path="/inventory"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.TRABAJADOR]}>
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA]}>
                       <InventoryView />
                     </ProtectedRoute>
                   }
@@ -99,7 +99,7 @@ function App() {
                 <Route
                   path="/recaudaciones"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]}>
                       <RecaudacionesList />
                     </ProtectedRoute>
                   }
@@ -107,7 +107,7 @@ function App() {
                 <Route
                   path="/invitaciones"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]}>
                       <InvitacionesList />
                     </ProtectedRoute>
                   }

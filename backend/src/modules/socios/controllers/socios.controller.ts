@@ -46,14 +46,14 @@ export class SociosController {
     }
 
     @Get('last-number')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async getLastNumber() {
         this.logger.debug('Getting last socio number');
         return this.sociosService.getLastNumber();
     }
 
     @Get('validate-number/:number')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async validateNumber(@Param('number') number: string) {
         this.logger.debug(`Validating socio number: ${number}`);
         return this.sociosService.validateNumber(number);
@@ -249,7 +249,6 @@ export class SociosController {
                 }
 
                 this.logger.debug(`Iniciando procesamiento de nuevo socio: ${codigo}`);
-                // OMITIR FECHA DE NACIMIENTO: No procesar ni asignar fechaNacimiento
                 const socioData: any = {
                     socio: codigo,
                     nombre: {
@@ -283,6 +282,7 @@ export class SociosController {
                     },
                     notas: sanitizeString(row.getCell(23).value) || '',
                     observaciones: sanitizeString(row.getCell(24).value) || '',
+                    fechaNacimiento: parseToValidDate(row.getCell(25).value),
                     active: true,
                     rgpd: true
                 };
@@ -299,6 +299,7 @@ export class SociosController {
                     segundoApellido: sanitizeString(row.getCell(4).value) || '',
                     telefono: cleanTelefono(row.getCell(11).value) || '',
                     email: cleanEmail(row.getCell(12).value) || '',
+                    fechaNacimiento: parseToValidDate(row.getCell(25).value),
                     foto: ''
                 };
                 this.logger.debug(`Asociado procesado: ${JSON.stringify(asociado)}`);
@@ -484,7 +485,7 @@ export class SociosController {
     }
 
     @Put(':id')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     @UseInterceptors(FileInterceptor('foto'))
     async update(
         @Param('id') id: string,
@@ -503,7 +504,7 @@ export class SociosController {
 
     @Put(':id/foto')
     @UseInterceptors(FileInterceptor('foto'))
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async updateFoto(
         @Param('id') id: string,
         @UploadedFile() file: Express.Multer.File

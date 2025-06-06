@@ -167,11 +167,26 @@ export const Navbar: React.FC = () => {
                     <MenuItem onClick={() => { navigate('/'); handleMobileMenuClose(); }}>
                         <DashboardIcon sx={{ mr: 1 }} /> Dashboard
                     </MenuItem>
-                    <MenuItem onClick={() => { navigate('/stock'); handleMobileMenuClose(); }}>
-                        <InventoryIcon sx={{ mr: 1 }} /> Inventario
+                    <MenuItem onClick={() => { navigate('/deudas'); handleMobileMenuClose(); }}>
+                        <AccountBalanceIcon sx={{ mr: 1 }} /> Deudas
                     </MenuItem>
                     <MenuItem onClick={() => { navigate('/reservas'); handleMobileMenuClose(); }}>
                         <EventIcon sx={{ mr: 1 }} /> Reservas
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/ventas'); handleMobileMenuClose(); }}>
+                        <ShoppingCartIcon sx={{ mr: 1 }} /> Ventas
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/socios'); handleMobileMenuClose(); }}>
+                        <PeopleIcon sx={{ mr: 1 }} /> Socios
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/inventory'); handleMobileMenuClose(); }}>
+                        <InventoryIcon sx={{ mr: 1 }} /> Inventario
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/recaudaciones'); handleMobileMenuClose(); }}>
+                        <AttachMoneyIcon sx={{ mr: 1 }} /> Recaudaciones
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/invitaciones'); handleMobileMenuClose(); }}>
+                        <ConfirmationNumberIcon sx={{ mr: 1 }} /> Invitaciones
                     </MenuItem>
                 </>
             )}
@@ -230,8 +245,13 @@ export const Navbar: React.FC = () => {
                             )}
                             {user.role === 'TRABAJADOR' && (
                                 <>
-                                    {renderNavButton('/stock', 'Inventario', <InventoryIcon />)}
+                                    {renderNavButton('/deudas', 'Deudas', <AccountBalanceIcon />)}
                                     {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
+                                    {renderNavButton('/ventas', 'Ventas', <ShoppingCartIcon />)}
+                                    {renderNavButton('/socios', 'Socios', <PeopleIcon />)}
+                                    {renderNavButton('/inventory', 'Inventario', <InventoryIcon />)}
+                                    {renderNavButton('/recaudaciones', 'Recaudaciones', <AttachMoneyIcon />)}
+                                    {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />)}
                                 </>
                             )}
                         </>

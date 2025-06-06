@@ -294,20 +294,32 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         e.preventDefault();
 
         if (!user) {
-            alert('Debes iniciar sesión para crear una reserva');
+            setSnackbar({
+                open: true,
+                message: 'Debes iniciar sesión para crear una reserva',
+                severity: 'error'
+            });
             return;
         }
 
         try {
             const servicioSeleccionado = servicios.find(s => s.id === formData.servicio);
             if (!servicioSeleccionado) {
-                alert('Por favor, selecciona un servicio válido');
+                setSnackbar({
+                    open: true,
+                    message: 'Por favor, selecciona un servicio válido',
+                    severity: 'error'
+                });
                 return;
             }
 
             const fecha = new Date(formData.fecha);
             if (isNaN(fecha.getTime())) {
-                alert('Por favor, selecciona una fecha válida');
+                setSnackbar({
+                    open: true,
+                    message: 'Por favor, selecciona una fecha válida',
+                    severity: 'error'
+                });
                 return;
             }
 
@@ -382,11 +394,20 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
             });
 
             handleCloseDialog();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error preparing reserva data:', error);
+            let errorMessage = 'Ha ocurrido un error al crear la reserva';
+
+            // Intentar obtener el mensaje de error del backend
+            if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
             setSnackbar({
                 open: true,
-                message: 'Ha ocurrido un error al crear la reserva',
+                message: errorMessage,
                 severity: 'error'
             });
         }

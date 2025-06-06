@@ -20,7 +20,7 @@ export class InvitacionesController {
     }
 
     @Get()
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     findAll(@Query() filters: InvitacionesFiltersDto) {
         return this.invitacionesService.findAll(filters);
     }
@@ -40,13 +40,13 @@ export class InvitacionesController {
     }
 
     @Get(':codigoSocio/disponibles')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     getInvitacionesDisponibles(@Param('codigoSocio') codigoSocio: string) {
         return this.invitacionesService.getInvitacionesDisponibles(codigoSocio);
     }
 
     @Get('resumen/:ejercicio')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     getResumenEjercicio(@Param('ejercicio') ejercicio: string) {
         return this.invitacionesService.getResumenEjercicio(parseInt(ejercicio));
     }

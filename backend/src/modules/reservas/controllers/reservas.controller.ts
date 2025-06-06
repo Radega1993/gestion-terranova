@@ -46,6 +46,7 @@ export class ReservasController {
     }
 
     @Get('usuario/:usuarioId')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async findByUsuario(@Param('usuarioId') usuarioId: string) {
         try {
             const reservas = await this.reservasService.findByUsuario(usuarioId);
@@ -58,6 +59,7 @@ export class ReservasController {
     }
 
     @Get('fecha')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async findByFecha(@Query('fecha') fechaStr: string) {
         try {
             const fecha = new Date(fechaStr);
@@ -109,14 +111,8 @@ export class ReservasController {
         }
     }
 
-    // @Post(':id/confirmar')
-    // @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
-    // confirmar(@Param('id') id: string, @Request() req) {
-    //     return this.reservasService.confirmar(id, req.user._id);
-    // }
-
     @Post(':id/cancelar')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     cancelar(@Param('id') id: string, @Body() cancelarReservaDto: CancelarReservaDto, @Request() req) {
         try {
             return this.reservasService.cancelar(id, cancelarReservaDto, req.user._id);
@@ -134,7 +130,7 @@ export class ReservasController {
 
     @Post(':id/liquidar')
     @Patch(':id/liquidar')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async liquidar(
         @Param('id') id: string,
         @Body() liquidarReservaDto: LiquidarReservaDto,

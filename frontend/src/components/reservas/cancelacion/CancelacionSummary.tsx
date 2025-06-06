@@ -49,7 +49,10 @@ export const CancelacionSummary: React.FC<CancelacionSummaryProps> = ({
                             Socio
                         </Typography>
                         <Typography variant="body1">
-                            {reserva.socio.nombre.nombre} {reserva.socio.nombre.primerApellido} {reserva.socio.nombre.segundoApellido || ''}
+                            {reserva.socio ?
+                                `${reserva.socio.nombre.nombre} ${reserva.socio.nombre.primerApellido} ${reserva.socio.nombre.segundoApellido || ''}` :
+                                'Socio no disponible'
+                            }
                         </Typography>
                     </Box>
                     <Box sx={{ mb: 2 }}>

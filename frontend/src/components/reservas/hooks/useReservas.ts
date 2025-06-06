@@ -40,7 +40,10 @@ export const useReservas = () => {
                 body: JSON.stringify(reservaData)
             });
 
-            if (!response.ok) throw new Error('Error al guardar la reserva');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Error al guardar la reserva');
+            }
             return await response.json();
         },
         onSuccess: () => {
@@ -89,14 +92,17 @@ export const useReservas = () => {
     const cancelarMutation = useMutation({
         mutationFn: async ({ id, datosCancelacion }: { id: string, datosCancelacion: any }) => {
             const response = await fetch(`${API_BASE_URL}/reservas/${id}/cancelar`, {
-                method: 'PATCH',
+                method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(datosCancelacion)
             });
-            if (!response.ok) throw new Error('Error al cancelar la reserva');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Error al cancelar la reserva');
+            }
             return await response.json();
         },
         onSuccess: () => {

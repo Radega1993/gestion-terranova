@@ -38,7 +38,7 @@ export class UsersController {
 
     @Get()
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async findAll() {
         this.logger.debug('Fetching all users');
         const users = await this.usersService.findAll();
@@ -55,7 +55,7 @@ export class UsersController {
 
     @Get(':id')
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async findOne(@Param('id') id: string) {
         return this.usersService.findOne(id);
     }
