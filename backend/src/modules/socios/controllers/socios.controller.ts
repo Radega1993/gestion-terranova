@@ -503,30 +503,18 @@ export class SociosController {
     }
 
     @Put(':id/foto')
-    @UseInterceptors(FileInterceptor('foto'))
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async updateFoto(
         @Param('id') id: string,
-        @UploadedFile() file: Express.Multer.File
+        @Body() body: { filename: string }
     ) {
         this.logger.debug(`Updating foto for socio with ID: ${id}`);
         try {
-            if (!file) {
-                throw new BadRequestException('No se ha proporcionado ningún archivo');
+            if (!body.filename) {
+                throw new BadRequestException('No se ha proporcionado el nombre del archivo');
             }
 
-            const filename = await this.uploadsService.saveFile(file);
-            if (!filename) {
-                throw new BadRequestException('Error al guardar el archivo');
-            }
-
-            const socio = await this.sociosService.update(id, {
-                foto: filename,
-                _id: undefined,
-                __v: undefined,
-                createdAt: undefined,
-                updatedAt: undefined
-            });
+            const socio = await this.sociosService.updateFoto(id, body.filename);
             return socio;
         } catch (error) {
             this.logger.error('Error updating foto:', error);

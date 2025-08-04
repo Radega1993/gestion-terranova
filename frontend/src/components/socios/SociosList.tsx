@@ -517,16 +517,15 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                     const data = await response.json();
                     console.log('Imagen subida exitosamente:', data.filename);
 
-                    // Actualizar el socio con la nueva foto
-                    const updateResponse = await fetch(`${API_BASE_URL}/socios/${socio._id}`, {
+                    // Actualizar el socio con la nueva foto usando el endpoint específico
+                    const updateResponse = await fetch(`${API_BASE_URL}/socios/${socio._id}/foto`, {
                         method: 'PUT',
                         headers: {
                             'Authorization': `Bearer ${token}`,
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            ...socio,
-                            foto: data.filename
+                            filename: data.filename
                         })
                     });
 
@@ -534,7 +533,8 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                         throw new Error('Error al actualizar la foto del socio');
                     }
 
-                    // La actualización se maneja automáticamente con React Query
+                    // Invalidar las queries para actualizar la UI automáticamente
+                    queryClient.invalidateQueries({ queryKey: ['socios'] });
 
                     Swal.fire({
                         icon: 'success',
@@ -575,22 +575,72 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
     const renderFoto = (foto: string | undefined) => {
         if (!foto) return null;
         return (
-            <Avatar
-                src={`${API_BASE_URL.replace('/api', '')}/uploads/${foto}`}
-                alt="Foto socio"
-                sx={{ width: 40, height: 40 }}
-            />
+            <Tooltip
+                title={
+                    <img
+                        src={`${API_BASE_URL.replace('/api', '')}/uploads/${foto}`}
+                        alt="Foto socio ampliada"
+                        style={{
+                            width: '300px',
+                            height: '300px',
+                            objectFit: 'cover',
+                            borderRadius: '8px'
+                        }}
+                    />
+                }
+                arrow
+                placement="top"
+            >
+                <Avatar
+                    src={`${API_BASE_URL.replace('/api', '')}/uploads/${foto}`}
+                    alt="Foto socio"
+                    sx={{
+                        width: 40,
+                        height: 40,
+                        cursor: 'pointer',
+                        '&:hover': {
+                            transform: 'scale(1.1)',
+                            transition: 'transform 0.2s ease-in-out'
+                        }
+                    }}
+                />
+            </Tooltip>
         );
     };
 
     const renderFotoAsociado = (foto: string | undefined) => {
         if (!foto) return null;
         return (
-            <Avatar
-                src={`${API_BASE_URL.replace('/api', '')}/uploads/${foto}`}
-                alt="Foto asociado"
-                sx={{ width: 30, height: 30 }}
-            />
+            <Tooltip
+                title={
+                    <img
+                        src={`${API_BASE_URL.replace('/api', '')}/uploads/${foto}`}
+                        alt="Foto asociado ampliada"
+                        style={{
+                            width: '300px',
+                            height: '300px',
+                            objectFit: 'cover',
+                            borderRadius: '8px'
+                        }}
+                    />
+                }
+                arrow
+                placement="top"
+            >
+                <Avatar
+                    src={`${API_BASE_URL.replace('/api', '')}/uploads/${foto}`}
+                    alt="Foto asociado"
+                    sx={{
+                        width: 30,
+                        height: 30,
+                        cursor: 'pointer',
+                        '&:hover': {
+                            transform: 'scale(1.1)',
+                            transition: 'transform 0.2s ease-in-out'
+                        }
+                    }}
+                />
+            </Tooltip>
         );
     };
 
@@ -650,7 +700,8 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                 throw new Error(errorData.message || 'Error al actualizar la foto del asociado');
             }
 
-            // La actualización se maneja automáticamente con React Query
+            // Invalidar las queries para actualizar la UI automáticamente
+            queryClient.invalidateQueries({ queryKey: ['socios'] });
 
             Swal.fire({
                 icon: 'success',

@@ -73,20 +73,32 @@ export class SociosService {
             if (!obj || typeof obj !== 'object') return obj;
             const result: any = {};
             for (const [key, value] of Object.entries(obj)) {
-                if (value === null || value === undefined) continue;
                 // No sanitizar fechaNacimiento
                 if (key === 'fechaNacimiento') {
                     result[key] = value;
                     continue;
                 }
-                if (typeof value === 'object' && !Array.isArray(value)) {
-                    result[key] = sanitizeObject(value);
-                } else if (Array.isArray(value)) {
+
+                // Para arrays (como asociados), preservar la estructura completa
+                if (Array.isArray(value)) {
                     result[key] = value.map(item =>
                         typeof item === 'object' ? sanitizeObject(item) : sanitizeString(item)
                     );
-                } else {
+                    continue;
+                }
+
+                // Para objetos anidados, preservar la estructura
+                if (typeof value === 'object' && value !== null) {
+                    result[key] = sanitizeObject(value);
+                    continue;
+                }
+
+                // Para valores primitivos, solo sanitizar si no son null/undefined
+                if (value !== null && value !== undefined) {
                     result[key] = sanitizeString(value);
+                } else {
+                    // Preservar null/undefined para campos opcionales
+                    result[key] = value;
                 }
             }
             return result;
@@ -176,12 +188,9 @@ export class SociosService {
             }
 
             // Eliminar campos que no deben actualizarse
-            delete updateSocioDto._id;
-            delete updateSocioDto.__v;
-            delete updateSocioDto.createdAt;
-            delete updateSocioDto.updatedAt;
+            const { _id, __v, createdAt, updatedAt, ...dataToUpdate } = updateSocioDto;
 
-            const sanitizedData = this.sanitizeData(updateSocioDto);
+            const sanitizedData = this.sanitizeData(dataToUpdate);
             this.logger.debug(`After sanitizeData: ${JSON.stringify(sanitizedData)}`);
 
             // Verificar que la fecha de nacimiento se mantiene después de la sanitización
@@ -203,6 +212,28 @@ export class SociosService {
             return updatedSocio;
         } catch (error) {
             this.logger.error(`Error updating socio: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async updateFoto(id: string, filename: string): Promise<Socio> {
+        try {
+            this.logger.debug(`Updating foto for socio ${id} with filename: ${filename}`);
+
+            const updatedSocio = await this.socioModel.findByIdAndUpdate(
+                id,
+                { $set: { foto: filename } },
+                { new: true, runValidators: false }
+            ).exec();
+
+            if (!updatedSocio) {
+                throw new NotFoundException(`Socio with ID ${id} not found`);
+            }
+
+            this.logger.debug(`Foto updated successfully for socio: ${id}`);
+            return updatedSocio;
+        } catch (error) {
+            this.logger.error(`Error updating foto for socio ${id}: ${error.message}`);
             throw error;
         }
     }
