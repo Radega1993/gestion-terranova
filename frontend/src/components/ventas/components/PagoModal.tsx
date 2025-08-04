@@ -18,6 +18,8 @@ import {
 import { ProductoSeleccionado, Cliente } from '../types';
 import { useAuthStore } from '../../../stores/authStore';
 import { API_BASE_URL } from '../../../config';
+import { CurrencyInput } from '../../../components/common/CurrencyInput';
+import { formatCurrency } from '../../../utils/formatters';
 
 interface PagoModalProps {
     open: boolean;
@@ -43,13 +45,6 @@ export const PagoModal: React.FC<PagoModalProps> = ({
     const total = productos.reduce((sum, producto) => sum + producto.precioTotal, 0);
     const pendiente = total - pagado;
     const cambio = pagado > total ? pagado - total : 0;
-
-    const handlePagadoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        // Remove leading zeros and convert to number
-        const numericValue = value === '' ? 0 : Number(value.replace(/^0+/, ''));
-        setPagado(numericValue);
-    };
 
     const handleSubmit = async () => {
         try {
@@ -121,12 +116,12 @@ export const PagoModal: React.FC<PagoModalProps> = ({
                     {productos.map((producto, index) => (
                         <Box key={index} sx={{ mb: 1 }}>
                             <Typography>
-                                {producto.nombre} x {producto.unidades} = {producto.precioTotal.toFixed(2)}€
+                                {producto.nombre} x {producto.unidades} = {formatCurrency(producto.precioTotal)}€
                             </Typography>
                         </Box>
                     ))}
                     <Typography variant="h6" sx={{ mt: 2 }}>
-                        Total: {total.toFixed(2)}€
+                        Total: {formatCurrency(total)}€
                     </Typography>
                 </Paper>
 
@@ -145,26 +140,24 @@ export const PagoModal: React.FC<PagoModalProps> = ({
                         </FormControl>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                        <TextField
+                        <CurrencyInput
                             fullWidth
                             label="Cantidad Pagada"
-                            type="number"
                             value={pagado}
-                            onChange={handlePagadoChange}
-                            InputProps={{ inputProps: { min: 0, step: 0.01 } }}
+                            onChange={setPagado}
                         />
                     </Grid>
                     {pagado > total && (
                         <Grid item xs={12}>
                             <Typography color="success.main">
-                                Cambio: {cambio.toFixed(2)}€
+                                Cambio: {formatCurrency(cambio)}€
                             </Typography>
                         </Grid>
                     )}
                     {pagado < total && (
                         <Grid item xs={12}>
                             <Typography color="error">
-                                Pendiente: {pendiente.toFixed(2)}€
+                                Pendiente: {formatCurrency(pendiente)}€
                             </Typography>
                         </Grid>
                     )}

@@ -34,6 +34,7 @@ import PaymentIcon from '@mui/icons-material/Payment';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { SocioSelector } from '../ventas/components/SocioSelector';
 import { Cliente } from '../ventas/types';
+import { formatCurrency } from '../../utils/formatters';
 
 export const DeudasList: React.FC = () => {
     const { token } = useAuthStore();

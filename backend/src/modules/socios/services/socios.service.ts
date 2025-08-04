@@ -129,7 +129,7 @@ export class SociosService {
 
     async findAll(): Promise<Socio[]> {
         try {
-            return await this.socioModel.find().exec();
+            return await this.socioModel.find().sort({ socio: 1 }).exec();
         } catch (error) {
             this.logger.error(`Error finding all socios: ${error.message}`);
             throw error;
@@ -214,9 +214,22 @@ export class SociosService {
                 throw new NotFoundException(`Socio with ID ${id} not found`);
             }
 
-            // Eliminar la imagen si existe
+            // Eliminar la imagen del socio principal si existe
             if (socio.foto) {
                 await this.uploadsService.deleteFile(socio.foto);
+            }
+
+            // Eliminar las fotos de los miembros asociados si existen
+            if (socio.asociados && socio.asociados.length > 0) {
+                for (const asociado of socio.asociados) {
+                    if (asociado.foto) {
+                        try {
+                            await this.uploadsService.deleteFile(asociado.foto);
+                        } catch (error) {
+                            this.logger.warn(`Error deleting asociado foto ${asociado.foto}: ${error.message}`);
+                        }
+                    }
+                }
             }
 
             await this.socioModel.findByIdAndDelete(id).exec();
@@ -305,9 +318,19 @@ export class SociosService {
             throw new NotFoundException('Socio no encontrado');
         }
 
-        const asociadoIndex = socio.asociados.findIndex(a => a._id.toString() === asociadoId);
+        const asociadoIndex = socio.asociados.findIndex(a => a.codigo === asociadoId);
         if (asociadoIndex === -1) {
             throw new NotFoundException('Asociado no encontrado');
+        }
+
+        // Eliminar la foto del asociado si existe
+        const asociado = socio.asociados[asociadoIndex];
+        if (asociado.foto) {
+            try {
+                await this.uploadsService.deleteFile(asociado.foto);
+            } catch (error) {
+                this.logger.warn(`Error deleting asociado foto ${asociado.foto}: ${error.message}`);
+            }
         }
 
         socio.asociados.splice(asociadoIndex, 1);
@@ -450,7 +473,7 @@ export class SociosService {
 
     async getSimplifiedList(): Promise<any[]> {
         try {
-            const socios = await this.socioModel.find().exec();
+            const socios = await this.socioModel.find().sort({ socio: 1 }).exec();
             return socios.map(socio => ({
                 _id: socio._id,
                 socio: socio.socio,

@@ -22,6 +22,8 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { es } from 'date-fns/locale';
 import { Reserva, Servicio, Suplemento, FormData } from './types';
+import { CurrencyInput } from '../common/CurrencyInput';
+import { formatCurrency } from '../../utils/formatters';
 
 interface ReservaFormProps {
     open: boolean;
@@ -105,17 +107,17 @@ export const ReservaForm: React.FC<ReservaFormProps> = ({
                 <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
                         <Typography variant="body2">
-                            Servicio: {precioServicio}€
+                            Servicio: {formatCurrency(precioServicio)}
                         </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
                         <Typography variant="body2">
-                            Suplementos: {precioSuplementos}€
+                            Suplementos: {formatCurrency(precioSuplementos)}
                         </Typography>
                     </Grid>
                     <Grid item xs={12}>
                         <Typography variant="h6">
-                            Total: {calcularPrecioTotal()}€
+                            Total: {formatCurrency(calcularPrecioTotal())}
                         </Typography>
                     </Grid>
                 </Grid>
@@ -225,12 +227,11 @@ export const ReservaForm: React.FC<ReservaFormProps> = ({
                         </Grid>
 
                         <Grid item xs={12} sm={6}>
-                            <TextField
+                            <CurrencyInput
                                 fullWidth
-                                type="number"
                                 label="Monto Abonado"
                                 value={formData.montoAbonado}
-                                onChange={(e) => setFormData({ ...formData, montoAbonado: Number(e.target.value) })}
+                                onChange={(value) => setFormData({ ...formData, montoAbonado: value })}
                                 error={formData.montoAbonado > calcularPrecioTotal()}
                                 helperText={
                                     formData.montoAbonado > calcularPrecioTotal()

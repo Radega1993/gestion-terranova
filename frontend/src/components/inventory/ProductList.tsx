@@ -29,6 +29,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Product, ProductType, CreateProductDto, UpdateProductDto } from '../../types/product';
 import { API_BASE_URL } from '../../config';
 import { useAuthStore } from '../../stores/authStore';
+import { CurrencyInput } from '../common/CurrencyInput';
+import { formatCurrency } from '../../utils/formatters';
 
 const ProductList: React.FC = () => {
     const queryClient = useQueryClient();
@@ -254,33 +256,35 @@ const ProductList: React.FC = () => {
     }
 
     return (
-        <Box p={3}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h4">Inventario</Typography>
+        <Box>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="h5">Productos</Typography>
                 <Box>
                     <input
+                        type="file"
                         accept=".xlsx,.xls"
+                        onChange={handleImportExcel}
                         style={{ display: 'none' }}
                         id="import-excel"
-                        type="file"
-                        onChange={handleImportExcel}
                     />
                     <label htmlFor="import-excel">
-                        <Button component="span" variant="contained" color="primary" style={{ marginRight: 8 }}>
+                        <Button
+                            component="span"
+                            variant="outlined"
+                            sx={{ mr: 1 }}
+                        >
                             Importar Excel
                         </Button>
                     </label>
                     <Button
-                        variant="contained"
-                        color="primary"
+                        variant="outlined"
                         onClick={handleExportExcel}
-                        style={{ marginRight: 8 }}
+                        sx={{ mr: 1 }}
                     >
                         Exportar Excel
                     </Button>
                     <Button
                         variant="contained"
-                        color="primary"
                         startIcon={<AddIcon />}
                         onClick={() => setCreateDialogOpen(true)}
                     >
@@ -295,9 +299,9 @@ const ProductList: React.FC = () => {
                         <TableRow>
                             <TableCell>Nombre</TableCell>
                             <TableCell>Tipo</TableCell>
-                            <TableCell>Unidad de Medida</TableCell>
-                            <TableCell align="right">Stock Actual</TableCell>
-                            <TableCell align="right">Precio Compra</TableCell>
+                            <TableCell>Unidad</TableCell>
+                            <TableCell>Stock</TableCell>
+                            <TableCell>Precio Compra</TableCell>
                             <TableCell>Estado</TableCell>
                             <TableCell>Acciones</TableCell>
                         </TableRow>
@@ -308,25 +312,24 @@ const ProductList: React.FC = () => {
                                 <TableCell>{product.nombre}</TableCell>
                                 <TableCell>{product.tipo}</TableCell>
                                 <TableCell>{product.unidad_medida}</TableCell>
-                                <TableCell align="right">{product.stock_actual}</TableCell>
-                                <TableCell align="right">{product.precio_compra_unitario.toFixed(2)} €</TableCell>
+                                <TableCell>{product.stock_actual}</TableCell>
+                                <TableCell>{formatCurrency(product.precio_compra_unitario)}€</TableCell>
                                 <TableCell>
                                     <FormControlLabel
                                         control={
                                             <Switch
                                                 checked={product.activo}
                                                 onChange={() => handleToggleStatus(product._id, product.activo)}
-                                                color="primary"
                                             />
                                         }
                                         label={product.activo ? 'Activo' : 'Inactivo'}
                                     />
                                 </TableCell>
                                 <TableCell>
-                                    <IconButton onClick={() => handleEditClick(product)} color="primary">
+                                    <IconButton onClick={() => handleEditClick(product)}>
                                         <EditIcon />
                                     </IconButton>
-                                    <IconButton onClick={() => handleDeleteClick(product._id)} color="error">
+                                    <IconButton onClick={() => handleDeleteClick(product._id)}>
                                         <DeleteIcon />
                                     </IconButton>
                                 </TableCell>
@@ -336,11 +339,11 @@ const ProductList: React.FC = () => {
                 </Table>
             </TableContainer>
 
-            {/* Diálogo de Creación */}
+            {/* Dialog para crear producto */}
             <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
-                <form onSubmit={handleCreateSubmit}>
-                    <DialogTitle>Crear Nuevo Producto</DialogTitle>
-                    <DialogContent>
+                <DialogTitle>Nuevo Producto</DialogTitle>
+                <DialogContent>
+                    <Box component="form" onSubmit={handleCreateSubmit} sx={{ mt: 2 }}>
                         <TextField
                             fullWidth
                             label="Nombre"
@@ -349,16 +352,17 @@ const ProductList: React.FC = () => {
                             margin="normal"
                             required
                         />
-                        <FormControl fullWidth margin="normal" required>
+                        <FormControl fullWidth margin="normal">
                             <InputLabel>Tipo</InputLabel>
                             <Select
                                 value={formData.tipo}
-                                onChange={(e) => setFormData({ ...formData, tipo: e.target.value as ProductType })}
                                 label="Tipo"
+                                onChange={(e) => setFormData({ ...formData, tipo: e.target.value as ProductType })}
+                                required
                             >
                                 {Object.values(ProductType).map((type) => (
                                     <MenuItem key={type} value={type}>
-                                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                                        {type}
                                     </MenuItem>
                                 ))}
                             </Select>
@@ -373,37 +377,41 @@ const ProductList: React.FC = () => {
                         />
                         <TextField
                             fullWidth
-                            type="number"
                             label="Stock Actual"
+                            type="number"
                             value={formData.stock_actual}
                             onChange={(e) => setFormData({ ...formData, stock_actual: Number(e.target.value) })}
                             margin="normal"
                             required
+                            inputProps={{ min: 0 }}
                         />
-                        <TextField
+                        <CurrencyInput
                             fullWidth
-                            type="number"
-                            label="Precio Compra Unitario"
+                            label="Precio de Compra Unitario"
                             value={formData.precio_compra_unitario}
-                            onChange={(e) => setFormData({ ...formData, precio_compra_unitario: Number(e.target.value) })}
+                            onChange={(value) => setFormData({ ...formData, precio_compra_unitario: value })}
                             margin="normal"
                             required
                         />
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setCreateDialogOpen(false)}>Cancelar</Button>
-                        <Button type="submit" variant="contained" color="primary">
-                            Crear
-                        </Button>
-                    </DialogActions>
-                </form>
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setCreateDialogOpen(false)}>Cancelar</Button>
+                    <Button
+                        onClick={handleCreateSubmit}
+                        variant="contained"
+                        disabled={createMutation.isPending}
+                    >
+                        {createMutation.isPending ? 'Guardando...' : 'Guardar'}
+                    </Button>
+                </DialogActions>
             </Dialog>
 
-            {/* Diálogo de Edición */}
+            {/* Dialog para editar producto */}
             <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-                <form onSubmit={handleEditSubmit}>
-                    <DialogTitle>Editar Producto</DialogTitle>
-                    <DialogContent>
+                <DialogTitle>Editar Producto</DialogTitle>
+                <DialogContent>
+                    <Box component="form" onSubmit={handleEditSubmit} sx={{ mt: 2 }}>
                         <TextField
                             fullWidth
                             label="Nombre"
@@ -412,16 +420,17 @@ const ProductList: React.FC = () => {
                             margin="normal"
                             required
                         />
-                        <FormControl fullWidth margin="normal" required>
+                        <FormControl fullWidth margin="normal">
                             <InputLabel>Tipo</InputLabel>
                             <Select
                                 value={formData.tipo}
-                                onChange={(e) => setFormData({ ...formData, tipo: e.target.value as ProductType })}
                                 label="Tipo"
+                                onChange={(e) => setFormData({ ...formData, tipo: e.target.value as ProductType })}
+                                required
                             >
                                 {Object.values(ProductType).map((type) => (
                                     <MenuItem key={type} value={type}>
-                                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                                        {type}
                                     </MenuItem>
                                 ))}
                             </Select>
@@ -436,30 +445,34 @@ const ProductList: React.FC = () => {
                         />
                         <TextField
                             fullWidth
-                            type="number"
                             label="Stock Actual"
+                            type="number"
                             value={formData.stock_actual}
                             onChange={(e) => setFormData({ ...formData, stock_actual: Number(e.target.value) })}
                             margin="normal"
                             required
+                            inputProps={{ min: 0 }}
                         />
-                        <TextField
+                        <CurrencyInput
                             fullWidth
-                            type="number"
-                            label="Precio Compra Unitario"
+                            label="Precio de Compra Unitario"
                             value={formData.precio_compra_unitario}
-                            onChange={(e) => setFormData({ ...formData, precio_compra_unitario: Number(e.target.value) })}
+                            onChange={(value) => setFormData({ ...formData, precio_compra_unitario: value })}
                             margin="normal"
                             required
                         />
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
-                        <Button type="submit" variant="contained" color="primary">
-                            Guardar
-                        </Button>
-                    </DialogActions>
-                </form>
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
+                    <Button
+                        onClick={handleEditSubmit}
+                        variant="contained"
+                        disabled={updateMutation.isPending}
+                    >
+                        {updateMutation.isPending ? 'Guardando...' : 'Guardar'}
+                    </Button>
+                </DialogActions>
             </Dialog>
         </Box>
     );

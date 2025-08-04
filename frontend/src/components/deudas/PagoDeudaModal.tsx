@@ -17,6 +17,8 @@ import {
 import { API_BASE_URL } from '../../config';
 import { useAuthStore } from '../../stores/authStore';
 import { Venta } from '../ventas/types';
+import { CurrencyInput } from '../common/CurrencyInput';
+import { formatCurrency } from '../../utils/formatters';
 
 interface PagoDeudaModalProps {
     open: boolean;
@@ -105,23 +107,21 @@ export const PagoDeudaModal: React.FC<PagoDeudaModalProps> = ({
                         Cliente: {venta.nombreSocio} ({venta.codigoSocio})
                     </Typography>
                     <Typography variant="subtitle1" gutterBottom>
-                        Total Original: {venta.total.toFixed(2)}€
+                        Total Original: {formatCurrency(venta.total)}€
                     </Typography>
                     <Typography variant="subtitle1" gutterBottom>
-                        Ya Pagado: {venta.pagado.toFixed(2)}€
+                        Ya Pagado: {formatCurrency(venta.pagado)}€
                     </Typography>
                     <Typography variant="h6" color="primary" gutterBottom>
-                        Pendiente: {pendiente.toFixed(2)}€
+                        Pendiente: {formatCurrency(pendiente)}€
                     </Typography>
 
-                    <TextField
+                    <CurrencyInput
                         fullWidth
                         label="Cantidad a Pagar"
-                        type="number"
                         value={pagado}
-                        onChange={(e) => setPagado(Number(e.target.value))}
+                        onChange={setPagado}
                         margin="normal"
-                        inputProps={{ min: 0, step: 0.01 }}
                     />
 
                     <FormControl fullWidth margin="normal">
@@ -148,7 +148,7 @@ export const PagoDeudaModal: React.FC<PagoDeudaModalProps> = ({
 
                     {metodoPago === 'EFECTIVO' && cambio > 0 && (
                         <Typography variant="h6" color="success.main" sx={{ mt: 2 }}>
-                            Cambio a devolver: {cambio.toFixed(2)}€
+                            Cambio a devolver: {formatCurrency(cambio)}€
                         </Typography>
                     )}
 

@@ -60,8 +60,6 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [selectedSocio, setSelectedSocio] = useState<SocioWithId | null>(null);
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: boolean }>({});
-    const [sociosData, setSociosData] = useState<SocioWithId[]>([]);
-    const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
     const [formData, setFormData] = useState({
@@ -80,7 +78,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
     const [socioSeleccionado, setSocioSeleccionado] = useState<SocioWithId | null>(null);
     const [openVerFamilia, setOpenVerFamilia] = useState(false);
     const [openToggleDialog, setOpenToggleDialog] = useState(false);
-    const { queryClient } = useQueryClient();
+    const queryClient = useQueryClient();
 
     // Query para obtener la lista de socios
     const { data: sociosDataData = [], isLoading: isLoadingData } = useQuery({
@@ -111,7 +109,12 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
             if (!response.ok) {
                 throw new Error('Error al eliminar el socio');
             }
-            return response.json();
+            // No intentar parsear JSON si la respuesta está vacía
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
+            }
+            return null;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['socios'] });
@@ -132,31 +135,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
         },
     });
 
-    const fetchSocios = async () => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/socios`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
 
-            if (!response.ok) {
-                throw new Error('Error al cargar socios');
-            }
-
-            const data = await response.json();
-            setSociosData(data);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Error al cargar socios');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchSocios();
-    }, [token]);
 
     const handleOpenDialog = (socio?: SocioWithId) => {
         if (socio) {
@@ -164,7 +143,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
             setFormData({
                 nombre: socio.nombre.nombre,
                 apellidos: `${socio.nombre.primerApellido} ${socio.nombre.segundoApellido || ''}`,
-                email: socio.contacto?.emails?.[0] || '',
+                email: socio.contacto?.email?.[0] || '',
                 telefono: socio.contacto?.telefonos?.[0] || '',
                 direccion: `${socio.direccion.calle} ${socio.direccion.numero}${socio.direccion.piso ? `, ${socio.direccion.piso}` : ''}`,
                 fechaAlta: new Date().toISOString().split('T')[0],
@@ -222,7 +201,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
             }
 
             handleCloseDialog();
-            fetchSocios();
+            // La actualización se maneja automáticamente con React Query
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Error al guardar socio');
         }
@@ -272,8 +251,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                 throw new Error('Error al actualizar la foto del socio');
             }
 
-            // Actualizar la lista de socios
-            fetchSocios();
+            // La actualización se maneja automáticamente con React Query
 
             Swal.fire({
                 icon: 'success',
@@ -331,14 +309,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                 throw new Error('Error al actualizar el estado del socio');
             }
 
-            // Actualizar el estado local inmediatamente
-            setSociosData(prevSocios =>
-                prevSocios.map(s =>
-                    s._id === socio._id
-                        ? { ...s, active: !s.active }
-                        : s
-                )
-            );
+            // La actualización se maneja automáticamente con React Query
 
             // Mostrar notificación de éxito
             Swal.fire({
@@ -473,7 +444,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                                 text: `Se actualizaron ${updateData.success.length} socios correctamente`,
                                 icon: 'success'
                             });
-                            fetchSocios(); // Actualizar la lista
+                            // La actualización se maneja automáticamente con React Query
                         } else {
                             throw new Error(updateData.message || 'Error al actualizar socios');
                         }
@@ -486,7 +457,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                         text: `Se importaron ${data.success.length} socios correctamente`,
                         icon: 'success'
                     });
-                    fetchSocios(); // Actualizar la lista
+                    // La actualización se maneja automáticamente con React Query
                 }
 
                 if (data.errors.length > 0) {
@@ -563,8 +534,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                         throw new Error('Error al actualizar la foto del socio');
                     }
 
-                    // Actualizar la lista de socios
-                    fetchSocios();
+                    // La actualización se maneja automáticamente con React Query
 
                     Swal.fire({
                         icon: 'success',
@@ -645,8 +615,8 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
             const data = await response.json();
             console.log('Imagen subida exitosamente:', data.filename);
 
-            // Obtener el socio actual
-            const socio = sociosData.find(s => s._id === socioId);
+            // Obtener el socio actual desde los datos de React Query
+            const socio = sociosDataData.find(s => s._id === socioId);
             if (!socio) {
                 throw new Error('Socio no encontrado');
             }
@@ -680,8 +650,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                 throw new Error(errorData.message || 'Error al actualizar la foto del asociado');
             }
 
-            // Actualizar la lista de socios
-            fetchSocios();
+            // La actualización se maneja automáticamente con React Query
 
             Swal.fire({
                 icon: 'success',
@@ -727,7 +696,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
         );
     };
 
-    if (loading) {
+    if (isLoadingData) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
                 <CircularProgress />
@@ -743,7 +712,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
         );
     }
 
-    const filteredSocios = sociosData.filter(socio =>
+    const filteredSocios = sociosDataData.filter(socio =>
         socio.nombre.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
         socio.nombre.primerApellido.toLowerCase().includes(searchTerm.toLowerCase()) ||
         socio.socio.toLowerCase().includes(searchTerm.toLowerCase())
@@ -856,7 +825,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                                         <TableCell>
                                             <Box>
                                                 <Typography variant="body2">{socio.contacto?.telefonos?.[0] || 'No disponible'}</Typography>
-                                                <Typography variant="body2">{socio.contacto?.emails?.[0] || 'No disponible'}</Typography>
+                                                <Typography variant="body2">{socio.contacto?.email?.[0] || 'No disponible'}</Typography>
                                             </Box>
                                         </TableCell>
                                         <TableCell>
@@ -880,14 +849,26 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                                                     </IconButton>
                                                 </Tooltip>
                                                 {renderFotoButton(socio)}
-                                                <Tooltip title={socio.active ? "Desactivar socio" : "Activar socio"}>
-                                                    <IconButton
-                                                        onClick={() => handleToggleClick(socio)}
-                                                        color={socio.active ? "success" : "error"}
-                                                    >
-                                                        {socio.active ? <CheckCircleIcon /> : <BlockIcon />}
-                                                    </IconButton>
-                                                </Tooltip>
+                                                {user?.role === 'ADMINISTRADOR' && (
+                                                    <Tooltip title={socio.active ? "Desactivar socio" : "Activar socio"}>
+                                                        <IconButton
+                                                            onClick={() => handleToggleClick(socio)}
+                                                            color={socio.active ? "success" : "error"}
+                                                        >
+                                                            {socio.active ? <CheckCircleIcon /> : <BlockIcon />}
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )}
+                                                {(user?.role === 'ADMINISTRADOR' || user?.role === 'JUNTA') && (
+                                                    <Tooltip title="Eliminar socio">
+                                                        <IconButton
+                                                            onClick={() => handleDelete(socio)}
+                                                            color="error"
+                                                        >
+                                                            <DeleteIcon />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )}
                                             </Box>
                                         </TableCell>
                                     </TableRow>

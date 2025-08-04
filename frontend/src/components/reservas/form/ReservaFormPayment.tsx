@@ -10,6 +10,7 @@ import {
     Select,
     MenuItem,
 } from '@mui/material';
+import { CurrencyInput } from '../../common/CurrencyInput';
 
 interface ReservaFormPaymentProps {
     formData: {
@@ -31,24 +32,11 @@ export const ReservaFormPayment: React.FC<ReservaFormPaymentProps> = ({
             </Typography>
             <Grid container spacing={3}>
                 <Grid item xs={12} sm={6}>
-                    <TextField
-                        fullWidth
-                        type="number"
+                    <CurrencyInput
                         label="Monto Abonado"
                         value={formData.montoAbonado}
-                        onChange={(e) => onFormDataChange('montoAbonado', parseFloat(e.target.value) || 0)}
-                        InputProps={{
-                            startAdornment: <Typography sx={{ mr: 1, fontSize: '1.1rem' }}>€</Typography>,
-                        }}
-                        sx={{
-                            '& .MuiInputBase-input': {
-                                fontSize: '1.1rem',
-                                padding: '12px 14px'
-                            },
-                            '& .MuiInputLabel-root': {
-                                fontSize: '1.1rem'
-                            }
-                        }}
+                        onChange={(value) => onFormDataChange('montoAbonado', value)}
+                        fullWidth
                     />
                 </Grid>
                 <Grid item xs={12} sm={6}>

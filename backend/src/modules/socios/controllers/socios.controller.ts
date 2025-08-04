@@ -535,7 +535,7 @@ export class SociosController {
     }
 
     @Delete(':id')
-    @Roles(UserRole.ADMINISTRADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     async remove(@Param('id') id: string) {
         this.logger.debug(`Removing socio with ID: ${id}`);
         return this.sociosService.remove(id);
@@ -582,7 +582,8 @@ export class SociosController {
         @Param('id') id: string,
         @Param('asociadoId') asociadoId: string
     ) {
-        return this.sociosService.removeAsociado(id, asociadoId);
+        const result = await this.sociosService.removeAsociado(id, asociadoId);
+        return result;
     }
 
     @Put(':id/asociados')

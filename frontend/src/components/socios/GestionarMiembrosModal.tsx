@@ -15,7 +15,7 @@ import {
     IconButton,
     Avatar
 } from '@mui/material';
-import { Edit as EditIcon, PhotoCamera as PhotoCameraIcon, Add as AddIcon } from '@mui/icons-material';
+import { Edit as EditIcon, PhotoCamera as PhotoCameraIcon, Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Swal from 'sweetalert2';
 import { Socio } from '../../types/socio';
@@ -47,8 +47,10 @@ const GestionarMiembrosModal: React.FC<GestionarMiembrosModalProps> = ({
     const [openMiembroForm, setOpenMiembroForm] = useState(false);
     const [selectedMiembro, setSelectedMiembro] = useState<any>(null);
     const queryClient = useQueryClient();
-    const { token } = useAuthStore();
+    const { token, user } = useAuthStore();
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+
 
     const { data: asociados, isLoading } = useQuery({
         queryKey: ['socios', socio._id, 'asociados'],
@@ -85,7 +87,9 @@ const GestionarMiembrosModal: React.FC<GestionarMiembrosModalProps> = ({
             return response.json();
         },
         onSuccess: () => {
+            // Invalidar tanto la query de asociados como la lista principal de socios
             queryClient.invalidateQueries({ queryKey: ['socios', socio._id, 'asociados'] });
+            queryClient.invalidateQueries({ queryKey: ['socios'] });
             Swal.fire({
                 icon: 'success',
                 title: 'Éxito',
@@ -127,7 +131,9 @@ const GestionarMiembrosModal: React.FC<GestionarMiembrosModalProps> = ({
             return response.json();
         },
         onSuccess: () => {
+            // Invalidar tanto la query de asociados como la lista principal de socios
             queryClient.invalidateQueries({ queryKey: ['socios', socio._id, 'asociados'] });
+            queryClient.invalidateQueries({ queryKey: ['socios'] });
             Swal.fire({
                 icon: 'success',
                 title: 'Éxito',
@@ -164,10 +170,17 @@ const GestionarMiembrosModal: React.FC<GestionarMiembrosModalProps> = ({
                 throw new Error('Error al eliminar el asociado');
             }
 
-            return response.json();
+            // No intentar parsear JSON si la respuesta está vacía
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
+            }
+            return null;
         },
         onSuccess: () => {
+            // Invalidar tanto la query de asociados como la lista principal de socios
             queryClient.invalidateQueries({ queryKey: ['socios', socio._id, 'asociados'] });
+            queryClient.invalidateQueries({ queryKey: ['socios'] });
             Swal.fire({
                 icon: 'success',
                 title: 'Éxito',
@@ -374,6 +387,16 @@ const GestionarMiembrosModal: React.FC<GestionarMiembrosModalProps> = ({
                                                 <EditIcon />
                                             </IconButton>
                                             {renderFotoButton(asociado)}
+                                            {(user?.role === 'ADMINISTRADOR' || user?.role === 'JUNTA') && (
+                                                <IconButton
+                                                    key={`delete-${asociado.codigo}`}
+                                                    onClick={() => handleDeleteMiembro(asociado.codigo)}
+                                                    color="error"
+                                                    title="Eliminar asociado"
+                                                >
+                                                    <DeleteIcon />
+                                                </IconButton>
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                 ))}
