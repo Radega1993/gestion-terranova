@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, UseGuards, BadRequestException, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, BadRequestException, Logger } from '@nestjs/common';
 import { UsersService } from '../users.service';
 import { User } from '../schemas/user.schema';
 import { UserRole } from '../types/user-roles.enum';
@@ -38,7 +38,7 @@ export class UsersController {
 
     @Get()
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async findAll() {
         this.logger.debug('Fetching all users');
         const users = await this.usersService.findAll();
@@ -95,6 +95,19 @@ export class UsersController {
             };
         } catch (error) {
             this.logger.error(`Error al cambiar estado del usuario: ${error.message}`);
+            throw error;
+        }
+    }
+
+    @Delete(':id')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMINISTRADOR)
+    async remove(@Param('id') id: string) {
+        try {
+            await this.usersService.remove(id);
+            return { message: 'Usuario eliminado exitosamente' };
+        } catch (error) {
+            this.logger.error(`Error al eliminar usuario: ${error.message}`);
             throw error;
         }
     }

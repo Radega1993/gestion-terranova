@@ -4,9 +4,10 @@ import { CreateVentaDto } from '../dto/create-venta.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../auth/enums/user-role.enum';
+import { UserRole } from '../../users/types/user-roles.enum';
 import { VentaFiltersDto } from '../dto/venta-filters.dto';
 import { PagoVentaDto } from '../dto/pago-venta.dto';
+import { RecaudacionesFiltrosDto } from '../dto/recaudaciones-filtros.dto';
 
 @Controller('ventas')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -16,14 +17,14 @@ export class VentasController {
     constructor(private readonly ventasService: VentasService) { }
 
     @Get()
-    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA, UserRole.TIENDA)
     async findAll(@Query() filters: VentaFiltersDto) {
         this.logger.debug('Obteniendo todas las ventas');
         return this.ventasService.findAll(filters);
     }
 
     @Get('cliente/:codigo')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA, UserRole.TIENDA)
     async findByCliente(
         @Param('codigo') codigo: string,
         @Query() filters: VentaFiltersDto
@@ -33,7 +34,7 @@ export class VentasController {
     }
 
     @Get('usuario')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA, UserRole.TIENDA)
     async findByUsuario(
         @Request() req,
         @Query() filters: VentaFiltersDto
@@ -43,7 +44,7 @@ export class VentasController {
     }
 
     @Get('pendientes')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     findPendientes(
         @Query('fechaInicio') fechaInicio?: string,
         @Query('fechaFin') fechaFin?: string,
@@ -59,14 +60,14 @@ export class VentasController {
     }
 
     @Post()
-    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA, UserRole.TIENDA)
     async create(@Body() createVentaDto: CreateVentaDto, @Request() req) {
         this.logger.debug('Creando nueva venta');
-        return this.ventasService.create(createVentaDto, req.user._id);
+        return this.ventasService.create(createVentaDto, req.user._id, req.user.role);
     }
 
     @Post(':id/pago')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA, UserRole.TIENDA)
     async registrarPago(
         @Param('id') id: string,
         @Body() pagoVentaDto: PagoVentaDto,
@@ -75,19 +76,10 @@ export class VentasController {
     }
 
     @Get('recaudaciones')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
-    async getRecaudaciones(
-        @Query('fechaInicio') fechaInicio?: string,
-        @Query('fechaFin') fechaFin?: string,
-        @Query('codigoSocio') codigoSocio?: string,
-        @Query('usuario') usuario?: string,
-    ) {
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
+    async getRecaudaciones(@Query() filtros: RecaudacionesFiltrosDto) {
         this.logger.debug('Obteniendo recaudaciones');
-        return this.ventasService.getRecaudaciones({
-            fechaInicio,
-            fechaFin,
-            codigoSocio,
-            usuario,
-        });
+        this.logger.debug('Filtros recibidos:', JSON.stringify(filtros, null, 2));
+        return this.ventasService.getRecaudaciones(filtros);
     }
 } 

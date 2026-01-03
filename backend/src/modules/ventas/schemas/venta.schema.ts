@@ -23,6 +23,9 @@ export class Venta {
     @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'User' })
     usuario: MongooseSchema.Types.ObjectId;
 
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Trabajador' })
+    trabajador?: MongooseSchema.Types.ObjectId;  // Trabajador asignado (solo si usuario es TIENDA)
+
     @Prop({ required: true, type: String })
     codigoSocio: string;
 

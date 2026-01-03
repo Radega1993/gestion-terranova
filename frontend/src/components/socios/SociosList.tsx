@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback } from 'react';
 import {
     Box,
     Typography,
@@ -25,6 +25,10 @@ import {
     Avatar,
     ToggleButton,
     ToggleButtonGroup,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
@@ -38,9 +42,10 @@ import { useAuthStore } from '../../stores/authStore';
 import { API_BASE_URL } from '../../config';
 import { Socio, SocioWithId } from '../../types/socio';
 import { useNavigate } from 'react-router-dom';
-import { PhotoCamera, FamilyRestroom, Block, FileUpload, FileDownload } from '@mui/icons-material';
+import { PhotoCamera, FamilyRestroom, Block, FileUpload, FileDownload, CleaningServices } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import GestionarMiembrosModal from './GestionarMiembrosModal';
+import LimpiarAsociadosInvalidosModal from './LimpiarAsociadosInvalidosModal';
 import { Edit as EditIconMUI, Delete as DeleteIconMUI, PhotoCamera as PhotoCameraIcon, Add as AddIconMUI, People as PeopleIcon } from '@mui/icons-material';
 import VerFamiliaModal from './VerFamiliaModal';
 import {
@@ -56,7 +61,8 @@ interface SociosListProps {
 }
 
 const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
-    const [searchTerm, setSearchTerm] = useState('');
+    const [inputValue, setInputValue] = useState(''); // Valor del input (sin debounce)
+    const [searchTerm, setSearchTerm] = useState(''); // Término de búsqueda con debounce
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [selectedSocio, setSelectedSocio] = useState<SocioWithId | null>(null);
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: boolean }>({});
@@ -74,13 +80,29 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
     const navigate = useNavigate();
     const { token, user } = useAuthStore();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
     const [openGestionarMiembros, setOpenGestionarMiembros] = useState(false);
     const [socioSeleccionado, setSocioSeleccionado] = useState<SocioWithId | null>(null);
     const [openVerFamilia, setOpenVerFamilia] = useState(false);
     const [openToggleDialog, setOpenToggleDialog] = useState(false);
+    const [ordenCodigo, setOrdenCodigo] = useState<'asc' | 'desc' | 'none'>('none');
+    const [filtroEstado, setFiltroEstado] = useState<'all' | 'active' | 'inactive'>('all');
+    const [openLimpiarModal, setOpenLimpiarModal] = useState(false);
     const queryClient = useQueryClient();
 
-    // Query para obtener la lista de socios
+    // Estado para rastrear si el input tiene foco
+    const [inputHasFocus, setInputHasFocus] = useState(false);
+
+    // Debounce para el término de búsqueda
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setSearchTerm(inputValue);
+        }, 300); // Esperar 300ms después de que el usuario deje de escribir
+
+        return () => clearTimeout(timer);
+    }, [inputValue]);
+
+    // Query para obtener la lista de socios (solo se ejecuta cuando searchTerm cambia)
     const { data: sociosDataData = [], isLoading: isLoadingData } = useQuery({
         queryKey: ['socios', searchTerm],
         queryFn: async () => {
@@ -95,7 +117,79 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
             return response.json();
         },
         enabled: !!token,
+        // Mantener los datos anteriores mientras se cargan los nuevos (React Query v5)
+        placeholderData: (previousData) => previousData,
     });
+
+    // Handlers memoizados para evitar recreaciones
+    const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        setInputValue(e.target.value);
+    }, []);
+
+    const handleInputFocus = useCallback(() => {
+        setInputHasFocus(true);
+    }, []);
+
+    const handleInputBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+        // Solo perder el foco si el usuario hace clic fuera intencionalmente
+        const relatedTarget = e.relatedTarget as HTMLElement;
+        if (relatedTarget && (relatedTarget.tagName === 'BUTTON' || relatedTarget.tagName === 'INPUT' || relatedTarget.tagName === 'SELECT' || relatedTarget.closest('button') || relatedTarget.closest('[role="button"]'))) {
+            setInputHasFocus(false);
+        }
+    }, []);
+
+    // Restaurar el foco después de cada render si el input tenía foco
+    useLayoutEffect(() => {
+        if (inputHasFocus && searchInputRef.current) {
+            // Verificar si el input aún tiene el foco o si lo perdió
+            if (document.activeElement !== searchInputRef.current) {
+                searchInputRef.current.focus();
+                // Mover el cursor al final del texto
+                const length = searchInputRef.current.value.length;
+                searchInputRef.current.setSelectionRange(length, length);
+            }
+        }
+    });
+
+    // Mutación para limpiar asociados inválidos
+    const limpiarAsociadosMutation = useMutation({
+        mutationFn: async () => {
+            const response = await fetch(`${API_BASE_URL}/socios/limpiar-asociados-invalidos`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Error al limpiar asociados inválidos');
+            }
+            return response.json();
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['socios'] });
+            Swal.fire({
+                icon: 'success',
+                title: 'Limpieza completada',
+                html: `
+                    <p><strong>${data.sociosActualizados}</strong> socios actualizados</p>
+                    <p><strong>${data.asociadosEliminados}</strong> asociados inválidos eliminados</p>
+                `,
+                confirmButtonText: 'Aceptar'
+            });
+        },
+        onError: (error) => {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: error instanceof Error ? error.message : 'Error al limpiar asociados inválidos'
+            });
+        }
+    });
+
+    const handleLimpiarAsociadosInvalidos = () => {
+        setOpenLimpiarModal(true);
+    };
 
     // Mutación para eliminar un socio
     const deleteMutation = useMutation({
@@ -763,11 +857,46 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
         );
     }
 
-    const filteredSocios = sociosDataData.filter(socio =>
-        socio.nombre.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        socio.nombre.primerApellido.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        socio.socio.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Filtrar localmente usando el valor del input para respuesta inmediata
+    const filteredSocios = sociosDataData.filter(socio => {
+        // Filtro de búsqueda por texto
+        const matchesSearch = socio.nombre.nombre.toLowerCase().includes(inputValue.toLowerCase()) ||
+            socio.nombre.primerApellido.toLowerCase().includes(inputValue.toLowerCase()) ||
+            socio.socio.toLowerCase().includes(inputValue.toLowerCase());
+        
+        // Filtro por estado activo/inactivo
+        const matchesEstado = filtroEstado === 'all' || 
+            (filtroEstado === 'active' && socio.active === true) ||
+            (filtroEstado === 'inactive' && socio.active === false);
+        
+        return matchesSearch && matchesEstado;
+    });
+
+    // Aplicar ordenamiento por código
+    const sociosOrdenados = [...filteredSocios].sort((a, b) => {
+        if (ordenCodigo === 'none') return 0;
+
+        const codigoA = (a.socio || '').toUpperCase();
+        const codigoB = (b.socio || '').toUpperCase();
+
+        // Extraer la parte numérica del código (ej: "AET002" -> 2)
+        // Buscar la primera secuencia de dígitos en el código
+        const matchA = codigoA.match(/\d+/);
+        const matchB = codigoB.match(/\d+/);
+        
+        const numA = matchA ? parseInt(matchA[0], 10) : 0;
+        const numB = matchB ? parseInt(matchB[0], 10) : 0;
+
+        // Si ambos tienen números, comparar numéricamente
+        if (numA !== numB) {
+            return ordenCodigo === 'asc' ? numA - numB : numB - numA;
+        }
+
+        // Si los números son iguales o no hay números, comparar alfabéticamente
+        return ordenCodigo === 'asc' 
+            ? codigoA.localeCompare(codigoB, 'es', { numeric: true, sensitivity: 'base' })
+            : codigoB.localeCompare(codigoA, 'es', { numeric: true, sensitivity: 'base' });
+    });
 
     return (
         <Box sx={{ p: 3 }}>
@@ -801,6 +930,16 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                             </Button>
                         </>
                     )}
+                    {user?.role === 'ADMINISTRADOR' && (
+                        <Button
+                            variant="outlined"
+                            color="warning"
+                            startIcon={<CleaningServices />}
+                            onClick={handleLimpiarAsociadosInvalidos}
+                        >
+                            Limpiar Asociados Inválidos
+                        </Button>
+                    )}
                     <Button
                         variant="contained"
                         startIcon={<AddIcon />}
@@ -812,13 +951,16 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
             </Box>
 
             <Box sx={{ width: '100%' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, gap: 2 }}>
                     <TextField
+                        inputRef={searchInputRef}
                         label="Buscar socio"
                         variant="outlined"
                         size="small"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        value={inputValue}
+                        onChange={handleInputChange}
+                        onFocus={handleInputFocus}
+                        onBlur={handleInputBlur}
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
@@ -826,7 +968,32 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                                 </InputAdornment>
                             ),
                         }}
+                        sx={{ flexGrow: 1 }}
                     />
+                    <FormControl size="small" sx={{ minWidth: 180 }}>
+                        <InputLabel>Filtrar por Estado</InputLabel>
+                        <Select
+                            value={filtroEstado}
+                            label="Filtrar por Estado"
+                            onChange={(e) => setFiltroEstado(e.target.value as 'all' | 'active' | 'inactive')}
+                        >
+                            <MenuItem value="all">Todos</MenuItem>
+                            <MenuItem value="active">Solo Activos</MenuItem>
+                            <MenuItem value="inactive">Solo Inactivos</MenuItem>
+                        </Select>
+                    </FormControl>
+                    <FormControl size="small" sx={{ minWidth: 180 }}>
+                        <InputLabel>Ordenar por Código</InputLabel>
+                        <Select
+                            value={ordenCodigo}
+                            label="Ordenar por Código"
+                            onChange={(e) => setOrdenCodigo(e.target.value as 'asc' | 'desc' | 'none')}
+                        >
+                            <MenuItem value="none">Sin ordenar</MenuItem>
+                            <MenuItem value="asc">Ascendente (A-Z)</MenuItem>
+                            <MenuItem value="desc">Descendente (Z-A)</MenuItem>
+                        </Select>
+                    </FormControl>
                 </Box>
 
                 <TableContainer component={Paper}>
@@ -836,14 +1003,25 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                                 <TableCell />
                                 <TableCell>Foto</TableCell>
                                 <TableCell>Nombre Completo</TableCell>
-                                <TableCell>Código</TableCell>
+                                <TableCell>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        Código
+                                        {ordenCodigo !== 'none' && (
+                                            <Chip
+                                                label={ordenCodigo === 'asc' ? '↑' : '↓'}
+                                                size="small"
+                                                color="primary"
+                                            />
+                                        )}
+                                    </Box>
+                                </TableCell>
                                 <TableCell>Fecha Nacimiento (DD/MM/AAAA)</TableCell>
                                 <TableCell>Contacto</TableCell>
                                 <TableCell>Acciones</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {filteredSocios.map((socio) => (
+                            {sociosOrdenados.map((socio) => (
                                 <React.Fragment key={socio._id}>
                                     <TableRow
                                         sx={{
@@ -1025,6 +1203,11 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            <LimpiarAsociadosInvalidosModal
+                open={openLimpiarModal}
+                onClose={() => setOpenLimpiarModal(false)}
+            />
         </Box>
     );
 };

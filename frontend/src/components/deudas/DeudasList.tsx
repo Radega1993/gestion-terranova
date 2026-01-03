@@ -20,6 +20,7 @@ import {
     Dialog,
     DialogTitle,
     DialogContent,
+    Checkbox,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -29,9 +30,12 @@ import { API_BASE_URL } from '../../config';
 import { useAuthStore } from '../../stores/authStore';
 import { Venta } from '../ventas/types';
 import { PagoDeudaModal } from './PagoDeudaModal';
+import { PagoAcumuladoModal } from './PagoAcumuladoModal';
 import { DeudasPDF } from './DeudasPDF';
+import { DevolucionModal } from '../devoluciones/DevolucionModal';
 import PaymentIcon from '@mui/icons-material/Payment';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import UndoIcon from '@mui/icons-material/Undo';
 import { SocioSelector } from '../ventas/components/SocioSelector';
 import { Cliente } from '../ventas/types';
 import { formatCurrency } from '../../utils/formatters';
@@ -48,9 +52,12 @@ export const DeudasList: React.FC = () => {
         estado: 'PENDIENTE' as 'PENDIENTE' | 'PAGADO_PARCIAL'
     });
     const [modalPagoOpen, setModalPagoOpen] = useState(false);
+    const [modalDevolucionOpen, setModalDevolucionOpen] = useState(false);
     const [ventaSeleccionada, setVentaSeleccionada] = useState<Venta | null>(null);
     const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
     const [showPDF, setShowPDF] = useState(false);
+    const [ventasSeleccionadas, setVentasSeleccionadas] = useState<Set<string>>(new Set());
+    const [modalPagoAcumuladoOpen, setModalPagoAcumuladoOpen] = useState(false);
 
     const fetchVentas = async () => {
         try {
@@ -126,9 +133,50 @@ export const DeudasList: React.FC = () => {
         setModalPagoOpen(true);
     };
 
+    const handleDevolverVenta = (venta: Venta) => {
+        setVentaSeleccionada(venta);
+        setModalDevolucionOpen(true);
+    };
+
     const handlePagoCompletado = () => {
+        setVentasSeleccionadas(new Set());
         fetchVentas();
     };
+
+    const handleDevolucionCompletada = () => {
+        fetchVentas();
+    };
+
+    const handleToggleVenta = (ventaId: string) => {
+        setVentasSeleccionadas(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(ventaId)) {
+                newSet.delete(ventaId);
+            } else {
+                newSet.add(ventaId);
+            }
+            return newSet;
+        });
+    };
+
+    const handleSelectAll = () => {
+        if (ventasSeleccionadas.size === ventas.length) {
+            setVentasSeleccionadas(new Set());
+        } else {
+            setVentasSeleccionadas(new Set(ventas.map(v => v._id)));
+        }
+    };
+
+    const handlePagarAcumulado = () => {
+        if (ventasSeleccionadas.size === 0) {
+            setError('Debe seleccionar al menos una deuda para pagar');
+            return;
+        }
+        setModalPagoAcumuladoOpen(true);
+    };
+
+    const ventasSeleccionadasArray = ventas.filter(v => ventasSeleccionadas.has(v._id));
+    const totalPendienteAcumulado = ventasSeleccionadasArray.reduce((sum, v) => sum + (v.total - v.pagado), 0);
 
     const getEstadoChip = (estado: string) => {
         switch (estado) {
@@ -241,10 +289,36 @@ export const DeudasList: React.FC = () => {
                 </Alert>
             )}
 
+            {/* Botón de pago acumulado */}
+            {ventasSeleccionadas.size > 0 && (
+                <Paper sx={{ p: 2, mb: 2, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="h6">
+                            {ventasSeleccionadas.size} deuda(s) seleccionada(s) - Total pendiente: {totalPendienteAcumulado.toFixed(2)}€
+                        </Typography>
+                        <Button
+                            variant="contained"
+                            color="secondary"
+                            onClick={handlePagarAcumulado}
+                            startIcon={<PaymentIcon />}
+                        >
+                            Pagar Todas ({ventasSeleccionadas.size})
+                        </Button>
+                    </Box>
+                </Paper>
+            )}
+
             <TableContainer component={Paper}>
                 <Table>
                     <TableHead>
                         <TableRow>
+                            <TableCell padding="checkbox">
+                                <Checkbox
+                                    indeterminate={ventasSeleccionadas.size > 0 && ventasSeleccionadas.size < ventas.length}
+                                    checked={ventas.length > 0 && ventasSeleccionadas.size === ventas.length}
+                                    onChange={handleSelectAll}
+                                />
+                            </TableCell>
                             <TableCell>Fecha</TableCell>
                             <TableCell>Cliente</TableCell>
                             <TableCell>Total</TableCell>
@@ -258,6 +332,12 @@ export const DeudasList: React.FC = () => {
                     <TableBody>
                         {ventas.map((venta) => (
                             <TableRow key={venta._id}>
+                                <TableCell padding="checkbox">
+                                    <Checkbox
+                                        checked={ventasSeleccionadas.has(venta._id)}
+                                        onChange={() => handleToggleVenta(venta._id)}
+                                    />
+                                </TableCell>
                                 <TableCell>
                                     {new Date(venta.createdAt).toLocaleString('es-ES', {
                                         year: 'numeric',
@@ -282,19 +362,28 @@ export const DeudasList: React.FC = () => {
                                     {venta.observaciones || '-'}
                                 </TableCell>
                                 <TableCell>
-                                    <IconButton
-                                        color="primary"
-                                        onClick={() => handlePagarDeuda(venta)}
-                                        title="Pagar deuda"
-                                    >
-                                        <PaymentIcon />
-                                    </IconButton>
+                                    <Box sx={{ display: 'flex', gap: 1 }}>
+                                        <IconButton
+                                            color="primary"
+                                            onClick={() => handlePagarDeuda(venta)}
+                                            title="Pagar deuda"
+                                        >
+                                            <PaymentIcon />
+                                        </IconButton>
+                                        <IconButton
+                                            color="secondary"
+                                            onClick={() => handleDevolverVenta(venta)}
+                                            title="Devolver productos"
+                                        >
+                                            <UndoIcon />
+                                        </IconButton>
+                                    </Box>
                                 </TableCell>
                             </TableRow>
                         ))}
                         {ventas.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={8} align="center">
+                                <TableCell colSpan={9} align="center">
                                     No hay deudas pendientes
                                 </TableCell>
                             </TableRow>
@@ -310,6 +399,25 @@ export const DeudasList: React.FC = () => {
                     setVentaSeleccionada(null);
                 }}
                 venta={ventaSeleccionada}
+                onPagoCompletado={handlePagoCompletado}
+            />
+
+            <DevolucionModal
+                open={modalDevolucionOpen}
+                onClose={() => {
+                    setModalDevolucionOpen(false);
+                    setVentaSeleccionada(null);
+                }}
+                venta={ventaSeleccionada}
+                onDevolucionCompletada={handleDevolucionCompletada}
+            />
+
+            <PagoAcumuladoModal
+                open={modalPagoAcumuladoOpen}
+                onClose={() => {
+                    setModalPagoAcumuladoOpen(false);
+                }}
+                ventas={ventasSeleccionadasArray}
                 onPagoCompletado={handlePagoCompletado}
             />
 

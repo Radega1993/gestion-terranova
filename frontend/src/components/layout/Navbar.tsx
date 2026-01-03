@@ -27,7 +27,9 @@ import {
     ShoppingCart as ShoppingCartIcon,
     AccountBalance as AccountBalanceIcon,
     AttachMoney as AttachMoneyIcon,
-    ConfirmationNumber as ConfirmationNumberIcon
+    ConfirmationNumber as ConfirmationNumberIcon,
+    Badge as BadgeIcon,
+    Undo as UndoIcon
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 
@@ -135,6 +137,43 @@ export const Navbar: React.FC = () => {
                     <MenuItem onClick={() => { navigate('/invitaciones'); handleMobileMenuClose(); }}>
                         <ConfirmationNumberIcon sx={{ mr: 1 }} /> Invitaciones
                     </MenuItem>
+                    <MenuItem onClick={() => { navigate('/tiendas'); handleMobileMenuClose(); }}>
+                        <BadgeIcon sx={{ mr: 1 }} /> Tiendas
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/devoluciones'); handleMobileMenuClose(); }}>
+                        <UndoIcon sx={{ mr: 1 }} /> Devoluciones
+                    </MenuItem>
+                </>
+            )}
+            {user?.role === 'TIENDA' && (
+                <>
+                    <MenuItem onClick={() => { navigate('/'); handleMobileMenuClose(); }}>
+                        <DashboardIcon sx={{ mr: 1 }} /> Dashboard
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/deudas'); handleMobileMenuClose(); }}>
+                        <AccountBalanceIcon sx={{ mr: 1 }} /> Deudas
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/reservas'); handleMobileMenuClose(); }}>
+                        <EventIcon sx={{ mr: 1 }} /> Reservas
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/ventas'); handleMobileMenuClose(); }}>
+                        <ShoppingCartIcon sx={{ mr: 1 }} /> Ventas
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/socios'); handleMobileMenuClose(); }}>
+                        <PeopleIcon sx={{ mr: 1 }} /> Socios
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/inventory'); handleMobileMenuClose(); }}>
+                        <InventoryIcon sx={{ mr: 1 }} /> Inventario
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/recaudaciones'); handleMobileMenuClose(); }}>
+                        <AttachMoneyIcon sx={{ mr: 1 }} /> Recaudaciones
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/invitaciones'); handleMobileMenuClose(); }}>
+                        <ConfirmationNumberIcon sx={{ mr: 1 }} /> Invitaciones
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/devoluciones'); handleMobileMenuClose(); }}>
+                        <UndoIcon sx={{ mr: 1 }} /> Devoluciones
+                    </MenuItem>
                 </>
             )}
             {user?.role === 'JUNTA' && (
@@ -190,6 +229,37 @@ export const Navbar: React.FC = () => {
                     </MenuItem>
                 </>
             )}
+            {user?.role === 'TIENDA' && (
+                <>
+                    <MenuItem onClick={() => { navigate('/'); handleMobileMenuClose(); }}>
+                        <DashboardIcon sx={{ mr: 1 }} /> Dashboard
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/deudas'); handleMobileMenuClose(); }}>
+                        <AccountBalanceIcon sx={{ mr: 1 }} /> Deudas
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/reservas'); handleMobileMenuClose(); }}>
+                        <EventIcon sx={{ mr: 1 }} /> Reservas
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/ventas'); handleMobileMenuClose(); }}>
+                        <ShoppingCartIcon sx={{ mr: 1 }} /> Ventas
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/socios'); handleMobileMenuClose(); }}>
+                        <PeopleIcon sx={{ mr: 1 }} /> Socios
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/inventory'); handleMobileMenuClose(); }}>
+                        <InventoryIcon sx={{ mr: 1 }} /> Inventario
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/recaudaciones'); handleMobileMenuClose(); }}>
+                        <AttachMoneyIcon sx={{ mr: 1 }} /> Recaudaciones
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/invitaciones'); handleMobileMenuClose(); }}>
+                        <ConfirmationNumberIcon sx={{ mr: 1 }} /> Invitaciones
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/devoluciones'); handleMobileMenuClose(); }}>
+                        <UndoIcon sx={{ mr: 1 }} /> Devoluciones
+                    </MenuItem>
+                </>
+            )}
             <MenuItem onClick={handleLogout}>
                 <LogoutIcon sx={{ mr: 1 }} /> Cerrar Sesión
             </MenuItem>
@@ -231,6 +301,8 @@ export const Navbar: React.FC = () => {
                                     {renderNavButton('/users', 'Usuarios', <PersonIcon />)}
                                     {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
                                     {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />)}
+                                    {renderNavButton('/tiendas', 'Tiendas', <BadgeIcon />)}
+                                    {renderNavButton('/devoluciones', 'Devoluciones', <UndoIcon />)}
                                 </>
                             )}
                             {user.role === 'JUNTA' && (
@@ -252,6 +324,18 @@ export const Navbar: React.FC = () => {
                                     {renderNavButton('/inventory', 'Inventario', <InventoryIcon />)}
                                     {renderNavButton('/recaudaciones', 'Recaudaciones', <AttachMoneyIcon />)}
                                     {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />)}
+                                </>
+                            )}
+                            {user.role === 'TIENDA' && (
+                                <>
+                                    {renderNavButton('/deudas', 'Deudas', <AccountBalanceIcon />)}
+                                    {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
+                                    {renderNavButton('/ventas', 'Ventas', <ShoppingCartIcon />)}
+                                    {renderNavButton('/socios', 'Socios', <PeopleIcon />)}
+                                    {renderNavButton('/inventory', 'Inventario', <InventoryIcon />)}
+                                    {renderNavButton('/recaudaciones', 'Recaudaciones', <AttachMoneyIcon />)}
+                                    {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />)}
+                                    {renderNavButton('/devoluciones', 'Devoluciones', <UndoIcon />)}
                                 </>
                             )}
                         </>

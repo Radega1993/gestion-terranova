@@ -38,7 +38,7 @@ export class InventoryController {
     constructor(private readonly inventoryService: InventoryService) { }
 
     @Get('search')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async searchProducts(
         @Query('query') query: string,
         @Query('field') field: 'nombre' | 'tipo' = 'nombre'
@@ -48,14 +48,14 @@ export class InventoryController {
     }
 
     @Get('types')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async getTypes() {
         this.logger.debug('Fetching product types');
         return this.inventoryService.getUniqueTypes();
     }
 
     @Get('export')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async exportProducts(@Res() res: Response) {
         this.logger.debug('Exporting products to Excel');
         try {
@@ -102,7 +102,7 @@ export class InventoryController {
     }
 
     @Get()
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async findAll() {
         this.logger.debug('Fetching all products');
         return this.inventoryService.findAll();
@@ -168,14 +168,14 @@ export class InventoryController {
     }
 
     @Get(':id')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async findOne(@Param('id') id: string) {
         this.logger.debug(`Fetching product with ID: ${id}`);
         return this.inventoryService.findOne(id);
     }
 
     @Post()
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async create(@Body() createInventoryDto: any) {
         this.logger.debug('Creating new product');
         return this.inventoryService.create(createInventoryDto);

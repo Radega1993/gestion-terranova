@@ -13,7 +13,8 @@ import {
     TableRow,
     Paper,
     IconButton,
-    Avatar
+    Avatar,
+    Typography
 } from '@mui/material';
 import { Edit as EditIcon, PhotoCamera as PhotoCameraIcon, Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -52,7 +53,7 @@ const GestionarMiembrosModal: React.FC<GestionarMiembrosModalProps> = ({
 
 
 
-    const { data: asociados, isLoading } = useQuery({
+    const { data: asociadosRaw, isLoading } = useQuery({
         queryKey: ['socios', socio._id, 'asociados'],
         queryFn: async () => {
             const response = await fetch(`${API_BASE_URL}/socios/${socio._id}/asociados`, {
@@ -68,6 +69,14 @@ const GestionarMiembrosModal: React.FC<GestionarMiembrosModalProps> = ({
             return response.json();
         }
     });
+
+    // Filtrar asociados inválidos (sin código válido o sin nombre válido)
+    const asociados = asociadosRaw?.filter((asociado: any) => {
+        // Un asociado es válido si tiene código Y nombre válidos
+        const tieneCodigo = asociado.codigo && typeof asociado.codigo === 'string' && asociado.codigo.trim() !== '';
+        const tieneNombre = asociado.nombre && typeof asociado.nombre === 'string' && asociado.nombre.trim() !== '';
+        return tieneCodigo && tieneNombre;
+    }) || [];
 
     const createMutation = useMutation({
         mutationFn: async (data: any) => {
@@ -351,12 +360,23 @@ const GestionarMiembrosModal: React.FC<GestionarMiembrosModalProps> = ({
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {asociados?.map((asociado: any) => (
-                                    <TableRow key={asociado.codigo}>
+                                {asociados && asociados.length > 0 ? (
+                                    asociados.map((asociado: any, index: number) => {
+                                    // Manejar casos donde nombre puede ser undefined o null
+                                    const nombreCompleto = asociado.nombre || 'Sin nombre';
+                                    const inicialNombre = nombreCompleto && typeof nombreCompleto === 'string' 
+                                        ? nombreCompleto.charAt(0).toUpperCase() 
+                                        : '?';
+                                    
+                                    // Generar una key única usando múltiples campos o índice
+                                    const uniqueKey = asociado._id || asociado.codigo || `asociado-${index}`;
+                                    
+                                    return (
+                                    <TableRow key={uniqueKey}>
                                         <TableCell>
                                             <Avatar
                                                 src={asociado.foto ? `${API_BASE_URL.replace('/api', '')}/uploads/${asociado.foto}` : undefined}
-                                                alt={asociado.nombre}
+                                                alt={nombreCompleto}
                                                 onClick={() => handleOpenMiembroForm(asociado)}
                                                 sx={{
                                                     width: 40,
@@ -367,11 +387,11 @@ const GestionarMiembrosModal: React.FC<GestionarMiembrosModalProps> = ({
                                                     }
                                                 }}
                                             >
-                                                {asociado.nombre.charAt(0)}
+                                                {inicialNombre}
                                             </Avatar>
                                         </TableCell>
-                                        <TableCell>{asociado.codigo}</TableCell>
-                                        <TableCell>{asociado.nombre}</TableCell>
+                                        <TableCell>{asociado.codigo || '-'}</TableCell>
+                                        <TableCell>{nombreCompleto}</TableCell>
                                         <TableCell>
                                             {asociado.fechaNacimiento
                                                 ? new Date(asociado.fechaNacimiento).toLocaleDateString()
@@ -380,7 +400,7 @@ const GestionarMiembrosModal: React.FC<GestionarMiembrosModalProps> = ({
                                         <TableCell>{asociado.telefono || '-'}</TableCell>
                                         <TableCell>
                                             <IconButton
-                                                key={`edit-${asociado.codigo}`}
+                                                key={`edit-${uniqueKey}`}
                                                 onClick={() => handleOpenMiembroForm(asociado)}
                                                 color="primary"
                                             >
@@ -389,8 +409,8 @@ const GestionarMiembrosModal: React.FC<GestionarMiembrosModalProps> = ({
                                             {renderFotoButton(asociado)}
                                             {(user?.role === 'ADMINISTRADOR' || user?.role === 'JUNTA') && (
                                                 <IconButton
-                                                    key={`delete-${asociado.codigo}`}
-                                                    onClick={() => handleDeleteMiembro(asociado.codigo)}
+                                                    key={`delete-${uniqueKey}`}
+                                                    onClick={() => handleDeleteMiembro(asociado.codigo || asociado._id || '')}
                                                     color="error"
                                                     title="Eliminar asociado"
                                                 >
@@ -399,7 +419,19 @@ const GestionarMiembrosModal: React.FC<GestionarMiembrosModalProps> = ({
                                             )}
                                         </TableCell>
                                     </TableRow>
-                                ))}
+                                    );
+                                })
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                {asociadosRaw && asociadosRaw.length > 0 
+                                                    ? 'No hay asociados válidos. Los asociados sin código o nombre válido han sido filtrados automáticamente.'
+                                                    : 'No hay asociados registrados para este socio.'}
+                                            </Typography>
+                                        </TableCell>
+                                    </TableRow>
+                                )}
                             </TableBody>
                         </Table>
                     </TableContainer>

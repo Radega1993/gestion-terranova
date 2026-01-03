@@ -24,8 +24,10 @@ import {
     Block as BlockIcon,
     CheckCircle as CheckCircleIcon,
     Visibility as VisibilityIcon,
-    VisibilityOff as VisibilityOffIcon
+    VisibilityOff as VisibilityOffIcon,
+    Delete as DeleteIcon
 } from '@mui/icons-material';
+import Swal from 'sweetalert2';
 import { useAuthStore } from '../../stores/authStore';
 import { API_BASE_URL } from '../../config';
 import { User, UserRole } from '../../types/user';
@@ -168,6 +170,51 @@ const UsersList = () => {
         }
     };
 
+    const handleDelete = async (user: User) => {
+        const result = await Swal.fire({
+            title: '¿Eliminar usuario?',
+            html: `¿Estás seguro de que deseas eliminar al usuario <strong>${user.username}</strong>?<br/><br/>Esta acción no se puede deshacer.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/users/${user._id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Error al eliminar el usuario');
+                }
+
+                await Swal.fire({
+                    title: 'Usuario eliminado',
+                    text: 'El usuario ha sido eliminado exitosamente',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+
+                fetchUsers();
+            } catch (err) {
+                await Swal.fire({
+                    title: 'Error',
+                    text: err instanceof Error ? err.message : 'Error al eliminar el usuario',
+                    icon: 'error'
+                });
+            }
+        }
+    };
+
     const handleClickShowPassword = () => {
         setShowPassword(!showPassword);
     };
@@ -211,6 +258,7 @@ const UsersList = () => {
                                     <IconButton
                                         onClick={() => handleOpenDialog(user)}
                                         color="primary"
+                                        title="Editar usuario"
                                     >
                                         <EditIcon />
                                     </IconButton>
@@ -218,8 +266,16 @@ const UsersList = () => {
                                         onClick={() => handleToggleActive(user._id)}
                                         color={user.activo ? "success" : "error"}
                                         size="small"
+                                        title={user.activo ? "Desactivar usuario" : "Activar usuario"}
                                     >
                                         {user.activo ? <CheckCircleIcon /> : <BlockIcon />}
+                                    </IconButton>
+                                    <IconButton
+                                        onClick={() => handleDelete(user)}
+                                        color="error"
+                                        title="Eliminar usuario"
+                                    >
+                                        <DeleteIcon />
                                     </IconButton>
                                 </TableCell>
                             </TableRow>

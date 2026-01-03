@@ -16,9 +16,10 @@ interface Usuario {
 interface UsuarioSelectorProps {
     onUsuarioSeleccionado: (usuario: Usuario | null) => void;
     value: Usuario | null;
+    excluirTienda?: boolean; // Si es true, excluye usuarios con rol TIENDA
 }
 
-export const UsuarioSelector: React.FC<UsuarioSelectorProps> = ({ onUsuarioSeleccionado, value }) => {
+export const UsuarioSelector: React.FC<UsuarioSelectorProps> = ({ onUsuarioSeleccionado, value, excluirTienda = false }) => {
     const [usuarios, setUsuarios] = useState<Usuario[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -36,11 +37,22 @@ export const UsuarioSelector: React.FC<UsuarioSelectorProps> = ({ onUsuarioSelec
                 });
 
                 if (!response.ok) {
+                    // Si es 401 o 403, el usuario no tiene permisos para ver usuarios
+                    if (response.status === 401 || response.status === 403) {
+                        console.warn('No tiene permisos para ver la lista de usuarios');
+                        setUsuarios([]);
+                        setError(null); // No mostrar error, simplemente no cargar usuarios
+                        return;
+                    }
                     throw new Error('Error al cargar los usuarios');
                 }
 
                 const data = await response.json();
-                setUsuarios(data);
+                // Filtrar usuarios TIENDA solo si se solicita
+                const usuariosFiltrados = excluirTienda 
+                    ? data.filter((user: Usuario) => user.role !== 'TIENDA')
+                    : data;
+                setUsuarios(usuariosFiltrados);
             } catch (error) {
                 setError(error instanceof Error ? error.message : 'Error al cargar los usuarios');
             } finally {

@@ -87,6 +87,23 @@ export class UsersService {
     }
 
     async remove(id: string): Promise<void> {
+        const user = await this.userModel.findById(id).exec();
+        if (!user) {
+            throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
+        }
+
+        // No permitir eliminar el último administrador activo
+        if (user.role === UserRole.ADMINISTRADOR && user.isActive) {
+            const adminCount = await this.userModel.countDocuments({
+                role: UserRole.ADMINISTRADOR,
+                isActive: true
+            }).exec();
+
+            if (adminCount <= 1) {
+                throw new BadRequestException('No se puede eliminar el último administrador activo');
+            }
+        }
+
         const result = await this.userModel.deleteOne({ _id: id }).exec();
         if (result.deletedCount === 0) {
             throw new NotFoundException(`Usuario con ID ${id} no encontrado`);

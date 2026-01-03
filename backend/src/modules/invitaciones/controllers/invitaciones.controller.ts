@@ -6,7 +6,7 @@ import { InvitacionesFiltersDto } from '../dto/invitaciones-filters.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../auth/enums/user-role.enum';
+import { UserRole } from '../../users/types/user-roles.enum';
 
 @Controller('invitaciones')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -14,7 +14,7 @@ export class InvitacionesController {
     constructor(private readonly invitacionesService: InvitacionesService) { }
 
     @Post()
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     create(@Body() createInvitacionDto: CreateInvitacionDto, @Request() req) {
         return this.invitacionesService.create(createInvitacionDto, req.user.userId);
     }

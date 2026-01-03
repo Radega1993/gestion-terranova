@@ -8,6 +8,7 @@ import { UploadsService } from '../../uploads/uploads.service';
 import { Asociado } from '../schemas/asociado.schema';
 import { CreateAsociadoDto } from '../dto/create-asociado.dto';
 import { UpdateAsociadoDto } from '../dto/update-asociado.dto';
+import { Venta } from '../../ventas/schemas/venta.schema';
 
 @Injectable()
 export class SociosService {
@@ -15,6 +16,7 @@ export class SociosService {
 
     constructor(
         @InjectModel(Socio.name) private socioModel: Model<Socio>,
+        @InjectModel(Venta.name) private ventaModel: Model<Venta>,
         private uploadsService: UploadsService
     ) { }
 
@@ -319,14 +321,50 @@ export class SociosService {
             throw new NotFoundException('Socio no encontrado');
         }
 
-        const asociadoIndex = socio.asociados.findIndex(a => a.codigo === asociadoId);
+        // Buscar por código o por _id
+        const asociadoIndex = socio.asociados.findIndex(a => 
+            a.codigo === asociadoId || 
+            (a._id && a._id.toString() === asociadoId)
+        );
         if (asociadoIndex === -1) {
             throw new NotFoundException('Asociado no encontrado');
         }
 
         // Crear un nuevo objeto con los datos actualizados
         const asociadoActualizado: Asociado = {
-            codigo: socio.asociados[asociadoIndex].codigo,
+            codigo: updateMiembroDto.codigo || socio.asociados[asociadoIndex].codigo,
+            nombre: updateMiembroDto.nombre || socio.asociados[asociadoIndex].nombre,
+            telefono: updateMiembroDto.telefono || socio.asociados[asociadoIndex].telefono,
+            foto: updateMiembroDto.foto || socio.asociados[asociadoIndex].foto,
+            fechaNacimiento: updateMiembroDto.fechaNacimiento ? new Date(updateMiembroDto.fechaNacimiento) : socio.asociados[asociadoIndex].fechaNacimiento
+        };
+
+        this.logger.debug(`Datos a actualizar: ${JSON.stringify(asociadoActualizado)}`);
+
+        // Actualizar el asociado
+        socio.asociados[asociadoIndex] = asociadoActualizado;
+        await socio.save();
+
+        this.logger.debug('Asociado actualizado correctamente');
+        return socio.asociados[asociadoIndex];
+    }
+
+    async updateAsociadoByIndex(socioId: string, asociadoIndex: number, updateMiembroDto: UpdateAsociadoDto & { codigo?: string }) {
+        this.logger.debug('Iniciando actualización de asociado por índice');
+        this.logger.debug(`Datos recibidos: ${JSON.stringify(updateMiembroDto)}`);
+
+        const socio = await this.socioModel.findById(socioId);
+        if (!socio) {
+            throw new NotFoundException('Socio no encontrado');
+        }
+
+        if (asociadoIndex < 0 || asociadoIndex >= (socio.asociados?.length || 0)) {
+            throw new NotFoundException('Índice de asociado inválido');
+        }
+
+        // Crear un nuevo objeto con los datos actualizados
+        const asociadoActualizado: Asociado = {
+            codigo: updateMiembroDto.codigo || socio.asociados[asociadoIndex].codigo,
             nombre: updateMiembroDto.nombre || socio.asociados[asociadoIndex].nombre,
             telefono: updateMiembroDto.telefono || socio.asociados[asociadoIndex].telefono,
             foto: updateMiembroDto.foto || socio.asociados[asociadoIndex].foto,
@@ -519,5 +557,203 @@ export class SociosService {
             this.logger.error(`Error getting simplified list: ${error.message}`);
             throw error;
         }
+    }
+
+    async getAsociadosInvalidos(): Promise<Array<{ socioId: string; socioCodigo: string; socioNombre: string; asociado: any; motivo: string[] }>> {
+        try {
+            this.logger.debug('Obteniendo lista de asociados inválidos');
+            
+            const socios = await this.socioModel.find({}).exec();
+            const asociadosInvalidos: Array<{ socioId: string; socioCodigo: string; socioNombre: string; asociado: any; motivo: string[] }> = [];
+
+            for (const socio of socios) {
+                if (!socio.asociados || socio.asociados.length === 0) {
+                    continue;
+                }
+
+                socio.asociados.forEach((asociado: any, asociadoIndex: number) => {
+                    const motivos: string[] = [];
+                    const tieneCodigo = asociado.codigo && 
+                        typeof asociado.codigo === 'string' && 
+                        asociado.codigo.trim() !== '';
+                    const tieneNombre = asociado.nombre && 
+                        typeof asociado.nombre === 'string' && 
+                        asociado.nombre.trim() !== '';
+
+                    if (!tieneCodigo) {
+                        motivos.push('Sin código válido');
+                    }
+                    if (!tieneNombre) {
+                        motivos.push('Sin nombre válido');
+                    }
+
+                    if (motivos.length > 0) {
+                        asociadosInvalidos.push({
+                            socioId: socio._id.toString(),
+                            socioCodigo: socio.socio || 'N/A',
+                            socioNombre: `${socio.nombre?.nombre || ''} ${socio.nombre?.primerApellido || ''}`.trim() || 'Sin nombre',
+                            asociado: {
+                                ...asociado,
+                                _originalIndex: asociadoIndex // Guardar el índice original para facilitar la actualización
+                            },
+                            motivo: motivos
+                        });
+                    }
+                });
+            }
+
+            this.logger.debug(`Encontrados ${asociadosInvalidos.length} asociados inválidos`);
+            return asociadosInvalidos;
+        } catch (error) {
+            this.logger.error(`Error obteniendo asociados inválidos: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async limpiarAsociadosInvalidos(idsToDelete?: Array<{ socioId: string; asociadoId?: string; asociadoCodigo?: string }>): Promise<{ sociosActualizados: number; asociadosEliminados: number }> {
+        try {
+            this.logger.debug('Iniciando limpieza de asociados inválidos');
+            
+            const socios = await this.socioModel.find({}).exec();
+            let sociosActualizados = 0;
+            let asociadosEliminados = 0;
+
+            for (const socio of socios) {
+                if (!socio.asociados || socio.asociados.length === 0) {
+                    continue;
+                }
+
+                let asociadosValidos: any[];
+                
+                if (idsToDelete && idsToDelete.length > 0) {
+                    // Si se proporciona una lista de IDs, eliminar solo esos
+                    const idsToDeleteForThisSocio = idsToDelete.filter(id => id.socioId === socio._id.toString());
+                    
+                    asociadosValidos = socio.asociados.filter((asociado: any) => {
+                        // Verificar si este asociado está en la lista de eliminación
+                        const debeEliminarse = idsToDeleteForThisSocio.some(id => 
+                            (id.asociadoCodigo && id.asociadoCodigo === asociado.codigo) ||
+                            (id.asociadoId && id.asociadoId === asociado._id?.toString())
+                        );
+                        
+                        // Si debe eliminarse, no incluirlo en válidos
+                        if (debeEliminarse) {
+                            return false;
+                        }
+                        
+                        // Si no debe eliminarse, verificar si es válido
+                        const tieneCodigo = asociado.codigo && 
+                            typeof asociado.codigo === 'string' && 
+                            asociado.codigo.trim() !== '';
+                        const tieneNombre = asociado.nombre && 
+                            typeof asociado.nombre === 'string' && 
+                            asociado.nombre.trim() !== '';
+                        return tieneCodigo && tieneNombre;
+                    });
+                } else {
+                    // Si no se proporciona lista, eliminar todos los inválidos (comportamiento original)
+                    asociadosValidos = socio.asociados.filter((asociado: any) => {
+                        const tieneCodigo = asociado.codigo && 
+                            typeof asociado.codigo === 'string' && 
+                            asociado.codigo.trim() !== '';
+                        const tieneNombre = asociado.nombre && 
+                            typeof asociado.nombre === 'string' && 
+                            asociado.nombre.trim() !== '';
+                        return tieneCodigo && tieneNombre;
+                    });
+                }
+
+                const asociadosEliminadosEnEsteSocio = socio.asociados.length - asociadosValidos.length;
+
+                if (asociadosEliminadosEnEsteSocio > 0) {
+                    // Actualizar el socio con solo los asociados válidos
+                    await this.socioModel.findByIdAndUpdate(
+                        socio._id,
+                        { $set: { asociados: asociadosValidos } },
+                        { new: true }
+                    ).exec();
+                    
+                    sociosActualizados++;
+                    asociadosEliminados += asociadosEliminadosEnEsteSocio;
+                    this.logger.debug(`Socio ${socio.socio}: eliminados ${asociadosEliminadosEnEsteSocio} asociados inválidos`);
+                }
+            }
+
+            this.logger.debug(`Limpieza completada: ${sociosActualizados} socios actualizados, ${asociadosEliminados} asociados eliminados`);
+            return { sociosActualizados, asociadosEliminados };
+        } catch (error) {
+            this.logger.error(`Error limpiando asociados inválidos: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async getProductosConsumidos(id: string) {
+        const socio = await this.socioModel.findById(id);
+        if (!socio) {
+            throw new NotFoundException(`Socio con ID ${id} no encontrado`);
+        }
+
+        // Buscar todas las ventas del socio por código
+        const ventas = await this.ventaModel.find({
+            codigoSocio: socio.socio
+        }).sort({ createdAt: -1 }).lean().exec();
+
+        // Agrupar productos por nombre
+        const productosMap = new Map<string, {
+            nombre: string;
+            categoria?: string;
+            totalUnidades: number;
+            totalImporte: number;
+            ventas: Array<{
+                fecha: Date;
+                unidades: number;
+                precioUnitario: number;
+                precioTotal: number;
+            }>;
+        }>();
+
+        ventas.forEach((venta: any) => {
+            venta.productos.forEach((producto: any) => {
+                const key = producto.nombre.toLowerCase();
+                if (!productosMap.has(key)) {
+                    productosMap.set(key, {
+                        nombre: producto.nombre,
+                        categoria: producto.categoria,
+                        totalUnidades: 0,
+                        totalImporte: 0,
+                        ventas: []
+                    });
+                }
+
+                const productoAgrupado = productosMap.get(key)!;
+                productoAgrupado.totalUnidades += producto.unidades || 0;
+                productoAgrupado.totalImporte += producto.precioTotal || 0;
+                productoAgrupado.ventas.push({
+                    fecha: venta.createdAt ? new Date(venta.createdAt) : new Date(),
+                    unidades: producto.unidades || 0,
+                    precioUnitario: producto.precioUnitario || 0,
+                    precioTotal: producto.precioTotal || 0
+                });
+            });
+        });
+
+        // Convertir map a array y ordenar por total de importe descendente
+        const productosConsumidos = Array.from(productosMap.values())
+            .sort((a, b) => b.totalImporte - a.totalImporte);
+
+        return {
+            socio: {
+                _id: socio._id,
+                codigo: socio.socio,
+                nombre: `${socio.nombre.nombre} ${socio.nombre.primerApellido} ${socio.nombre.segundoApellido || ''}`.trim()
+            },
+            totalVentas: ventas.length,
+            productosConsumidos,
+            resumen: {
+                totalProductosDiferentes: productosConsumidos.length,
+                totalUnidades: productosConsumidos.reduce((sum, p) => sum + p.totalUnidades, 0),
+                totalImporte: productosConsumidos.reduce((sum, p) => sum + p.totalImporte, 0)
+            }
+        };
     }
 } 

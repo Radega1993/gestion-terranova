@@ -89,6 +89,7 @@ interface ResumenDetalladoPDFProps {
         };
         total: number;
         pagado: number;
+        metodoPago?: string;
         estado: string;
         detalles: Array<{
             nombre: string;
@@ -96,6 +97,12 @@ interface ResumenDetalladoPDFProps {
             precio: number;
             total: number;
             categoria?: string;
+        }>;
+        pagos?: Array<{
+            fecha: string;
+            monto: number;
+            metodoPago: string;
+            observaciones?: string;
         }>;
     }>;
     fechaInicio: Date;

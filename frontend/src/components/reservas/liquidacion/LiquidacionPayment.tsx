@@ -16,16 +16,20 @@ interface LiquidacionPaymentProps {
     reserva: Reserva;
     montoAbonado: number;
     metodoPago: 'efectivo' | 'tarjeta' | '';
+    fianza: number;
     onMontoAbonadoChange: (monto: number) => void;
     onMetodoPagoChange: (metodo: 'efectivo' | 'tarjeta' | '') => void;
+    onFianzaChange: (fianza: number) => void;
 }
 
 export const LiquidacionPayment: React.FC<LiquidacionPaymentProps> = ({
     reserva,
     montoAbonado,
     metodoPago,
+    fianza,
     onMontoAbonadoChange,
     onMetodoPagoChange,
+    onFianzaChange,
 }) => {
     const montoPendiente = reserva.precio - (reserva.montoAbonado || 0);
 
@@ -89,6 +93,31 @@ export const LiquidacionPayment: React.FC<LiquidacionPaymentProps> = ({
                             <MenuItem value="tarjeta" sx={{ fontSize: '1.2rem', py: 1 }}>Tarjeta</MenuItem>
                         </Select>
                     </FormControl>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                    <TextField
+                        fullWidth
+                        type="number"
+                        label="Fianza"
+                        value={fianza}
+                        onChange={(e) => {
+                            const nuevaFianza = parseFloat(e.target.value) || 0;
+                            onFianzaChange(nuevaFianza);
+                        }}
+                        InputProps={{
+                            startAdornment: <Typography sx={{ mr: 1, fontSize: '1.1rem' }}>€</Typography>,
+                        }}
+                        helperText="Fianza de la reserva para control de caja"
+                        sx={{
+                            '& .MuiInputBase-input': {
+                                fontSize: '1.1rem',
+                                padding: '12px 14px'
+                            },
+                            '& .MuiInputLabel-root': {
+                                fontSize: '1.1rem'
+                            }
+                        }}
+                    />
                 </Grid>
             </Grid>
         </Paper>

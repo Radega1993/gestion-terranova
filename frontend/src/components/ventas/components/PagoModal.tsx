@@ -20,6 +20,8 @@ import { useAuthStore } from '../../../stores/authStore';
 import { API_BASE_URL } from '../../../config';
 import { CurrencyInput } from '../../../components/common/CurrencyInput';
 import { formatCurrency } from '../../../utils/formatters';
+import { TrabajadorSelector } from '../../../components/trabajadores/TrabajadorSelector';
+import { UserRole } from '../../../types/user';
 
 interface PagoModalProps {
     open: boolean;
@@ -36,15 +38,22 @@ export const PagoModal: React.FC<PagoModalProps> = ({
     cliente,
     onVentaCompletada
 }) => {
-    const { token } = useAuthStore();
+    const { token, userRole } = useAuthStore();
     const [pagado, setPagado] = useState<number>(0);
     const [observaciones, setObservaciones] = useState<string>('');
     const [error, setError] = useState<string>('');
     const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA'>('EFECTIVO');
+    const [trabajadorId, setTrabajadorId] = useState<string | null>(null);
 
-    const total = productos.reduce((sum, producto) => sum + producto.precioTotal, 0);
-    const pendiente = total - pagado;
-    const cambio = pagado > total ? pagado - total : 0;
+    // Redondear a 2 decimales para evitar problemas de precisión
+    const total = Number(productos.reduce((sum, producto) => sum + producto.precioTotal, 0).toFixed(2));
+    const pagadoRedondeado = Number(pagado.toFixed(2));
+    const pendiente = Number((total - pagadoRedondeado).toFixed(2));
+    const cambio = pagadoRedondeado > total ? Number((pagadoRedondeado - total).toFixed(2)) : 0;
+    
+    // Función helper para comparar números con precisión de 2 decimales
+    const esPagoCompleto = pagadoRedondeado >= total;
+    const esPagoParcial = pagadoRedondeado < total && pagadoRedondeado > 0;
 
     const handleSubmit = async () => {
         try {
@@ -53,12 +62,18 @@ export const PagoModal: React.FC<PagoModalProps> = ({
                 return;
             }
 
-            if (pagado < total && !observaciones.trim()) {
+            // Si el usuario es TIENDA, trabajadorId es obligatorio
+            if (userRole === UserRole.TIENDA && !trabajadorId) {
+                setError('Debe seleccionar un trabajador para realizar la venta');
+                return;
+            }
+
+            if (!esPagoCompleto && !observaciones.trim()) {
                 setError('Las observaciones son obligatorias para pagos parciales');
                 return;
             }
 
-            const ventaData = {
+            const ventaData: any = {
                 codigoSocio: cliente.codigo,
                 nombreSocio: cliente.nombreCompleto,
                 esSocio: cliente.tipo === 'Socio',
@@ -70,10 +85,15 @@ export const PagoModal: React.FC<PagoModalProps> = ({
                     precioTotal: p.precioTotal
                 })),
                 total,
-                pagado,
+                pagado: pagadoRedondeado,
                 metodoPago,
                 observaciones: observaciones.trim() || undefined
             };
+
+            // Añadir trabajadorId si el usuario es TIENDA
+            if (userRole === UserRole.TIENDA && trabajadorId) {
+                ventaData.trabajadorId = trabajadorId;
+            }
 
             const response = await fetch(`${API_BASE_URL}/ventas`, {
                 method: 'POST',
@@ -125,6 +145,20 @@ export const PagoModal: React.FC<PagoModalProps> = ({
                     </Typography>
                 </Paper>
 
+                {userRole === UserRole.TIENDA && (
+                    <Box sx={{ mb: 3 }}>
+                        <Typography variant="subtitle1" gutterBottom>
+                            Seleccionar Trabajador
+                        </Typography>
+                        <TrabajadorSelector
+                            value={trabajadorId || undefined}
+                            onChange={setTrabajadorId}
+                            required={true}
+                            variant="buttons"
+                        />
+                    </Box>
+                )}
+
                 <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
                         <FormControl fullWidth>
@@ -147,17 +181,24 @@ export const PagoModal: React.FC<PagoModalProps> = ({
                             onChange={setPagado}
                         />
                     </Grid>
-                    {pagado > total && (
+                    {cambio > 0 && (
                         <Grid item xs={12}>
                             <Typography color="success.main">
                                 Cambio: {formatCurrency(cambio)}€
                             </Typography>
                         </Grid>
                     )}
-                    {pagado < total && (
+                    {pendiente > 0 && (
                         <Grid item xs={12}>
                             <Typography color="error">
                                 Pendiente: {formatCurrency(pendiente)}€
+                            </Typography>
+                        </Grid>
+                    )}
+                    {esPagoCompleto && pendiente === 0 && (
+                        <Grid item xs={12}>
+                            <Typography color="success.main">
+                                Pago completo
                             </Typography>
                         </Grid>
                     )}
@@ -169,9 +210,9 @@ export const PagoModal: React.FC<PagoModalProps> = ({
                             rows={2}
                             value={observaciones}
                             onChange={(e) => setObservaciones(e.target.value)}
-                            error={pagado < total && !observaciones.trim()}
-                            helperText={pagado < total && !observaciones.trim() ? "Las observaciones son obligatorias para pagos parciales" : ""}
-                            required={pagado < total}
+                            error={!esPagoCompleto && !observaciones.trim()}
+                            helperText={!esPagoCompleto && !observaciones.trim() ? "Las observaciones son obligatorias para pagos parciales" : ""}
+                            required={!esPagoCompleto}
                         />
                     </Grid>
                 </Grid>
@@ -188,7 +229,7 @@ export const PagoModal: React.FC<PagoModalProps> = ({
                     onClick={handleSubmit}
                     variant="contained"
                     color="primary"
-                    disabled={pagado < total && !observaciones.trim()}
+                    disabled={!esPagoCompleto && !observaciones.trim()}
                 >
                     Confirmar Venta
                 </Button>

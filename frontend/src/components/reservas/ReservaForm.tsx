@@ -24,6 +24,9 @@ import { es } from 'date-fns/locale';
 import { Reserva, Servicio, Suplemento, FormData } from './types';
 import { CurrencyInput } from '../common/CurrencyInput';
 import { formatCurrency } from '../../utils/formatters';
+import { TrabajadorSelector } from '../trabajadores/TrabajadorSelector';
+import { useAuthStore } from '../../stores/authStore';
+import { UserRole } from '../../types/user';
 
 interface ReservaFormProps {
     open: boolean;
@@ -48,8 +51,17 @@ export const ReservaForm: React.FC<ReservaFormProps> = ({
     suplementosList,
     selectedReserva,
 }) => {
+    const { userRole } = useAuthStore();
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Validar trabajador si es TIENDA
+        if (userRole === UserRole.TIENDA && !formData.trabajadorId) {
+            alert('Debe seleccionar un trabajador para realizar la reserva');
+            return;
+        }
+        
         onSubmit(formData);
     };
 
@@ -181,6 +193,17 @@ export const ReservaForm: React.FC<ReservaFormProps> = ({
                             </FormControl>
                         </Grid>
 
+                        {userRole === UserRole.TIENDA && (
+                            <Grid item xs={12}>
+                                <TrabajadorSelector
+                                    value={formData.trabajadorId}
+                                    onChange={(id) => setFormData({ ...formData, trabajadorId: id || undefined })}
+                                    required={true}
+                                    variant="select"
+                                />
+                            </Grid>
+                        )}
+
                         <Grid item xs={12}>
                             <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.100' }}>
                                 <Typography variant="subtitle1" gutterBottom>
@@ -256,6 +279,40 @@ export const ReservaForm: React.FC<ReservaFormProps> = ({
 
                         <Grid item xs={12}>
                             {renderResumenPrecio()}
+                        </Grid>
+
+                        {/* Normativa y Firma */}
+                        <Grid item xs={12}>
+                            <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.100' }}>
+                                <Typography variant="subtitle1" gutterBottom>
+                                    Normativa y Aceptación
+                                </Typography>
+                                <FormControlLabel
+                                    control={
+                                        <Checkbox
+                                            checked={formData.normativaAceptada || false}
+                                            onChange={(e) => setFormData({ ...formData, normativaAceptada: e.target.checked })}
+                                        />
+                                    }
+                                    label="Acepto la normativa de uso de las instalaciones"
+                                />
+                                {formData.normativaAceptada && (
+                                    <Box sx={{ mt: 2 }}>
+                                        <Typography variant="body2" gutterBottom>
+                                            Firma del Socio (opcional)
+                                        </Typography>
+                                        <TextField
+                                            fullWidth
+                                            multiline
+                                            rows={3}
+                                            placeholder="Puede pegar aquí una imagen en base64 o URL de la firma"
+                                            value={formData.firmaSocio || ''}
+                                            onChange={(e) => setFormData({ ...formData, firmaSocio: e.target.value })}
+                                            helperText="Opcional: Puede añadir la firma del socio en formato base64 o URL"
+                                        />
+                                    </Box>
+                                )}
+                            </Paper>
                         </Grid>
                     </Grid>
                 </Box>

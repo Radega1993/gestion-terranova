@@ -41,7 +41,8 @@ export const LiquidacionDialog: React.FC<LiquidacionDialogProps> = ({
         suplementos: reserva.suplementos,
         montoAbonado: 0,
         metodoPago: '' as 'efectivo' | 'tarjeta' | '',
-        observaciones: ''
+        observaciones: '',
+        fianza: 0
     });
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -78,6 +79,7 @@ export const LiquidacionDialog: React.FC<LiquidacionDialogProps> = ({
                         }
                     ],
                     observaciones: liquidacionData.observaciones,
+                    fianza: liquidacionData.fianza,
                     estado: 'COMPLETADA'
                 }
             };
@@ -161,8 +163,10 @@ export const LiquidacionDialog: React.FC<LiquidacionDialogProps> = ({
                         reserva={reserva}
                         montoAbonado={liquidacionData.montoAbonado}
                         metodoPago={liquidacionData.metodoPago}
+                        fianza={liquidacionData.fianza}
                         onMontoAbonadoChange={(monto) => setLiquidacionData(prev => ({ ...prev, montoAbonado: monto }))}
                         onMetodoPagoChange={(metodo) => setLiquidacionData(prev => ({ ...prev, metodoPago: metodo }))}
+                        onFianzaChange={(fianza) => setLiquidacionData(prev => ({ ...prev, fianza }))}
                     />
 
                     <LiquidacionSuplementos

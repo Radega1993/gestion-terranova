@@ -23,6 +23,9 @@ export class User {
     @Prop({ required: true, enum: UserRole, default: UserRole.TRABAJADOR })
     role: UserRole;
 
+    @Prop({ type: Types.ObjectId, ref: 'Tienda' })
+    tienda?: Types.ObjectId;  // Tienda asignada (solo para usuarios TIENDA)
+
     @Prop({ required: true, default: true })
     isActive: boolean;
 

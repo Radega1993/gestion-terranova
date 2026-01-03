@@ -13,21 +13,26 @@ const Dashboard: React.FC = () => {
             title: 'Deudas',
             path: '/deudas',
             description: 'Gestión de deudas',
-            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]
+            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]
         },
         {
             title: 'Reservas',
             path: '/reservas',
             description: 'Gestión de reservas de instalaciones',
-            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]
+            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]
         },
-        { title: 'Ventas', path: '/ventas', description: 'Gestión de ventas' },
+        { 
+            title: 'Ventas', 
+            path: '/ventas', 
+            description: 'Gestión de ventas',
+            roles: [UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA, UserRole.TIENDA]
+        },
         { title: 'Socios', path: '/socios', description: 'Gestión de socios' },
         {
             title: 'Inventario',
             path: '/inventory',
             description: 'Gestión de inventario',
-            roles: [UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA]
+            roles: [UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA, UserRole.TIENDA]
         },
         {
             title: 'Usuarios',
@@ -39,13 +44,25 @@ const Dashboard: React.FC = () => {
             title: 'Recaudaciones',
             path: '/recaudaciones',
             description: 'Gestión de recaudaciones',
-            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]
+            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]
         },
         {
             title: 'Invitaciones',
             path: '/invitaciones',
             description: 'Gestión de invitaciones de socios',
-            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]
+            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]
+        },
+        {
+            title: 'Tiendas',
+            path: '/tiendas',
+            description: 'Gestión de tiendas',
+            roles: [UserRole.ADMINISTRADOR]
+        },
+        {
+            title: 'Devoluciones',
+            path: '/devoluciones',
+            description: 'Gestión de devoluciones de productos',
+            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]
         },
     ];
 

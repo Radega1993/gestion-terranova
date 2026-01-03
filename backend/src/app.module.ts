@@ -11,6 +11,9 @@ import { VentasModule } from './modules/ventas/ventas.module';
 import { ReservasModule } from './modules/reservas/reservas.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { InvitacionesModule } from './modules/invitaciones/invitaciones.module';
+import { TrabajadoresModule } from './modules/trabajadores/trabajadores.module';
+import { TiendasModule } from './modules/tiendas/tiendas.module';
+import { DevolucionesModule } from './modules/devoluciones/devoluciones.module';
 import { UserRole } from './modules/users/types/user-roles.enum';
 
 @Module({
@@ -24,7 +27,10 @@ import { UserRole } from './modules/users/types/user-roles.enum';
         VentasModule,
         ReservasModule,
         UploadsModule,
-        InvitacionesModule
+        InvitacionesModule,
+        TrabajadoresModule,
+        TiendasModule,
+        DevolucionesModule
     ],
     controllers: [AppController],
     providers: [AppService],

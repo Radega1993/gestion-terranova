@@ -6,7 +6,9 @@ import { Venta, VentaSchema } from './schemas/venta.schema';
 import { Product, ProductSchema } from '../inventory/schemas/product.schema';
 import { Reserva, ReservaSchema } from '../reservas/schemas/reserva.schema';
 import { Socio, SocioSchema } from '../socios/schemas/socio.schema';
+import { Trabajador, TrabajadorSchema } from '../users/schemas/trabajador.schema';
 import { ReservasModule } from '../reservas/reservas.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
     imports: [
@@ -14,9 +16,11 @@ import { ReservasModule } from '../reservas/reservas.module';
             { name: Venta.name, schema: VentaSchema },
             { name: Product.name, schema: ProductSchema },
             { name: Reserva.name, schema: ReservaSchema },
-            { name: Socio.name, schema: SocioSchema }
+            { name: Socio.name, schema: SocioSchema },
+            { name: Trabajador.name, schema: TrabajadorSchema }
         ]),
-        ReservasModule
+        ReservasModule,
+        UsersModule
     ],
     controllers: [VentasController],
     providers: [VentasService],

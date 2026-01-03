@@ -81,6 +81,7 @@ interface ResumenGeneralPDFProps {
         };
         total: number;
         pagado: number;
+        metodoPago?: string;
         estado: string;
         detalles: Array<{
             nombre: string;
@@ -88,6 +89,12 @@ interface ResumenGeneralPDFProps {
             precio: number;
             total: number;
             categoria?: string;
+        }>;
+        pagos?: Array<{
+            fecha: string;
+            monto: number;
+            metodoPago: string;
+            observaciones?: string;
         }>;
     }>;
     fechaInicio: Date;
@@ -176,7 +183,19 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
         return acc;
     }, { total: 0, categorias: {} });
 
+    // Calcular totales por método de pago
+    const totalesPorMetodoPago = ventas.reduce((acc: { efectivo: number; tarjeta: number }, venta) => {
+        const metodoPago = venta.metodoPago || (venta.pagos && venta.pagos.length > 0 ? venta.pagos[0].metodoPago : '');
+        if (metodoPago === 'EFECTIVO' || metodoPago === 'efectivo') {
+            acc.efectivo += venta.pagado;
+        } else if (metodoPago === 'TARJETA' || metodoPago === 'tarjeta') {
+            acc.tarjeta += venta.pagado;
+        }
+        return acc;
+    }, { efectivo: 0, tarjeta: 0 });
+
     console.log('Totales generales:', totalesGenerales);
+    console.log('Totales por método de pago:', totalesPorMetodoPago);
 
     return (
         <PDFViewer style={{ width: '100%', height: '100%', border: 'none' }}>
@@ -223,6 +242,23 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                         <View style={styles.totalRow}>
                             <Text style={styles.label}>Total General:</Text>
                             <Text style={styles.value}>{totalesGenerales.total.toFixed(2)}€</Text>
+                        </View>
+                    </View>
+
+                    {/* Totales por Método de Pago */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Totales por Método de Pago</Text>
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Total Efectivo:</Text>
+                            <Text style={styles.value}>{totalesPorMetodoPago.efectivo.toFixed(2)}€</Text>
+                        </View>
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Total Tarjeta:</Text>
+                            <Text style={styles.value}>{totalesPorMetodoPago.tarjeta.toFixed(2)}€</Text>
+                        </View>
+                        <View style={styles.totalRow}>
+                            <Text style={styles.label}>Total:</Text>
+                            <Text style={styles.value}>{(totalesPorMetodoPago.efectivo + totalesPorMetodoPago.tarjeta).toFixed(2)}€</Text>
                         </View>
                     </View>
 

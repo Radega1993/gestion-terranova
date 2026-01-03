@@ -17,7 +17,7 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
     const [inputValue, setInputValue] = useState<string>('');
 
     const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const newValue = event.target.value;
+        let newValue = event.target.value;
 
         // Si el input está vacío, permitir que se limpie
         if (!newValue) {
@@ -26,21 +26,27 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
             return;
         }
 
-        // Solo permitir números y un punto decimal
-        if (!/^\d*\.?\d*$/.test(newValue)) {
+        // Normalizar: convertir coma a punto para procesamiento interno
+        // Pero mantener la coma visualmente si el usuario la escribió
+        const hasComma = newValue.includes(',');
+        const normalizedValue = newValue.replace(',', '.');
+
+        // Solo permitir números y un separador decimal (punto o coma)
+        if (!/^\d*[,.]?\d*$/.test(newValue)) {
             return;
         }
 
         // Limitar a 2 decimales
-        const parts = newValue.split('.');
-        if (parts.length > 1 && parts[1].length > 2) {
+        const parts = normalizedValue.split('.');
+        if (parts.length > 1 && parts[1].length > decimals) {
             return;
         }
 
+        // Mantener la coma si el usuario la escribió, pero procesar con punto
         setInputValue(newValue);
 
-        // Convertir a número solo si es un valor válido
-        const numericValue = parseFloat(newValue);
+        // Convertir a número usando el valor normalizado
+        const numericValue = parseFloat(normalizedValue);
         if (!isNaN(numericValue)) {
             onChange(numericValue);
         }

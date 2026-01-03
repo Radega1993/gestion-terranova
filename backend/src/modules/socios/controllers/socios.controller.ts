@@ -39,7 +39,7 @@ export class SociosController {
     }
 
     @Get('simplified')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async getSimplifiedList() {
         this.logger.debug('Fetching simplified list of socios and asociados');
         return this.sociosService.getSimplifiedList();
@@ -477,6 +477,18 @@ export class SociosController {
         res.end();
     }
 
+    @Get('asociados-invalidos')
+    @Roles(UserRole.ADMINISTRADOR)
+    async getAsociadosInvalidos() {
+        try {
+            const asociadosInvalidos = await this.sociosService.getAsociadosInvalidos();
+            return asociadosInvalidos;
+        } catch (error) {
+            this.logger.error(`Error obteniendo asociados inválidos: ${error.message}`);
+            throw error;
+        }
+    }
+
     @Get(':id')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async findOne(@Param('id') id: string) {
@@ -564,6 +576,18 @@ export class SociosController {
         return this.sociosService.updateAsociado(id, asociadoId, updateMiembroDto);
     }
 
+    @Put(':id/asociados-index/:asociadoIndex')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    async updateAsociadoByIndex(
+        @Param('id') id: string,
+        @Param('asociadoIndex') asociadoIndex: string,
+        @Body() updateMiembroDto: UpdateAsociadoDto & { codigo?: string }
+    ) {
+        this.logger.debug('Controlador: Iniciando actualización de asociado por índice');
+        this.logger.debug(`Controlador: Datos recibidos: ${JSON.stringify(updateMiembroDto)}`);
+        return this.sociosService.updateAsociadoByIndex(id, parseInt(asociadoIndex, 10), updateMiembroDto);
+    }
+
     @Delete(':id/asociados/:asociadoId')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     async removeAsociado(
@@ -581,5 +605,27 @@ export class SociosController {
         @Body() asociados: Asociado[]
     ) {
         return this.sociosService.updateAsociados(id, asociados);
+    }
+
+    @Get(':id/productos-consumidos')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
+    async getProductosConsumidos(@Param('id') id: string) {
+        this.logger.debug(`Fetching productos consumidos for socio with ID: ${id}`);
+        return this.sociosService.getProductosConsumidos(id);
+    }
+
+    @Post('limpiar-asociados-invalidos')
+    @Roles(UserRole.ADMINISTRADOR)
+    async limpiarAsociadosInvalidos(@Body() body?: { idsToDelete?: Array<{ socioId: string; asociadoId?: string; asociadoCodigo?: string }> }) {
+        try {
+            const resultado = await this.sociosService.limpiarAsociadosInvalidos(body?.idsToDelete);
+            return {
+                message: `Limpieza completada: ${resultado.sociosActualizados} socios actualizados, ${resultado.asociadosEliminados} asociados inválidos eliminados`,
+                ...resultado
+            };
+        } catch (error) {
+            this.logger.error(`Error en limpieza de asociados: ${error.message}`);
+            throw error;
+        }
     }
 } 

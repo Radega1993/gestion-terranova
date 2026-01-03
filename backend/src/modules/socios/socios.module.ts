@@ -3,12 +3,14 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { SociosController } from './controllers/socios.controller';
 import { SociosService } from './services/socios.service';
 import { Socio, SocioSchema } from './schemas/socio.schema';
+import { Venta, VentaSchema } from '../ventas/schemas/venta.schema';
 import { UploadsModule } from '../uploads/uploads.module';
 
 @Module({
     imports: [
         MongooseModule.forFeature([
-            { name: Socio.name, schema: SocioSchema }
+            { name: Socio.name, schema: SocioSchema },
+            { name: Venta.name, schema: VentaSchema }
         ]),
         UploadsModule
     ],

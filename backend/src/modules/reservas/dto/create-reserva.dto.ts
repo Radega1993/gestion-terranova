@@ -48,4 +48,15 @@ export class CreateReservaDto {
     @IsEnum(EstadoReserva)
     @IsOptional()
     estado?: EstadoReserva;
+
+    @IsString()
+    @IsOptional()
+    trabajadorId?: string;  // Trabajador asignado (obligatorio si usuario es TIENDA)
+
+    @IsOptional()
+    normativaAceptada?: boolean;
+
+    @IsString()
+    @IsOptional()
+    firmaSocio?: string; // Base64 o URL de imagen de la firma
 } 

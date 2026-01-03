@@ -6,13 +6,17 @@ import { CreateReservaDto } from '../dto/create-reserva.dto';
 import { UpdateReservaDto } from '../dto/update-reserva.dto';
 import { LiquidarReservaDto } from '../dto/liquidar-reserva.dto';
 import { CancelarReservaDto } from '../dto/cancelar-reserva.dto';
+import { Trabajador } from '../../users/schemas/trabajador.schema';
+import { UsersService } from '../../users/users.service';
 
 @Injectable()
 export class ReservasService {
     private readonly logger = new Logger(ReservasService.name);
 
     constructor(
-        @InjectModel(Reserva.name) private reservaModel: Model<Reserva>
+        @InjectModel(Reserva.name) private reservaModel: Model<Reserva>,
+        @InjectModel(Trabajador.name) private trabajadorModel: Model<Trabajador>,
+        private usersService: UsersService
     ) { }
 
     private validateReservationDate(fecha: Date): void {
@@ -29,16 +33,50 @@ export class ReservasService {
         }
     }
 
-    async create(createReservaDto: CreateReservaDto, usuarioId: string): Promise<Reserva> {
+    async create(createReservaDto: CreateReservaDto, usuarioId: string, userRole: string): Promise<Reserva> {
         try {
             // Validar la fecha de la reserva
             this.validateReservationDate(new Date(createReservaDto.fecha));
 
-            const reserva = new this.reservaModel({
+            // NUEVO: Si el usuario es TIENDA, trabajadorId es OBLIGATORIO
+            let trabajadorId = null;
+            if (userRole === 'TIENDA') {
+                if (!createReservaDto.trabajadorId) {
+                    throw new BadRequestException('Debe seleccionar un trabajador para realizar la reserva');
+                }
+                
+                // Obtener la tienda del usuario
+                const user = await this.usersService.findOne(usuarioId);
+                if (!user.tienda) {
+                    throw new BadRequestException('No tiene una tienda asignada');
+                }
+                
+                // Validar que el trabajador pertenece a la tienda del usuario y está activo
+                const trabajador = await this.trabajadorModel.findOne({
+                    _id: createReservaDto.trabajadorId,
+                    tienda: user.tienda,
+                    activo: true
+                }).exec();
+                
+                if (!trabajador) {
+                    throw new BadRequestException('Trabajador no válido o no pertenece a esta tienda');
+                }
+                
+                trabajadorId = createReservaDto.trabajadorId;
+            }
+
+            const reservaData: any = {
                 ...createReservaDto,
                 usuarioCreacion: usuarioId,
                 estado: createReservaDto.estado || 'PENDIENTE'
-            });
+            };
+
+            // Añadir trabajador si existe
+            if (trabajadorId) {
+                reservaData.trabajador = trabajadorId;
+            }
+
+            const reserva = new this.reservaModel(reservaData);
             return await reserva.save();
         } catch (error) {
             this.logger.error('Error al crear reserva:', error);
@@ -54,6 +92,8 @@ export class ReservasService {
             this.logger.debug('Iniciando búsqueda de todas las reservas');
             const reservas = await this.reservaModel.find()
                 .populate('socio', 'nombre')
+                .populate('trabajador', 'nombre identificador')
+                .populate('usuarioCreacion', 'username nombre')
                 .exec();
             this.logger.debug(`Encontradas ${reservas.length} reservas`);
             return reservas;
@@ -67,6 +107,8 @@ export class ReservasService {
         try {
             const reserva = await this.reservaModel.findById(id)
                 .populate('socio', 'nombre')
+                .populate('trabajador', 'nombre identificador')
+                .populate('usuarioCreacion', 'username nombre')
                 .exec();
 
             if (!reserva) {
@@ -109,6 +151,8 @@ export class ReservasService {
                 { new: true }
             )
                 .populate('socio', 'nombre')
+                .populate('trabajador', 'nombre identificador')
+                .populate('usuarioCreacion', 'username nombre')
                 .exec();
 
             return reservaActualizada;
@@ -169,11 +213,14 @@ export class ReservasService {
                     montoAbonado: montoTotalAbonado,
                     metodoPago: liquidarReservaDto.pagos[liquidarReservaDto.pagos.length - 1].metodoPago,
                     observaciones: liquidarReservaDto.observaciones,
-                    suplementos: liquidarReservaDto.suplementos
+                    suplementos: liquidarReservaDto.suplementos,
+                    fianza: liquidarReservaDto.fianza || 0
                 },
                 { new: true }
             )
                 .populate('socio', 'nombre')
+                .populate('trabajador', 'nombre identificador')
+                .populate('usuarioCreacion', 'username nombre')
                 .populate('suplementos.suplemento', 'nombre')
                 .exec();
 
@@ -203,19 +250,38 @@ export class ReservasService {
                 throw new BadRequestException('No se puede cancelar una reserva liquidada');
             }
 
+            // Calcular el importe pendiente
+            const montoAbonado = reserva.montoAbonado || 0;
+            const importePendiente = reserva.precio - montoAbonado;
+
+            // Si se especifica un monto devuelto en el DTO, usarlo; si no, usar el importe pendiente
+            const montoDevuelto = cancelarReservaDto.montoDevuelto !== undefined 
+                ? cancelarReservaDto.montoDevuelto 
+                : importePendiente;
+
+            // Actualizar la reserva: quitar el importe pendiente y marcar devolución
             const reservaCancelada = await this.reservaModel.findByIdAndUpdate(
                 id,
                 {
                     estado: EstadoReserva.CANCELADA,
+                    fechaCancelacion: new Date(),
+                    motivoCancelacion: cancelarReservaDto.motivo,
                     observaciones: cancelarReservaDto.observaciones,
+                    montoDevuelto: montoDevuelto,
+                    montoAbonado: 0, // Quitar el importe pendiente (poner abonado a 0)
+                    pendienteRevisionJunta: cancelarReservaDto.pendienteRevisionJunta || false,
                     usuarioActualizacion: usuarioId
                 },
                 { new: true }
             )
                 .populate('socio', 'nombre')
+                .populate('trabajador', 'nombre identificador')
+                .populate('usuarioCreacion', 'username nombre')
                 .populate('servicios.servicio', 'nombre')
                 .populate('suplementos.suplemento', 'nombre')
                 .exec();
+
+            this.logger.log(`Reserva ${id} cancelada. Importe pendiente: ${importePendiente}€, Monto devuelto: ${montoDevuelto}€`);
 
             return reservaCancelada;
         } catch (error) {
@@ -231,6 +297,8 @@ export class ReservasService {
         try {
             return await this.reservaModel.find({ socio: usuarioId })
                 .populate('socio', 'nombre')
+                .populate('trabajador', 'nombre identificador')
+                .populate('usuarioCreacion', 'username nombre')
                 .exec();
         } catch (error) {
             this.logger.error(`Error al buscar reservas para el usuario ${usuarioId}:`, error);
@@ -257,6 +325,8 @@ export class ReservasService {
                 }
             })
                 .populate('socio', 'nombre')
+                .populate('trabajador', 'nombre identificador')
+                .populate('usuarioCreacion', 'username nombre')
                 .exec();
 
             this.logger.debug(`Encontradas ${reservas.length} reservas para la fecha ${fecha.toISOString()}`);

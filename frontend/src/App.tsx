@@ -19,6 +19,8 @@ import { ReservasList } from './components/reservas/ReservasList';
 import { DeudasList } from './components/deudas/DeudasList';
 import RecaudacionesList from './components/recaudaciones/RecaudacionesList';
 import InvitacionesList from './components/invitaciones/InvitacionesList';
+import TiendasList from './components/tiendas/TiendasList';
+import { DevolucionesList } from './components/devoluciones/DevolucionesList';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -67,7 +69,7 @@ function App() {
                 <Route
                   path="/deudas"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]}>
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]}>
                       <DeudasList />
                     </ProtectedRoute>
                   }
@@ -75,7 +77,7 @@ function App() {
                 <Route
                   path="/reservas"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]}>
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]}>
                       <ReservasList />
                     </ProtectedRoute>
                   }
@@ -83,7 +85,7 @@ function App() {
                 <Route
                   path="/ventas"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA]}>
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA, UserRole.TIENDA]}>
                       <VentasList />
                     </ProtectedRoute>
                   }
@@ -91,7 +93,7 @@ function App() {
                 <Route
                   path="/inventory"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA]}>
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA, UserRole.TIENDA]}>
                       <InventoryView />
                     </ProtectedRoute>
                   }
@@ -99,7 +101,7 @@ function App() {
                 <Route
                   path="/recaudaciones"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]}>
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]}>
                       <RecaudacionesList />
                     </ProtectedRoute>
                   }
@@ -107,8 +109,24 @@ function App() {
                 <Route
                   path="/invitaciones"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]}>
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]}>
                       <InvitacionesList />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/tiendas"
+                  element={
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR]}>
+                      <TiendasList />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/devoluciones"
+                  element={
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]}>
+                      <DevolucionesList />
                     </ProtectedRoute>
                   }
                 />

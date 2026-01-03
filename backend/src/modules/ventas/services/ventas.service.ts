@@ -11,6 +11,8 @@ import { User } from '../../users/schemas/user.schema';
 import { Socio } from '../../socios/schemas/socio.schema';
 import { Servicio } from '../../reservas/schemas/servicio.schema';
 import { RecaudacionesFiltrosDto } from '../dto/recaudaciones-filtros.dto';
+import { Trabajador } from '../../users/schemas/trabajador.schema';
+import { UsersService } from '../../users/users.service';
 
 interface PopulatedReserva extends Omit<Reserva, 'socio' | 'usuarioCreacion' | 'usuarioActualizacion' | 'confirmadoPor'> {
     _id: Types.ObjectId;
@@ -29,11 +31,16 @@ interface PopulatedReserva extends Omit<Reserva, 'socio' | 'usuarioCreacion' | '
     };
 }
 
-interface PopulatedVenta extends Omit<Venta, 'usuario' | 'productos'> {
+interface PopulatedVenta extends Omit<Venta, 'usuario' | 'productos' | 'trabajador'> {
     _id: Types.ObjectId;
     usuario: {
         _id: Types.ObjectId;
         username: string;
+    };
+    trabajador?: {
+        _id: Types.ObjectId;
+        nombre: string;
+        identificador: string;
     };
     createdAt: Date;
     productos: Array<{
@@ -54,7 +61,9 @@ export class VentasService {
         @InjectModel(Venta.name) private ventaModel: Model<Venta>,
         @InjectModel(Product.name) private productModel: Model<Product>,
         @InjectModel(Reserva.name) private reservaModel: Model<Reserva>,
-        @InjectModel(Socio.name) private socioModel: Model<Socio>
+        @InjectModel(Socio.name) private socioModel: Model<Socio>,
+        @InjectModel(Trabajador.name) private trabajadorModel: Model<Trabajador>,
+        private usersService: UsersService
     ) { }
 
     private buildDateFilter(filters: VentaFiltersDto) {
@@ -73,42 +82,78 @@ export class VentasService {
 
     async findAll(filters: VentaFiltersDto): Promise<Venta[]> {
         const dateFilter = this.buildDateFilter(filters);
-        return this.ventaModel.find(dateFilter)
+        const query: any = { ...dateFilter };
+        
+        // Filtro por trabajador
+        if (filters.trabajadorId) {
+            query.trabajador = filters.trabajadorId;
+        }
+        
+        return this.ventaModel.find(query)
+            .populate('trabajador', 'nombre identificador')
+            .populate('usuario', 'username nombre')
             .sort({ createdAt: -1 })
             .exec();
     }
 
     async findByCliente(codigoCliente: string, filters: VentaFiltersDto): Promise<Venta[]> {
         const dateFilter = this.buildDateFilter(filters);
-        return this.ventaModel.find({
+        const query: any = {
             codigoSocio: codigoCliente,
             ...dateFilter
-        })
+        };
+        
+        // Filtro por trabajador
+        if (filters.trabajadorId) {
+            query.trabajador = filters.trabajadorId;
+        }
+        
+        return this.ventaModel.find(query)
+            .populate('trabajador', 'nombre identificador')
+            .populate('usuario', 'username nombre')
             .sort({ createdAt: -1 })
             .exec();
     }
 
     async findByUsuario(userId: string, filters: VentaFiltersDto): Promise<Venta[]> {
         const dateFilter = this.buildDateFilter(filters);
-        return this.ventaModel.find({
+        const query: any = {
             usuario: userId,
             ...dateFilter
-        })
+        };
+        
+        // Filtro por trabajador
+        if (filters.trabajadorId) {
+            query.trabajador = filters.trabajadorId;
+        }
+        
+        return this.ventaModel.find(query)
+            .populate('trabajador', 'nombre identificador')
+            .populate('usuario', 'username nombre')
             .sort({ createdAt: -1 })
             .exec();
     }
 
     async findPendientes(filters: VentaFiltersDto): Promise<Venta[]> {
         const dateFilter = this.buildDateFilter(filters);
-        return this.ventaModel.find({
+        const query: any = {
             estado: { $in: ['PENDIENTE', 'PAGADO_PARCIAL'] },
             ...dateFilter
-        })
+        };
+        
+        // Filtro por trabajador
+        if (filters.trabajadorId) {
+            query.trabajador = filters.trabajadorId;
+        }
+        
+        return this.ventaModel.find(query)
+            .populate('trabajador', 'nombre identificador')
+            .populate('usuario', 'username nombre')
             .sort({ createdAt: -1 })
             .exec();
     }
 
-    async create(createVentaDto: CreateVentaDto, userId: string): Promise<Venta> {
+    async create(createVentaDto: CreateVentaDto, userId: string, userRole: string): Promise<Venta> {
         try {
             // Validar que haya observaciones si el pago es parcial
             if (createVentaDto.pagado < createVentaDto.total && !createVentaDto.observaciones) {
@@ -126,6 +171,33 @@ export class VentasService {
                 estado = 'PAGADO';
             } else if (createVentaDto.pagado > 0) {
                 estado = 'PAGADO_PARCIAL';
+            }
+
+            // NUEVO: Si el usuario es TIENDA, trabajadorId es OBLIGATORIO
+            let trabajadorId = null;
+            if (userRole === 'TIENDA') {
+                if (!createVentaDto.trabajadorId) {
+                    throw new BadRequestException('Debe seleccionar un trabajador para realizar la venta');
+                }
+                
+                // Obtener la tienda del usuario
+                const user = await this.usersService.findOne(userId);
+                if (!user.tienda) {
+                    throw new BadRequestException('No tiene una tienda asignada');
+                }
+                
+                // Validar que el trabajador pertenece a la tienda del usuario y está activo
+                const trabajador = await this.trabajadorModel.findOne({
+                    _id: createVentaDto.trabajadorId,
+                    tienda: user.tienda,
+                    activo: true
+                }).exec();
+                
+                if (!trabajador) {
+                    throw new BadRequestException('Trabajador no válido o no pertenece a esta tienda');
+                }
+                
+                trabajadorId = createVentaDto.trabajadorId;
             }
 
             // Actualizar el stock de los productos y obtener sus categorías
@@ -153,12 +225,19 @@ export class VentasService {
                 })
             );
 
-            const venta = new this.ventaModel({
+            const ventaData: any = {
                 ...createVentaDto,
                 productos: productosConCategoria,
                 usuario: userId,
                 estado
-            });
+            };
+
+            // Añadir trabajador si existe
+            if (trabajadorId) {
+                ventaData.trabajador = trabajadorId;
+            }
+
+            const venta = new this.ventaModel(ventaData);
 
             const savedVenta = await venta.save();
             this.logger.log(`Venta creada con ID: ${savedVenta._id}`);
@@ -241,8 +320,39 @@ export class VentasService {
         if (filtros.codigoSocio) {
             filtroVentas.codigoSocio = filtros.codigoSocio;
         }
+
+        // Construir filtros de usuario y trabajador
+        const condicionesUsuarioTrabajador: any[] = [];
+        
         if (filtros.usuario) {
-            filtroVentas.usuario = new Types.ObjectId(filtros.usuario);
+            const usuarioIds = Array.isArray(filtros.usuario) ? filtros.usuario : [filtros.usuario];
+            const usuarioObjectIds = usuarioIds.map(id => new Types.ObjectId(id));
+            if (usuarioObjectIds.length === 1) {
+                condicionesUsuarioTrabajador.push({ usuario: usuarioObjectIds[0] });
+            } else if (usuarioObjectIds.length > 1) {
+                condicionesUsuarioTrabajador.push({ usuario: { $in: usuarioObjectIds } });
+            }
+        }
+        
+        if (filtros.trabajadorId) {
+            const trabajadorIds = Array.isArray(filtros.trabajadorId) ? filtros.trabajadorId : [filtros.trabajadorId];
+            const trabajadorObjectIds = trabajadorIds.map(id => new Types.ObjectId(id));
+            if (trabajadorObjectIds.length === 1) {
+                condicionesUsuarioTrabajador.push({ trabajador: trabajadorObjectIds[0] });
+            } else if (trabajadorObjectIds.length > 1) {
+                condicionesUsuarioTrabajador.push({ trabajador: { $in: trabajadorObjectIds } });
+            }
+        }
+
+        // Si hay condiciones de usuario o trabajador, usar $or para buscar cualquiera de ellos
+        if (condicionesUsuarioTrabajador.length > 0) {
+            if (condicionesUsuarioTrabajador.length === 1) {
+                // Solo una condición, aplicarla directamente
+                Object.assign(filtroVentas, condicionesUsuarioTrabajador[0]);
+            } else {
+                // Múltiples condiciones, usar $or
+                filtroVentas.$or = condicionesUsuarioTrabajador;
+            }
         }
 
         // Construir el filtro base para reservas
@@ -256,7 +366,12 @@ export class VentasService {
             };
         }
         if (filtros.usuario) {
-            filtroReservas.usuarioCreacion = new Types.ObjectId(filtros.usuario);
+            const usuarioIds = Array.isArray(filtros.usuario) ? filtros.usuario : [filtros.usuario];
+            if (usuarioIds.length === 1) {
+                filtroReservas.usuarioCreacion = new Types.ObjectId(usuarioIds[0]);
+            } else if (usuarioIds.length > 1) {
+                filtroReservas.usuarioCreacion = { $in: usuarioIds.map(id => new Types.ObjectId(id)) };
+            }
         }
 
         console.log('Filtro ventas:', JSON.stringify(filtroVentas, null, 2));
@@ -266,6 +381,7 @@ export class VentasService {
         const ventas = await this.ventaModel
             .find(filtroVentas)
             .populate('usuario', 'username')
+            .populate('trabajador', 'nombre identificador')
             .lean()
             .exec() as unknown as PopulatedVenta[];
 
@@ -334,6 +450,8 @@ export class VentasService {
                 },
                 total: reserva.precio,
                 pagado: reserva.montoAbonado,
+                fianza: reserva.fianza || 0,
+                metodoPago: reserva.metodoPago,
                 estado: reserva.estado,
                 detalles: [{
                     nombre: reserva.tipoInstalacion,
@@ -360,8 +478,14 @@ export class VentasService {
                         _id: venta.usuario._id,
                         username: venta.usuario.username
                     },
+                    trabajador: venta.trabajador ? {
+                        _id: venta.trabajador._id,
+                        nombre: venta.trabajador.nombre,
+                        identificador: venta.trabajador.identificador
+                    } : undefined,
                     total: venta.total,
                     pagado: venta.pagado,
+                    metodoPago: venta.metodoPago, // Método de pago de la venta
                     estado: venta.estado,
                     detalles: venta.productos.map(p => ({
                         nombre: p.nombre,
@@ -386,6 +510,11 @@ export class VentasService {
                     _id: venta.usuario._id,
                     username: venta.usuario.username
                 },
+                trabajador: venta.trabajador ? {
+                    _id: venta.trabajador._id,
+                    nombre: venta.trabajador.nombre,
+                    identificador: venta.trabajador.identificador
+                } : undefined,
                 total: venta.total,
                 pagado: pago.monto, // Usar el monto del pago específico
                 estado: venta.estado,

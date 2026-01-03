@@ -59,7 +59,11 @@ export class AuthService {
             };
             this.logger.debug('Payload generado:', JSON.stringify(payload, null, 2));
 
-            const token = this.jwtService.sign(payload);
+            // Si el usuario es TIENDA, token expira SIEMPRE en 24h
+            const expiresIn = user._doc.role === 'TIENDA' ? '24h' : undefined;
+            const signOptions = expiresIn ? { expiresIn } : {};
+            
+            const token = this.jwtService.sign(payload, signOptions);
             this.logger.debug('Token generado exitosamente');
             this.logger.debug('Token decodificado:', JSON.stringify(this.jwtService.decode(token), null, 2));
             this.logger.debug('=== FIN DE GENERACIÓN DE TOKEN ===');

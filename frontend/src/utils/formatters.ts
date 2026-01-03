@@ -19,15 +19,30 @@ export const formatCurrency = (value: number | string | undefined | null, decima
 };
 
 /**
+ * Normaliza un valor decimal aceptando tanto punto como coma
+ * @param value - Valor con punto o coma como separador decimal
+ * @returns Valor normalizado con punto como separador decimal
+ */
+export const normalizeDecimal = (value: string): string => {
+    if (!value) return '';
+    
+    // Reemplazar coma por punto
+    return value.replace(',', '.');
+};
+
+/**
  * Convierte un valor monetario formateado a número
- * @param value - Valor formateado como moneda
+ * @param value - Valor formateado como moneda (puede usar punto o coma)
  * @returns Número sin formato
  */
 export const parseCurrency = (value: string): number => {
     if (!value) return 0;
 
+    // Normalizar: convertir coma a punto
+    const normalized = normalizeDecimal(value);
+    
     // Eliminar todos los caracteres no numéricos excepto el punto decimal
-    const cleanValue = value.replace(/[^\d.-]/g, '');
+    const cleanValue = normalized.replace(/[^\d.-]/g, '');
     const numValue = parseFloat(cleanValue);
     return isNaN(numValue) ? 0 : numValue;
 };

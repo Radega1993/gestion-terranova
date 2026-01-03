@@ -247,9 +247,28 @@ export const ReservaPDF: React.FC<ReservaPDFProps> = ({ reserva, socio, servicio
                         )}
                     </View>
 
+                    {/* Normativa */}
+                    {reserva.normativaAceptada && (
+                        <View style={styles.section}>
+                            <Text style={styles.label}>Normativa Aceptada:</Text>
+                            <Text style={styles.value}>Sí - Fecha: {reserva.fechaAceptacionNormativa ? format(new Date(reserva.fechaAceptacionNormativa), 'PPP', { locale: es }) : format(new Date(reserva.fecha), 'PPP', { locale: es })}</Text>
+                        </View>
+                    )}
+
                     <View style={styles.signature}>
                         <Text>Firma del Socio</Text>
-                        <Text style={{ marginTop: 50 }}>_________________________</Text>
+                        {reserva.firmaSocio && (
+                            <View style={{ marginTop: 10, padding: 10, border: 1 }}>
+                                <Text style={{ fontSize: 10, color: 'gray' }}>
+                                    Firma registrada: {reserva.firmaSocio.substring(0, 50)}...
+                                </Text>
+                            </View>
+                        )}
+                        {!reserva.firmaSocio && (
+                            <View style={{ marginTop: 30, borderTop: 1, paddingTop: 10 }}>
+                                <Text style={{ fontSize: 10, color: 'gray' }}>_________________________</Text>
+                            </View>
+                        )}
                     </View>
 
                     <View style={styles.footer}>

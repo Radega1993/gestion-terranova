@@ -19,6 +19,7 @@ import {
     DialogTitle,
     DialogContent,
     IconButton,
+    Chip,
 } from '@mui/material';
 import { Close as CloseIcon, PictureAsPdf as PdfIcon } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -27,8 +28,10 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { es } from 'date-fns/locale';
 import { SocioSelector } from '../ventas/components/SocioSelector';
 import { UsuarioSelector } from '../ventas/components/UsuarioSelector';
+import { UsuarioTrabajadorSelector } from './UsuarioTrabajadorSelector';
 import { API_BASE_URL } from '../../config';
 import { useAuthStore } from '../../stores/authStore';
+import { UserRole } from '../../types/user';
 import { Cliente } from '../ventas/types';
 import { ResumenGeneralPDF } from './ResumenGeneralPDF';
 import { ResumenDetalladoPDF } from './ResumenDetalladoPDF';
@@ -37,7 +40,8 @@ interface Filtros {
     fechaInicio: Date | null;
     fechaFin: Date | null;
     codigoSocio: string;
-    usuario: string;
+    usuario: string | string[];
+    trabajadorId: string | string[];
 }
 
 interface Usuario {
@@ -62,8 +66,15 @@ interface Venta {
         _id: string;
         username: string;
     };
+    trabajador?: {
+        _id: string;
+        nombre: string;
+        identificador: string;
+    };
     total: number;
     pagado: number;
+    fianza?: number;
+    metodoPago?: string;
     estado: string;
     detalles: Array<{
         nombre: string;
@@ -80,7 +91,7 @@ interface Venta {
 }
 
 const RecaudacionesList: React.FC = () => {
-    const { token } = useAuthStore();
+    const { token, userRole } = useAuthStore();
     const [ventas, setVentas] = useState<Venta[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -88,9 +99,11 @@ const RecaudacionesList: React.FC = () => {
         fechaInicio: null,
         fechaFin: null,
         codigoSocio: '',
-        usuario: '',
+        usuario: [],
+        trabajadorId: [],
     });
     const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<Usuario | null>(null);
+    const [trabajadorSeleccionado, setTrabajadorSeleccionado] = useState<string | null>(null);
     const [showResumenGeneral, setShowResumenGeneral] = useState(false);
     const [showResumenDetallado, setShowResumenDetallado] = useState(false);
 
@@ -104,6 +117,20 @@ const RecaudacionesList: React.FC = () => {
     const handleUsuarioSeleccionado = (usuario: Usuario | null) => {
         setUsuarioSeleccionado(usuario);
         handleFiltroChange('usuario', usuario?._id || '');
+        // Si se selecciona un usuario, limpiar el filtro de trabajador
+        if (usuario) {
+            handleFiltroChange('trabajadorId', '');
+            setTrabajadorSeleccionado(null);
+        }
+    };
+
+    const handleUsuarioTrabajadorSeleccionado = (ids: string[], tipos: Array<'usuario' | 'trabajador'>) => {
+        // Separar IDs por tipo
+        const trabajadorIds = ids.filter((id, index) => tipos[index] === 'trabajador');
+        const usuarioIds = ids.filter((id, index) => tipos[index] === 'usuario');
+
+        handleFiltroChange('trabajadorId', trabajadorIds);
+        handleFiltroChange('usuario', usuarioIds);
     };
 
     const handleBuscar = async () => {
@@ -131,12 +158,24 @@ const RecaudacionesList: React.FC = () => {
                 fechaFin: fechaFin?.toISOString()
             });
 
-            const response = await fetch(`${API_BASE_URL}/ventas/recaudaciones?${new URLSearchParams({
-                ...(fechaInicio && { fechaInicio: fechaInicio.toISOString() }),
-                ...(fechaFin && { fechaFin: fechaFin.toISOString() }),
-                ...(filtros.codigoSocio && { codigoSocio: filtros.codigoSocio }),
-                ...(filtros.usuario && { usuario: filtros.usuario })
-            })}`, {
+            // Construir query string con soporte para arrays
+            const queryParams = new URLSearchParams();
+            if (fechaInicio) queryParams.append('fechaInicio', fechaInicio.toISOString());
+            if (fechaFin) queryParams.append('fechaFin', fechaFin.toISOString());
+            if (filtros.codigoSocio) queryParams.append('codigoSocio', filtros.codigoSocio);
+            
+            // Agregar usuarios y trabajadores como arrays
+            const trabajadorIds = Array.isArray(filtros.trabajadorId) 
+                ? filtros.trabajadorId.filter(id => id) 
+                : filtros.trabajadorId ? [filtros.trabajadorId] : [];
+            const usuarioIds = Array.isArray(filtros.usuario) 
+                ? filtros.usuario.filter(id => id) 
+                : filtros.usuario ? [filtros.usuario] : [];
+            
+            trabajadorIds.forEach(id => queryParams.append('trabajadorId', id));
+            usuarioIds.forEach(id => queryParams.append('usuario', id));
+
+            const response = await fetch(`${API_BASE_URL}/ventas/recaudaciones?${queryParams.toString()}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -163,12 +202,36 @@ const RecaudacionesList: React.FC = () => {
             fechaInicio: null,
             fechaFin: null,
             codigoSocio: '',
-            usuario: '',
+            usuario: [],
+            trabajadorId: [],
         });
+        setUsuarioSeleccionado(null);
+        setTrabajadorSeleccionado(null);
         setVentas([]);
     };
 
     const totalRecaudado = ventas.reduce((sum, venta) => sum + venta.pagado, 0);
+
+    // Calcular totales por usuario/trabajador
+    const totalesPorUsuario = ventas.reduce((acc: { [key: string]: { username: string; total: number; cantidad: number } }, venta) => {
+        // Si hay trabajador, usar el trabajador; si no, usar el usuario
+        const identificador = venta.trabajador 
+            ? `${venta.trabajador.nombre} (${venta.trabajador.identificador})`
+            : venta.usuario.username;
+        
+        if (!acc[identificador]) {
+            acc[identificador] = {
+                username: identificador,
+                total: 0,
+                cantidad: 0
+            };
+        }
+        acc[identificador].total += venta.pagado;
+        acc[identificador].cantidad += 1;
+        return acc;
+    }, {});
+
+    const totalesPorUsuarioArray = Object.values(totalesPorUsuario).sort((a, b) => b.total - a.total);
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
@@ -210,10 +273,23 @@ const RecaudacionesList: React.FC = () => {
                         />
                     </Grid>
                     <Grid item xs={12} md={3}>
-                        <UsuarioSelector
-                            onUsuarioSeleccionado={handleUsuarioSeleccionado}
-                            value={usuarioSeleccionado}
-                        />
+                        {userRole === UserRole.TIENDA ? (
+                            <UsuarioTrabajadorSelector
+                                value={[
+                                    ...(Array.isArray(filtros.trabajadorId) ? filtros.trabajadorId : filtros.trabajadorId ? [filtros.trabajadorId] : []),
+                                    ...(Array.isArray(filtros.usuario) ? filtros.usuario : filtros.usuario ? [filtros.usuario] : [])
+                                ]}
+                                onChange={handleUsuarioTrabajadorSeleccionado}
+                                required={false}
+                                multiple={true}
+                            />
+                        ) : (
+                            <UsuarioSelector
+                                onUsuarioSeleccionado={handleUsuarioSeleccionado}
+                                value={usuarioSeleccionado}
+                                excluirTienda={true}
+                            />
+                        )}
                     </Grid>
                     <Grid item xs={12}>
                         <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
@@ -270,10 +346,64 @@ const RecaudacionesList: React.FC = () => {
             ) : (
                 <>
                     <Paper sx={{ p: 2, mb: 2 }}>
-                        <Typography variant="h6" gutterBottom>
-                            Total Recaudado: {totalRecaudado.toFixed(2)}€
-                        </Typography>
+                        <Grid container spacing={2}>
+                            <Grid item xs={12} sm={4}>
+                                <Typography variant="h6" gutterBottom>
+                                    Total Recaudado: {totalRecaudado.toFixed(2)}€
+                                </Typography>
+                            </Grid>
+                            <Grid item xs={12} sm={4}>
+                                <Typography variant="h6" gutterBottom>
+                                    Total Fianzas: {ventas.filter(v => v.tipo === 'RESERVA' && v.fianza).reduce((sum, v) => sum + (v.fianza || 0), 0).toFixed(2)}€
+                                </Typography>
+                            </Grid>
+                        </Grid>
                     </Paper>
+
+                    {/* Totales por Usuario */}
+                    {totalesPorUsuarioArray.length > 0 && (
+                        <Paper sx={{ p: 2, mb: 2 }}>
+                            <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+                                Totales por Usuario
+                            </Typography>
+                            <TableContainer>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell><strong>Usuario</strong></TableCell>
+                                            <TableCell align="right"><strong>Transacciones</strong></TableCell>
+                                            <TableCell align="right"><strong>Total Recaudado</strong></TableCell>
+                                            <TableCell align="right"><strong>% del Total</strong></TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {totalesPorUsuarioArray.map((usuario: any) => (
+                                            <TableRow key={usuario.username}>
+                                                <TableCell>{usuario.username}</TableCell>
+                                                <TableCell align="right">{usuario.cantidad}</TableCell>
+                                                <TableCell align="right">
+                                                    <strong>{usuario.total.toFixed(2)}€</strong>
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                    {totalRecaudado > 0 
+                                                        ? ((usuario.total / totalRecaudado) * 100).toFixed(1)
+                                                        : '0.0'
+                                                    }%
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        <TableRow>
+                                            <TableCell colSpan={2}><strong>TOTAL</strong></TableCell>
+                                            <TableCell align="right">
+                                                <strong>{totalRecaudado.toFixed(2)}€</strong>
+                                            </TableCell>
+                                            <TableCell align="right"><strong>100.0%</strong></TableCell>
+                                        </TableRow>
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </Paper>
+                    )}
 
                     <TableContainer component={Paper}>
                         <Table>
@@ -285,13 +415,20 @@ const RecaudacionesList: React.FC = () => {
                                     <TableCell>Usuario</TableCell>
                                     <TableCell>Total</TableCell>
                                     <TableCell>Pagado</TableCell>
+                                    <TableCell>Fianza</TableCell>
+                                    <TableCell>Método Pago</TableCell>
                                     <TableCell>Estado</TableCell>
                                     <TableCell>Productos</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {ventas.map((venta) => (
-                                    <TableRow key={venta._id}>
+                                {ventas.map((venta, index) => {
+                                    // Crear una clave única combinando _id, fecha y si hay pagos, el índice del pago
+                                    const uniqueKey = venta.pagos && venta.pagos.length > 0
+                                        ? `${venta._id}-${venta.fecha}-${index}-${venta.pagos[0]?.fecha || index}`
+                                        : `${venta._id}-${venta.fecha}-${index}`;
+                                    return (
+                                    <TableRow key={uniqueKey}>
                                         <TableCell>
                                             {new Date(venta.fecha).toLocaleDateString('es-ES', {
                                                 day: '2-digit',
@@ -305,9 +442,33 @@ const RecaudacionesList: React.FC = () => {
                                         <TableCell>
                                             {venta.socio.nombre} ({venta.socio.codigo})
                                         </TableCell>
-                                        <TableCell>{venta.usuario.username}</TableCell>
+                                        <TableCell>
+                                            {venta.trabajador 
+                                                ? `${venta.trabajador.nombre} (${venta.trabajador.identificador})`
+                                                : venta.usuario.username}
+                                        </TableCell>
                                         <TableCell align="right">{venta.total.toFixed(2)}€</TableCell>
                                         <TableCell align="right">{venta.pagado.toFixed(2)}€</TableCell>
+                                        <TableCell align="right">
+                                            {venta.tipo === 'RESERVA' && venta.fianza ? `${venta.fianza.toFixed(2)}€` : '-'}
+                                        </TableCell>
+                                        <TableCell>
+                                            {venta.metodoPago ? (
+                                                <Chip 
+                                                    label={venta.metodoPago === 'EFECTIVO' ? 'Efectivo' : venta.metodoPago === 'TARJETA' ? 'Tarjeta' : venta.metodoPago}
+                                                    size="small"
+                                                    color={venta.metodoPago === 'EFECTIVO' ? 'default' : 'primary'}
+                                                />
+                                            ) : (
+                                                venta.pagos && venta.pagos.length > 0 ? (
+                                                    <Chip 
+                                                        label={venta.pagos[0].metodoPago === 'EFECTIVO' ? 'Efectivo' : venta.pagos[0].metodoPago === 'TARJETA' ? 'Tarjeta' : venta.pagos[0].metodoPago}
+                                                        size="small"
+                                                        color={venta.pagos[0].metodoPago === 'EFECTIVO' ? 'default' : 'primary'}
+                                                    />
+                                                ) : '-'
+                                            )}
+                                        </TableCell>
                                         <TableCell>{venta.estado}</TableCell>
                                         <TableCell>
                                             {venta.detalles.map((producto, index) => (
@@ -317,7 +478,8 @@ const RecaudacionesList: React.FC = () => {
                                             ))}
                                         </TableCell>
                                     </TableRow>
-                                ))}
+                                    );
+                                })}
                             </TableBody>
                         </Table>
                     </TableContainer>
@@ -354,16 +516,36 @@ const RecaudacionesList: React.FC = () => {
                     }
                 }}>
                     {(() => {
-                        const fechaInicio = filtros.fechaInicio || new Date(Math.min(...ventas.map(v => new Date(v.fecha).getTime())));
-                        const fechaFin = filtros.fechaFin || new Date(Math.max(...ventas.map(v => new Date(v.fecha).getTime())));
-                        console.log('Modal General - Fecha Inicio:', fechaInicio);
-                        console.log('Modal General - Fecha Fin:', fechaFin);
-                        console.log('Modal General - Ventas:', ventas);
-                        return ventas.length > 0 && (
+                        if (ventas.length === 0) {
+                            return (
+                                <Box sx={{ p: 3, textAlign: 'center' }}>
+                                    <Typography variant="body1" color="text.secondary">
+                                        No hay datos para mostrar. Por favor, aplica filtros y busca recaudaciones.
+                                    </Typography>
+                                </Box>
+                            );
+                        }
+                        
+                        const fechaInicio = filtros.fechaInicio || (ventas.length > 0 
+                            ? new Date(Math.min(...ventas.map(v => new Date(v.fecha).getTime())))
+                            : new Date());
+                        const fechaFin = filtros.fechaFin || (ventas.length > 0
+                            ? new Date(Math.max(...ventas.map(v => new Date(v.fecha).getTime())))
+                            : new Date());
+                        
+                        // Validar que las fechas sean válidas
+                        const fechaInicioValida = fechaInicio instanceof Date && !isNaN(fechaInicio.getTime()) 
+                            ? fechaInicio 
+                            : new Date();
+                        const fechaFinValida = fechaFin instanceof Date && !isNaN(fechaFin.getTime())
+                            ? fechaFin
+                            : new Date();
+                        
+                        return (
                             <ResumenGeneralPDF
                                 ventas={ventas}
-                                fechaInicio={fechaInicio}
-                                fechaFin={fechaFin}
+                                fechaInicio={fechaInicioValida}
+                                fechaFin={fechaFinValida}
                             />
                         );
                     })()}
@@ -400,16 +582,36 @@ const RecaudacionesList: React.FC = () => {
                     }
                 }}>
                     {(() => {
-                        const fechaInicio = filtros.fechaInicio || new Date(Math.min(...ventas.map(v => new Date(v.fecha).getTime())));
-                        const fechaFin = filtros.fechaFin || new Date(Math.max(...ventas.map(v => new Date(v.fecha).getTime())));
-                        console.log('Modal Detallado - Fecha Inicio:', fechaInicio);
-                        console.log('Modal Detallado - Fecha Fin:', fechaFin);
-                        console.log('Modal Detallado - Ventas:', ventas);
-                        return ventas.length > 0 && (
+                        if (ventas.length === 0) {
+                            return (
+                                <Box sx={{ p: 3, textAlign: 'center' }}>
+                                    <Typography variant="body1" color="text.secondary">
+                                        No hay datos para mostrar. Por favor, aplica filtros y busca recaudaciones.
+                                    </Typography>
+                                </Box>
+                            );
+                        }
+                        
+                        const fechaInicio = filtros.fechaInicio || (ventas.length > 0
+                            ? new Date(Math.min(...ventas.map(v => new Date(v.fecha).getTime())))
+                            : new Date());
+                        const fechaFin = filtros.fechaFin || (ventas.length > 0
+                            ? new Date(Math.max(...ventas.map(v => new Date(v.fecha).getTime())))
+                            : new Date());
+                        
+                        // Validar que las fechas sean válidas
+                        const fechaInicioValida = fechaInicio instanceof Date && !isNaN(fechaInicio.getTime())
+                            ? fechaInicio
+                            : new Date();
+                        const fechaFinValida = fechaFin instanceof Date && !isNaN(fechaFin.getTime())
+                            ? fechaFin
+                            : new Date();
+                        
+                        return (
                             <ResumenDetalladoPDF
                                 ventas={ventas}
-                                fechaInicio={fechaInicio}
-                                fechaFin={fechaFin}
+                                fechaInicio={fechaInicioValida}
+                                fechaFin={fechaFinValida}
                             />
                         );
                     })()}

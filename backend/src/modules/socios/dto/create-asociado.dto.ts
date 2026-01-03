@@ -5,6 +5,10 @@ export class CreateAsociadoDto {
     nombre: string;
 
     @IsOptional()
+    @IsString()
+    codigo?: string;
+
+    @IsOptional()
     @IsDateString()
     fechaNacimiento?: string;
 

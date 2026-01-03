@@ -17,4 +17,8 @@ export class VentaFiltersDto {
     @IsOptional()
     @IsString()
     estado?: string;
+
+    @IsOptional()
+    @IsString()
+    trabajadorId?: string;  // Filtro por trabajador
 } 

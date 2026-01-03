@@ -37,6 +37,10 @@ export class LiquidarReservaDto {
     @IsOptional()
     observaciones?: string;
 
+    @IsNumber()
+    @IsOptional()
+    fianza?: number;
+
     @IsEnum(EstadoReserva)
     estado: EstadoReserva;
 } 

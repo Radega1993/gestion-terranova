@@ -92,18 +92,21 @@ export const ProductoSelector: React.FC<ProductoSelectorProps> = ({ onProductoSe
                         fullWidth
                     />
                 )}
-                renderOption={(props, option) => (
-                    <li {...props}>
-                        <Box>
-                            <Box component="span" sx={{ fontWeight: 'bold' }}>
-                                {option.nombre}
+                renderOption={(props, option) => {
+                    const { key, ...restProps } = props;
+                    return (
+                        <li key={key} {...restProps}>
+                            <Box>
+                                <Box component="span" sx={{ fontWeight: 'bold' }}>
+                                    {option.nombre}
+                                </Box>
+                                <Box component="span" sx={{ ml: 1, color: 'text.secondary' }}>
+                                    {option.stock_actual} {option.unidad_medida}
+                                </Box>
                             </Box>
-                            <Box component="span" sx={{ ml: 1, color: 'text.secondary' }}>
-                                {option.stock_actual} {option.unidad_medida}
-                            </Box>
-                        </Box>
-                    </li>
-                )}
+                        </li>
+                    );
+                }}
             />
         </Paper>
     );

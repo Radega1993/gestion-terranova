@@ -63,4 +63,8 @@ export class CreateVentaDto {
     @ValidateIf((o) => o.pagado < o.total)
     @IsOptional()
     observaciones: string;
+
+    @IsString()
+    @IsOptional()
+    trabajadorId?: string;  // Trabajador asignado (obligatorio si usuario es TIENDA)
 } 

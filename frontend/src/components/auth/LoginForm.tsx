@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
     Container,
@@ -20,6 +20,15 @@ const LoginForm = () => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+
+    // Verificar si la sesión expiró al cargar el componente
+    useEffect(() => {
+        const sessionExpired = localStorage.getItem('sessionExpired');
+        if (sessionExpired === 'true') {
+            setError('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
+            localStorage.removeItem('sessionExpired');
+        }
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

@@ -64,6 +64,9 @@ export interface Reserva {
     observaciones?: string;
     montoAbonado?: number;
     metodoPago?: 'efectivo' | 'tarjeta' | '';
+    normativaAceptada?: boolean;
+    firmaSocio?: string;
+    fechaAceptacionNormativa?: string;
 }
 
 export interface FormData {
@@ -74,6 +77,9 @@ export interface FormData {
     observaciones: string;
     montoAbonado: number;
     metodoPago: 'efectivo' | 'tarjeta' | '';
+    trabajadorId?: string;  // Trabajador asignado (obligatorio si usuario es TIENDA)
+    normativaAceptada?: boolean;
+    firmaSocio?: string; // Base64 de la firma
 }
 
 export interface LiquidacionData {

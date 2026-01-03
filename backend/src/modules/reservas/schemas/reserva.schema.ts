@@ -32,6 +32,9 @@ export class Reserva {
     @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
     usuarioActualizacion?: MongooseSchema.Types.ObjectId;
 
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Trabajador' })
+    trabajador?: MongooseSchema.Types.ObjectId;  // Trabajador asignado (solo si usuarioCreacion es TIENDA)
+
     @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Socio', required: true })
     socio: MongooseSchema.Types.ObjectId;
 
@@ -78,6 +81,9 @@ export class Reserva {
     @Prop({ type: Number, default: 0 })
     montoDevuelto?: number;
 
+    @Prop({ type: Number, default: 0 })
+    fianza?: number;
+
     @Prop({ enum: MetodoPago })
     metodoPago?: MetodoPago;
 
@@ -96,6 +102,15 @@ export class Reserva {
         metodoPago: string;
         fecha: Date;
     }>;
+
+    @Prop({ type: Boolean, default: false })
+    normativaAceptada?: boolean;
+
+    @Prop({ type: String })
+    firmaSocio?: string; // Base64 o URL de imagen de la firma
+
+    @Prop({ type: Date })
+    fechaAceptacionNormativa?: Date;
 }
 
 export const ReservaSchema = SchemaFactory.createForClass(Reserva); 

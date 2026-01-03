@@ -28,7 +28,7 @@ import {
     Snackbar,
     Alert,
 } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Settings as SettingsIcon, Cancel as CancelIcon, Close as CloseIcon, Print as PrintIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Settings as SettingsIcon, Cancel as CancelIcon, Close as CloseIcon, Print as PrintIcon, FileDownload as FileDownloadIcon } from '@mui/icons-material';
 import { useAuthStore } from '../../stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import { format, isSameDay, parseISO } from 'date-fns';
@@ -220,7 +220,9 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         suplementos: [],
         observaciones: '',
         montoAbonado: 0,
-        metodoPago: ''
+        metodoPago: '',
+        normativaAceptada: false,
+        firmaSocio: undefined
     });
     const [searchSocio, setSearchSocio] = useState('');
     const [filteredSocios, setFilteredSocios] = useState<Socio[]>([]);
@@ -370,7 +372,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 return acc;
             }, []);
 
-            const reservaData = {
+            const reservaData: any = {
                 fecha: fecha.toISOString(),
                 tipoInstalacion: servicioSeleccionado.nombre.toUpperCase(),
                 socio: formData.socio,
@@ -380,8 +382,16 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 observaciones: formData.observaciones,
                 montoAbonado: formData.montoAbonado || 0,
                 metodoPago: formData.metodoPago || '',
-                estado: reservaExistente ? 'LISTA_ESPERA' : 'PENDIENTE'
+                estado: reservaExistente ? 'LISTA_ESPERA' : 'PENDIENTE',
+                normativaAceptada: formData.normativaAceptada || false,
+                firmaSocio: formData.firmaSocio,
+                fechaAceptacionNormativa: formData.normativaAceptada ? new Date() : undefined
             };
+
+            // Añadir trabajadorId si el usuario es TIENDA
+            if (user.role === 'TIENDA' && formData.trabajadorId) {
+                reservaData.trabajadorId = formData.trabajadorId;
+            }
 
             await reservaMutation.mutateAsync(reservaData);
 
@@ -408,6 +418,42 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
             setSnackbar({
                 open: true,
                 message: errorMessage,
+                severity: 'error'
+            });
+        }
+    };
+
+    const handleExportReservas = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/reservas/export`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al exportar reservas');
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `reservas_${new Date().toISOString().split('T')[0]}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            setSnackbar({
+                open: true,
+                message: 'Reservas exportadas correctamente',
+                severity: 'success'
+            });
+        } catch (err) {
+            setSnackbar({
+                open: true,
+                message: err instanceof Error ? err.message : 'Error al exportar reservas',
                 severity: 'error'
             });
         }
@@ -739,7 +785,22 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
             });
 
             if (result.isConfirmed) {
-                cancelarMutation.mutate(cancelacionData);
+                // Calcular automáticamente el importe pendiente si no se especificó montoDevuelto
+                const montoAbonado = selectedReservaForCancel.montoAbonado || 0;
+                const importePendiente = selectedReservaForCancel.precio - montoAbonado;
+                
+                const datosCancelacion = {
+                    ...cancelacionData,
+                    // Si no se especificó montoDevuelto o es 0, usar el importe pendiente
+                    montoDevuelto: cancelacionData.montoDevuelto > 0 
+                        ? cancelacionData.montoDevuelto 
+                        : importePendiente
+                };
+
+                cancelarMutation.mutate({
+                    id: selectedReservaForCancel._id,
+                    datosCancelacion
+                });
             }
         } catch (error) {
             console.error('Error preparing cancelacion data:', error);

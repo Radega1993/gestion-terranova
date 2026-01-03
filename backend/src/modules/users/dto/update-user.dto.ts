@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsOptional, IsBoolean, MinLength, ValidateIf } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsBoolean, MinLength, ValidateIf, IsMongoId } from 'class-validator';
 import { UserRole } from '../types/user-roles.enum';
 
 export class UpdateUserDto {
@@ -27,4 +27,8 @@ export class UpdateUserDto {
     @IsBoolean()
     @IsOptional()
     isActive?: boolean;
+
+    @IsMongoId()
+    @IsOptional()
+    tienda?: string;  // ID de la tienda a asignar
 } 
