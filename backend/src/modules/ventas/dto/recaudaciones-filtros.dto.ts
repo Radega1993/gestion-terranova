@@ -49,4 +49,8 @@ export class RecaudacionesFiltrosDto {
     @IsArray()
     @IsString({ each: true })
     trabajadorId?: string | string[];  // Filtro por trabajador(es)
+
+    @IsOptional()
+    @IsString()
+    metodoPago?: string;  // Filtro por método de pago: 'efectivo', 'tarjeta', o 'todos' (sin filtro)
 }

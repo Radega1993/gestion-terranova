@@ -52,6 +52,8 @@ import { useSocios } from './hooks/useSocios';
 import { useLiquidacion } from './hooks/useLiquidacion';
 import { LiquidacionDialog } from './LiquidacionDialog';
 import { CancelacionDialog } from './CancelacionDialog';
+import { TrabajadorSelector } from '../trabajadores/TrabajadorSelector';
+import { UserRole } from '../../types/user';
 
 interface Servicio {
     id: string;
@@ -213,6 +215,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
     const [openDialog, setOpenDialog] = useState(false);
     const [openServiciosDialog, setOpenServiciosDialog] = useState(false);
     const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+    const [reservaExistente, setReservaExistente] = useState(false); // Estado para controlar si hay conflicto
     const [formData, setFormData] = useState<FormData>({
         fecha: new Date().toISOString().split('T')[0],
         servicio: '',
@@ -221,6 +224,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         observaciones: '',
         montoAbonado: 0,
         metodoPago: '',
+        trabajadorId: undefined,
         normativaAceptada: false,
         firmaSocio: undefined
     });
@@ -254,6 +258,42 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
     });
     const [openPDF, setOpenPDF] = useState(false);
 
+    // Detectar conflictos de reserva cuando cambian la fecha o el servicio
+    useEffect(() => {
+        if (!openDialog || !formData.fecha || !formData.servicio || selectedReserva) {
+            // Si el diálogo está cerrado, no hay fecha/servicio seleccionado, o estamos editando, no verificar
+            setReservaExistente(false);
+            return;
+        }
+
+        const servicioSeleccionado = servicios.find(s => s.id === formData.servicio);
+        if (!servicioSeleccionado) {
+            setReservaExistente(false);
+            return;
+        }
+
+        const fecha = new Date(formData.fecha);
+        if (isNaN(fecha.getTime())) {
+            setReservaExistente(false);
+            return;
+        }
+
+        // Verificar si ya existe una reserva para el mismo servicio y fecha
+        const reservaExistenteEncontrada = reservas.find(r =>
+            r.tipoInstalacion.toLowerCase() === servicioSeleccionado.nombre.toLowerCase() &&
+            isSameDay(new Date(r.fecha), fecha) &&
+            r.estado !== 'CANCELADA'
+        );
+
+        if (reservaExistenteEncontrada) {
+            setReservaExistente(true);
+            // Limpiar los campos de pago automáticamente
+            setFormData(prev => ({ ...prev, montoAbonado: 0, metodoPago: '' }));
+        } else {
+            setReservaExistente(false);
+        }
+    }, [formData.fecha, formData.servicio, openDialog, reservas, servicios, selectedReserva]);
+
     const handleOpenDialog = (reserva?: Reserva) => {
         if (reserva) {
             setSelectedReserva(reserva);
@@ -262,14 +302,21 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 s.nombre.toLowerCase() === reserva.tipoInstalacion.toLowerCase()
             );
 
+            // Calcular el precio total de la reserva original
+            const precioOriginal = reserva.precio;
+            const montoYaAbonado = reserva.montoAbonado || 0;
+            
             setFormData({
                 servicio: servicioSeleccionado?.id || '',
                 fecha: new Date(reserva.fecha).toISOString().split('T')[0],
                 socio: reserva.socio._id,
                 suplementos: reserva.suplementos,
                 observaciones: reserva.observaciones || '',
-                montoAbonado: reserva.montoAbonado || 0,
-                metodoPago: reserva.metodoPago || ''
+                montoAbonado: 0, // En edición, empezamos en 0 para añadir solo el pendiente
+                metodoPago: reserva.metodoPago || '',
+                trabajadorId: undefined, // No se edita el trabajador en edición
+                montoYaAbonado: montoYaAbonado, // Guardar el monto ya pagado
+                precioOriginal: precioOriginal // Guardar el precio original
             });
         } else {
             setSelectedReserva(null);
@@ -281,8 +328,10 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 suplementos: [],
                 observaciones: '',
                 montoAbonado: 0,
-                metodoPago: ''
+                metodoPago: '',
+                trabajadorId: undefined
             });
+            setReservaExistente(false);
         }
         setOpenDialog(true);
     };
@@ -326,13 +375,13 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
             }
 
             // Verificar si ya existe una reserva para el mismo servicio y fecha
-            const reservaExistente = reservas.find(r =>
+            const reservaExistenteEncontrada = reservas.find(r =>
                 r.tipoInstalacion.toLowerCase() === servicioSeleccionado.nombre.toLowerCase() &&
                 isSameDay(new Date(r.fecha), fecha) &&
                 r.estado !== 'CANCELADA'
             );
 
-            if (reservaExistente) {
+            if (reservaExistenteEncontrada) {
                 const result = await Swal.fire({
                     title: 'Reserva existente',
                     text: 'Ya existe una reserva para este servicio en esta fecha. ¿Deseas añadir esta reserva a la lista de espera?',
@@ -347,6 +396,12 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 if (!result.isConfirmed) {
                     return;
                 }
+                
+                // Si confirma, establecer el estado y limpiar el pago
+                setReservaExistente(true);
+                setFormData(prev => ({ ...prev, montoAbonado: 0, metodoPago: '' }));
+            } else {
+                setReservaExistente(false);
             }
 
             const suplementosUnicos = formData.suplementos.reduce((acc: any[], current) => {
@@ -372,24 +427,44 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 return acc;
             }, []);
 
+            // Validar trabajador si el usuario es TIENDA
+            if (user.role === UserRole.TIENDA && !formData.trabajadorId) {
+                setSnackbar({
+                    open: true,
+                    message: 'Debe seleccionar un trabajador para realizar la reserva',
+                    severity: 'error'
+                });
+                return;
+            }
+
+            // Si estamos editando y hay monto ya abonado, sumar el adicional
+            // PERO: Si está en lista de espera, no permitir pago
+            const montoTotalAbonado = reservaExistente ? 0 : Number((selectedReserva && formData.montoYaAbonado !== undefined
+                ? formData.montoYaAbonado + (formData.montoAbonado || 0)
+                : formData.montoAbonado || 0).toFixed(2));
+
+            const precioTotal = calcularPrecioTotal();
+
             const reservaData: any = {
                 fecha: fecha.toISOString(),
                 tipoInstalacion: servicioSeleccionado.nombre.toUpperCase(),
                 socio: formData.socio,
                 usuarioCreacion: user._id,
                 suplementos: suplementosUnicos,
-                precio: calcularPrecioTotal(),
+                precio: precioTotal,
                 observaciones: formData.observaciones,
-                montoAbonado: formData.montoAbonado || 0,
-                metodoPago: formData.metodoPago || '',
-                estado: reservaExistente ? 'LISTA_ESPERA' : 'PENDIENTE',
+                // Si está en lista de espera, no enviar montoAbonado ni metodoPago
+                montoAbonado: reservaExistente ? 0 : montoTotalAbonado,
+                metodoPago: reservaExistente ? undefined : (formData.metodoPago || ''),
+                // Solo enviar estado si es LISTA_ESPERA (reserva existente), dejar que el backend determine el estado basado en el pago
+                estado: reservaExistente ? 'LISTA_ESPERA' : undefined,
                 normativaAceptada: formData.normativaAceptada || false,
                 firmaSocio: formData.firmaSocio,
                 fechaAceptacionNormativa: formData.normativaAceptada ? new Date() : undefined
             };
 
-            // Añadir trabajadorId si el usuario es TIENDA
-            if (user.role === 'TIENDA' && formData.trabajadorId) {
+            // Añadir trabajadorId si el usuario es TIENDA (obligatorio)
+            if (user.role === UserRole.TIENDA && formData.trabajadorId) {
                 reservaData.trabajadorId = formData.trabajadorId;
             }
 
@@ -558,7 +633,9 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         }
 
         // Si la reserva está completada y pagada
-        if (reserva.estado === 'COMPLETADA' && reserva.montoAbonado === reserva.precio) {
+        const montoAbonadoRedondeado = Number((reserva.montoAbonado || 0).toFixed(2));
+        const precioRedondeado = Number(reserva.precio.toFixed(2));
+        if (reserva.estado === 'COMPLETADA' && Math.abs(montoAbonadoRedondeado - precioRedondeado) < 0.01) {
             return '#2e7d32'; // Verde oscuro
         }
 
@@ -623,10 +700,12 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
         if (!selectedReservaLiquidacion) return;
 
         try {
-            const precioTotal = selectedReservaLiquidacion.precio;
-            const montoPendiente = precioTotal - (selectedReservaLiquidacion.montoAbonado || 0);
+            const precioTotal = Number(selectedReservaLiquidacion.precio.toFixed(2));
+            const montoYaAbonado = Number((selectedReservaLiquidacion.montoAbonado || 0).toFixed(2));
+            const montoPendiente = Number((precioTotal - montoYaAbonado).toFixed(2));
+            const montoAbonadoRedondeado = Number(liquidacionData.montoAbonado.toFixed(2));
 
-            if (liquidacionData.montoAbonado !== montoPendiente) {
+            if (Math.abs(montoAbonadoRedondeado - montoPendiente) > 0.01) {
                 setSnackbar({
                     open: true,
                     message: `Debe abonar el monto total pendiente (${montoPendiente.toFixed(2)}€)`,
@@ -648,12 +727,12 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 suplementos: liquidacionData.suplementos,
                 pagos: [
                     {
-                        monto: selectedReservaLiquidacion.montoAbonado || 0,
+                        monto: Number((selectedReservaLiquidacion.montoAbonado || 0).toFixed(2)),
                         metodoPago: selectedReservaLiquidacion.metodoPago || '',
                         fecha: selectedReservaLiquidacion.fecha
                     },
                     {
-                        monto: liquidacionData.montoAbonado,
+                        monto: Number(liquidacionData.montoAbonado.toFixed(2)),
                         metodoPago: liquidacionData.metodoPago,
                         fecha: new Date().toISOString()
                     }
@@ -1419,14 +1498,28 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                             <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', mb: 3 }}>
                                 Información Principal
                             </Typography>
+                            {reservaExistente && !selectedReserva && (
+                                <Alert severity="warning" sx={{ mb: 2 }}>
+                                    <Typography variant="body1" fontWeight="bold">
+                                        ⚠️ Lista de Espera
+                                    </Typography>
+                                    <Typography variant="body2">
+                                        Ya existe una reserva para este servicio en esta fecha. Esta reserva se añadirá a la lista de espera y no se podrá realizar el pago hasta que se confirme la disponibilidad.
+                                    </Typography>
+                                </Alert>
+                            )}
                             <Grid container spacing={3}>
-                                <Grid sx={{ xs: 12, sm: 6 }}>
+                                <Grid item xs={12} sm={6}>
                                     <TextField
                                         fullWidth
                                         type="date"
                                         label="Fecha"
                                         value={formData.fecha}
-                                        onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
+                                        onChange={(e) => {
+                                            setFormData({ ...formData, fecha: e.target.value });
+                                            // Resetear reservaExistente cuando cambia la fecha
+                                            setReservaExistente(false);
+                                        }}
                                         InputLabelProps={{ shrink: true }}
                                         sx={{
                                             '& .MuiInputBase-input': {
@@ -1439,13 +1532,17 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                                         }}
                                     />
                                 </Grid>
-                                <Grid sx={{ xs: 12, sm: 6 }}>
+                                <Grid item xs={12} sm={6}>
                                     <FormControl fullWidth>
                                         <InputLabel sx={{ fontSize: '1.2rem' }}>Servicio</InputLabel>
                                         <Select
                                             value={formData.servicio}
                                             label="Servicio"
-                                            onChange={(e) => setFormData({ ...formData, servicio: e.target.value })}
+                                            onChange={(e) => {
+                                                setFormData({ ...formData, servicio: e.target.value });
+                                                // Resetear reservaExistente cuando cambia el servicio
+                                                setReservaExistente(false);
+                                            }}
                                             sx={{
                                                 '& .MuiSelect-select': {
                                                     fontSize: '1.2rem',
@@ -1466,7 +1563,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                                         </Select>
                                     </FormControl>
                                 </Grid>
-                                <Grid sx={{ xs: 12 }}>
+                                <Grid item xs={12} sm={user && user.role === UserRole.TIENDA ? 6 : 12}>
                                     <Autocomplete
                                         options={socios.filter(s => s.active)}
                                         getOptionLabel={(option) => {
@@ -1484,8 +1581,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                                                 sx={{
                                                     '& .MuiInputBase-root': {
                                                         fontSize: '1.2rem',
-                                                        minHeight: '48px',
-                                                        width: '215%'
+                                                        minHeight: '48px'
                                                     },
                                                     '& .MuiInputLabel-root': {
                                                         fontSize: '1.2rem'
@@ -1505,6 +1601,19 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                                         )}
                                     />
                                 </Grid>
+                                {/* Selector de Trabajador - Solo visible para usuarios TIENDA */}
+                                {user && user.role === UserRole.TIENDA && (
+                                    <Grid item xs={12} sm={6}>
+                                        <TrabajadorSelector
+                                            value={formData.trabajadorId}
+                                            onChange={(trabajadorId) => {
+                                                setFormData({ ...formData, trabajadorId: trabajadorId || undefined });
+                                            }}
+                                            required={true}
+                                            variant="select"
+                                        />
+                                    </Grid>
+                                )}
                             </Grid>
                         </Paper>
 
@@ -1515,7 +1624,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                             </Typography>
                             <Grid container spacing={2}>
                                 {suplementosList.filter(s => s.activo).map((suplemento) => (
-                                    <Grid sx={{ xs: 12, sm: 6, md: 4 }} key={suplemento.id}>
+                                    <Grid item xs={12} sm={6} md={4} key={suplemento.id}>
                                         <Paper
                                             elevation={1}
                                             sx={{
@@ -1583,16 +1692,94 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                                 Pago y Observaciones
                             </Typography>
                             <Grid container spacing={3}>
-                                <Grid sx={{ xs: 12, sm: 6 }}>
+                                {/* Si estamos editando una reserva, mostrar información del pago ya realizado */}
+                                {selectedReserva && formData.montoYaAbonado !== undefined && formData.montoYaAbonado > 0 && (
+                                    <>
+                                        <Grid item xs={12} sm={6}>
+                                            <TextField
+                                                fullWidth
+                                                label="Monto Ya Abonado"
+                                                value={formData.montoYaAbonado.toFixed(2)}
+                                                InputProps={{
+                                                    startAdornment: <Typography sx={{ mr: 1, fontSize: '1.1rem' }}>€</Typography>,
+                                                    readOnly: true
+                                                }}
+                                                sx={{
+                                                    '& .MuiInputBase-input': {
+                                                        fontSize: '1.1rem',
+                                                        padding: '12px 14px',
+                                                        backgroundColor: 'action.disabledBackground'
+                                                    },
+                                                    '& .MuiInputLabel-root': {
+                                                        fontSize: '1.1rem'
+                                                    }
+                                                }}
+                                            />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6}>
+                                            <TextField
+                                                fullWidth
+                                                label="Monto Pendiente"
+                                                value={Number((calcularPrecioTotal() - Number((formData.montoYaAbonado || 0).toFixed(2))).toFixed(2)).toFixed(2)}
+                                                InputProps={{
+                                                    startAdornment: <Typography sx={{ mr: 1, fontSize: '1.1rem' }}>€</Typography>,
+                                                    readOnly: true
+                                                }}
+                                                sx={{
+                                                    '& .MuiInputBase-input': {
+                                                        fontSize: '1.1rem',
+                                                        padding: '12px 14px',
+                                                        backgroundColor: 'action.disabledBackground',
+                                                        color: 'error.main',
+                                                        fontWeight: 'bold'
+                                                    },
+                                                    '& .MuiInputLabel-root': {
+                                                        fontSize: '1.1rem'
+                                                    }
+                                                }}
+                                            />
+                                        </Grid>
+                                    </>
+                                )}
+                                <Grid item xs={12} sm={6}>
                                     <TextField
                                         fullWidth
                                         type="number"
-                                        label="Monto Abonado"
+                                        label={selectedReserva && formData.montoYaAbonado !== undefined && formData.montoYaAbonado > 0 
+                                            ? "Monto Adicional a Abonar" 
+                                            : "Monto Abonado"}
                                         value={formData.montoAbonado}
-                                        onChange={(e) => setFormData({ ...formData, montoAbonado: parseFloat(e.target.value) || 0 })}
+                                        onChange={(e) => {
+                                            // Si está en lista de espera, no permitir cambios
+                                            if (reservaExistente) {
+                                                return;
+                                            }
+                                            const nuevoMonto = Number((parseFloat(e.target.value) || 0).toFixed(2));
+                                            // Si estamos editando y hay monto ya abonado, validar que no exceda el pendiente
+                                            if (selectedReserva && formData.montoYaAbonado !== undefined) {
+                                                const precioTotal = calcularPrecioTotal();
+                                                const montoYaAbonadoRedondeado = Number(formData.montoYaAbonado.toFixed(2));
+                                                const montoPendiente = Number((precioTotal - montoYaAbonadoRedondeado).toFixed(2));
+                                                if (nuevoMonto > montoPendiente) {
+                                                    setSnackbar({
+                                                        open: true,
+                                                        message: `El monto adicional no puede exceder el pendiente (${montoPendiente.toFixed(2)}€)`,
+                                                        severity: 'error'
+                                                    });
+                                                    return;
+                                                }
+                                            }
+                                            setFormData({ ...formData, montoAbonado: nuevoMonto });
+                                        }}
+                                        disabled={reservaExistente}
                                         InputProps={{
                                             startAdornment: <Typography sx={{ mr: 1, fontSize: '1.1rem' }}>€</Typography>,
                                         }}
+                                        helperText={reservaExistente 
+                                            ? 'Las reservas en lista de espera no pueden tener pago'
+                                            : (selectedReserva && formData.montoYaAbonado !== undefined && formData.montoYaAbonado > 0
+                                                ? `Máximo: ${Number((calcularPrecioTotal() - Number((formData.montoYaAbonado || 0).toFixed(2))).toFixed(2)).toFixed(2)}€`
+                                                : '')}
                                         sx={{
                                             '& .MuiInputBase-input': {
                                                 fontSize: '1.1rem',
@@ -1604,13 +1791,14 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                                         }}
                                     />
                                 </Grid>
-                                <Grid sx={{ xs: 12, sm: 6 }}>
+                                <Grid item xs={12} sm={6}>
                                     <FormControl fullWidth>
                                         <InputLabel sx={{ fontSize: '1.2rem' }}>Método de Pago</InputLabel>
                                         <Select
                                             value={formData.metodoPago}
                                             label="Método de Pago"
                                             onChange={(e) => setFormData({ ...formData, metodoPago: e.target.value as 'efectivo' | 'tarjeta' | '' })}
+                                            disabled={reservaExistente}
                                             sx={{
                                                 '& .MuiSelect-select': {
                                                     fontSize: '1.2rem',
@@ -1627,7 +1815,7 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                                         </Select>
                                     </FormControl>
                                 </Grid>
-                                <Grid sx={{ xs: 12 }}>
+                                <Grid item xs={12}>
                                     <TextField
                                         fullWidth
                                         multiline

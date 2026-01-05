@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Document, Page, Text, View, StyleSheet, PDFViewer } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { configuracionService } from '../../services/configuracion';
+import { useAuthStore } from '../../stores/authStore';
 
 const styles = StyleSheet.create({
     page: {
@@ -72,6 +74,22 @@ const styles = StyleSheet.create({
         color: 'red',
         fontWeight: 'bold',
     },
+    normativaSection: {
+        marginTop: 20,
+        padding: 15,
+        flexGrow: 1,
+    },
+    normativaTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        marginBottom: 10,
+    },
+    normativaText: {
+        fontSize: 9,
+        lineHeight: 1.5,
+        marginBottom: 4,
+        textAlign: 'left',
+    },
 });
 
 interface ReservaPDFProps {
@@ -102,6 +120,25 @@ interface SuplementoInfo {
 }
 
 export const ReservaPDF: React.FC<ReservaPDFProps> = ({ reserva, socio, servicio, suplementosList }) => {
+    const { token } = useAuthStore();
+    const [normativaTexto, setNormativaTexto] = useState<string>('');
+
+    // Cargar el texto de la normativa
+    useEffect(() => {
+        const cargarNormativa = async () => {
+            if (!token) return;
+            try {
+                const texto = await configuracionService.obtenerNormativa(token);
+                setNormativaTexto(texto);
+            } catch (error) {
+                console.error('Error al cargar la normativa:', error);
+                // Si hay error, usar texto por defecto
+                setNormativaTexto('Error al cargar la normativa. Por favor, contacte con la administración.');
+            }
+        };
+        cargarNormativa();
+    }, [token]);
+
     // Agrupar suplementos por ID y calcular totales
     const suplementosAgrupados = reserva.suplementos.reduce((acc: SuplementoAgrupado[], sup: Suplemento) => {
         const existingIndex = acc.findIndex(item => item.id === sup.id);
@@ -143,10 +180,25 @@ export const ReservaPDF: React.FC<ReservaPDFProps> = ({ reserva, socio, servicio
         return null;
     }
 
+    // Si no hay texto de normativa cargado, mostrar un mensaje de carga
+    if (!normativaTexto && token) {
+        return (
+            <PDFViewer style={{ width: '100%', height: '100vh' }}>
+                <Document>
+                    <Page size="A4" style={styles.page}>
+                        <View style={styles.header}>
+                            <Text style={styles.title}>Cargando normativa...</Text>
+                        </View>
+                    </Page>
+                </Document>
+            </PDFViewer>
+        );
+    }
+
     return (
         <PDFViewer style={{ width: '100%', height: '100vh' }}>
             <Document>
-                <Page size="A4" style={styles.page}>
+                <Page size="A4" style={styles.page} wrap>
                     <View style={styles.header}>
                         <Text style={styles.title}>Reserva de Instalación</Text>
                         <Text style={styles.subtitle}>Comunidad de Vecinos Terranova</Text>
@@ -247,7 +299,6 @@ export const ReservaPDF: React.FC<ReservaPDFProps> = ({ reserva, socio, servicio
                         )}
                     </View>
 
-                    {/* Normativa */}
                     {reserva.normativaAceptada && (
                         <View style={styles.section}>
                             <Text style={styles.label}>Normativa Aceptada:</Text>
@@ -256,7 +307,10 @@ export const ReservaPDF: React.FC<ReservaPDFProps> = ({ reserva, socio, servicio
                     )}
 
                     <View style={styles.signature}>
-                        <Text>Firma del Socio</Text>
+                        <Text style={{ fontSize: 12, fontWeight: 'bold', marginBottom: 20 }}>Firma del Socio</Text>
+                        <Text style={{ fontSize: 10, marginBottom: 10 }}>
+                            Al firmar este documento, el socio acepta y se compromete a cumplir todas las normas y reglamentos de la Asociación.
+                        </Text>
                         {reserva.firmaSocio && (
                             <View style={{ marginTop: 10, padding: 10, border: 1 }}>
                                 <Text style={{ fontSize: 10, color: 'gray' }}>
@@ -267,6 +321,7 @@ export const ReservaPDF: React.FC<ReservaPDFProps> = ({ reserva, socio, servicio
                         {!reserva.firmaSocio && (
                             <View style={{ marginTop: 30, borderTop: 1, paddingTop: 10 }}>
                                 <Text style={{ fontSize: 10, color: 'gray' }}>_________________________</Text>
+                                <Text style={{ fontSize: 9, color: 'gray', marginTop: 5 }}>Firma del Socio</Text>
                             </View>
                         )}
                     </View>
@@ -276,6 +331,55 @@ export const ReservaPDF: React.FC<ReservaPDFProps> = ({ reserva, socio, servicio
                         <Text>Por favor, conserve este documento hasta el día de la reserva.</Text>
                     </View>
                 </Page>
+
+                {/* Segunda página: Normativa */}
+                {normativaTexto && (
+                    <Page size="A4" style={styles.page} wrap>
+                        <View style={styles.header}>
+                            <Text style={styles.title}>NORMATIVA Y REGLAMENTO</Text>
+                            <Text style={styles.subtitle}>Comunidad de Vecinos Terranova</Text>
+                        </View>
+
+                        <View style={styles.normativaSection}>
+                            {normativaTexto.split('\n').map((linea, index) => {
+                                const lineaTrimmed = linea.trim();
+                                if (!lineaTrimmed) {
+                                    return <Text key={index} style={styles.normativaText}> </Text>;
+                                }
+                                return (
+                                    <Text key={index} style={styles.normativaText}>
+                                        {lineaTrimmed}
+                                    </Text>
+                                );
+                            })}
+                        </View>
+
+                        <View style={styles.signature}>
+                            <Text style={{ fontSize: 12, fontWeight: 'bold', marginBottom: 20 }}>Firma del Socio</Text>
+                            <Text style={{ fontSize: 10, marginBottom: 10 }}>
+                                Al firmar este documento, el socio acepta y se compromete a cumplir todas las normas y reglamentos de la Asociación.
+                            </Text>
+                            {reserva.firmaSocio && (
+                                <View style={{ marginTop: 10, padding: 10, border: 1 }}>
+                                    <Text style={{ fontSize: 10, color: 'gray' }}>
+                                        Firma registrada: {reserva.firmaSocio.substring(0, 50)}...
+                                    </Text>
+                                </View>
+                            )}
+                            {!reserva.firmaSocio && (
+                                <View style={{ marginTop: 30, borderTop: 1, paddingTop: 10 }}>
+                                    <Text style={{ fontSize: 10, color: 'gray' }}>_________________________</Text>
+                                    <Text style={{ fontSize: 9, color: 'gray', marginTop: 5 }}>Firma del Socio</Text>
+                                </View>
+                            )}
+                        </View>
+
+                        <View style={styles.footer}>
+                            <Text>Este documento forma parte de la reserva realizada.</Text>
+                            <Text>Por favor, conserve este documento junto con el comprobante de reserva.</Text>
+                        </View>
+                    </Page>
+                )}
             </Document>
         </PDFViewer>
     );

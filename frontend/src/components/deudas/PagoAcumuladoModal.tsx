@@ -26,6 +26,8 @@ import { useAuthStore } from '../../stores/authStore';
 import { Venta } from '../ventas/types';
 import { CurrencyInput } from '../common/CurrencyInput';
 import { formatCurrency } from '../../utils/formatters';
+import { TrabajadorSelector } from '../trabajadores/TrabajadorSelector';
+import { UserRole } from '../../types/user';
 import Swal from 'sweetalert2';
 
 interface PagoAcumuladoModalProps {
@@ -41,36 +43,55 @@ export const PagoAcumuladoModal: React.FC<PagoAcumuladoModalProps> = ({
     ventas,
     onPagoCompletado
 }) => {
-    const { token } = useAuthStore();
+    const { token, userRole } = useAuthStore();
     const [montoTotal, setMontoTotal] = useState<number>(0);
     const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA'>('EFECTIVO');
     const [observaciones, setObservaciones] = useState<string>('');
+    const [trabajadorId, setTrabajadorId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (open && ventas.length > 0) {
-            const totalPendiente = ventas.reduce((sum, v) => sum + (v.total - v.pagado), 0);
-            setMontoTotal(totalPendiente);
+            // Redondear todos los valores a 2 decimales
+            const totalPendiente = ventas.reduce((sum, v) => {
+                const totalRedondeado = Number(v.total.toFixed(2));
+                const pagadoRedondeado = Number(v.pagado.toFixed(2));
+                return sum + Number((totalRedondeado - pagadoRedondeado).toFixed(2));
+            }, 0);
+            setMontoTotal(Number(totalPendiente.toFixed(2)));
         }
     }, [open, ventas]);
 
     const handleSubmit = async () => {
         if (ventas.length === 0) return;
 
+        // Validar trabajador si el usuario es TIENDA
+        if (userRole === UserRole.TIENDA && !trabajadorId) {
+            setError('Debe seleccionar un trabajador para realizar el pago');
+            return;
+        }
+
         try {
             setLoading(true);
             setError(null);
 
-            const totalPendiente = ventas.reduce((sum, v) => sum + (v.total - v.pagado), 0);
+            // Redondear todos los valores a 2 decimales
+            const totalPendiente = ventas.reduce((sum, v) => {
+                const totalRedondeado = Number(v.total.toFixed(2));
+                const pagadoRedondeado = Number(v.pagado.toFixed(2));
+                return sum + Number((totalRedondeado - pagadoRedondeado).toFixed(2));
+            }, 0);
+            const totalPendienteRedondeado = Number(totalPendiente.toFixed(2));
+            const montoTotalRedondeado = Number(montoTotal.toFixed(2));
 
-            if (montoTotal <= 0) {
+            if (montoTotalRedondeado <= 0) {
                 setError('El monto debe ser mayor a 0');
                 return;
             }
 
-            if (montoTotal > totalPendiente + 0.01) {
-                setError(`El monto no puede ser mayor al total pendiente (${totalPendiente.toFixed(2)}€)`);
+            if (montoTotalRedondeado > totalPendienteRedondeado + 0.01) {
+                setError(`El monto no puede ser mayor al total pendiente (${totalPendienteRedondeado.toFixed(2)}€)`);
                 return;
             }
 
@@ -96,24 +117,35 @@ export const PagoAcumuladoModal: React.FC<PagoAcumuladoModalProps> = ({
 
             // Procesar pagos de forma secuencial
             const resultados = [];
+            let montoRestante = montoTotalRedondeado;
             for (const venta of ventas) {
-                const pendiente = venta.total - venta.pagado;
-                const montoAPagar = Math.min(pendiente, montoTotal - resultados.reduce((sum, r) => sum + r.monto, 0));
+                const totalVentaRedondeado = Number(venta.total.toFixed(2));
+                const pagadoVentaRedondeado = Number(venta.pagado.toFixed(2));
+                const pendiente = Number((totalVentaRedondeado - pagadoVentaRedondeado).toFixed(2));
+                const montoAPagar = Number(Math.min(pendiente, montoRestante).toFixed(2));
+                montoRestante = Number((montoRestante - montoAPagar).toFixed(2));
 
                 if (montoAPagar <= 0) continue;
 
                 try {
+                    const pagoData: any = {
+                        pagado: montoAPagar,
+                        metodoPago,
+                        observaciones: observaciones || `Pago acumulado - ${ventas.length} deuda(s)`
+                    };
+
+                    // Añadir trabajadorId si el usuario es TIENDA
+                    if (userRole === UserRole.TIENDA && trabajadorId) {
+                        pagoData.trabajadorId = trabajadorId;
+                    }
+
                     const response = await fetch(`${API_BASE_URL}/ventas/${venta._id}/pago`, {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${token}`,
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({
-                            pagado: montoAPagar,
-                            metodoPago,
-                            observaciones: observaciones || `Pago acumulado - ${ventas.length} deuda(s)`
-                        }),
+                        body: JSON.stringify(pagoData),
                     });
 
                     if (!response.ok) {
@@ -189,14 +221,16 @@ export const PagoAcumuladoModal: React.FC<PagoAcumuladoModalProps> = ({
                             </TableHead>
                             <TableBody>
                                 {ventas.map((venta) => {
-                                    const pendiente = venta.total - venta.pagado;
+                                    const totalVentaRedondeado = Number(venta.total.toFixed(2));
+                                    const pagadoVentaRedondeado = Number(venta.pagado.toFixed(2));
+                                    const pendiente = Number((totalVentaRedondeado - pagadoVentaRedondeado).toFixed(2));
                                     return (
                                         <TableRow key={venta._id}>
                                             <TableCell>
                                                 {venta.nombreSocio} ({venta.codigoSocio})
                                             </TableCell>
-                                            <TableCell align="right">{formatCurrency(venta.total)}</TableCell>
-                                            <TableCell align="right">{formatCurrency(venta.pagado)}</TableCell>
+                                            <TableCell align="right">{formatCurrency(totalVentaRedondeado)}</TableCell>
+                                            <TableCell align="right">{formatCurrency(pagadoVentaRedondeado)}</TableCell>
                                             <TableCell align="right">
                                                 <strong>{formatCurrency(pendiente)}</strong>
                                             </TableCell>
@@ -206,7 +240,7 @@ export const PagoAcumuladoModal: React.FC<PagoAcumuladoModalProps> = ({
                                 <TableRow>
                                     <TableCell colSpan={3}><strong>TOTAL PENDIENTE</strong></TableCell>
                                     <TableCell align="right">
-                                        <strong>{formatCurrency(totalPendiente)}</strong>
+                                        <strong>{formatCurrency(totalPendienteRedondeado)}</strong>
                                     </TableCell>
                                 </TableRow>
                             </TableBody>
@@ -214,8 +248,22 @@ export const PagoAcumuladoModal: React.FC<PagoAcumuladoModalProps> = ({
                     </TableContainer>
 
                     <Typography variant="h6" color="primary" gutterBottom sx={{ mt: 2 }}>
-                        Total Pendiente: {formatCurrency(totalPendiente)}
+                        Total Pendiente: {formatCurrency(totalPendienteRedondeado)}
                     </Typography>
+
+                    {userRole === UserRole.TIENDA && (
+                        <Box sx={{ mb: 2 }}>
+                            <Typography variant="subtitle1" gutterBottom>
+                                Seleccionar Trabajador
+                            </Typography>
+                            <TrabajadorSelector
+                                value={trabajadorId || undefined}
+                                onChange={setTrabajadorId}
+                                required={true}
+                                variant="select"
+                            />
+                        </Box>
+                    )}
 
                     <CurrencyInput
                         fullWidth
@@ -266,7 +314,7 @@ export const PagoAcumuladoModal: React.FC<PagoAcumuladoModalProps> = ({
                 <Button
                     onClick={handleSubmit}
                     variant="contained"
-                    disabled={loading || montoTotal <= 0 || montoTotal > totalPendiente + 0.01}
+                    disabled={loading || montoTotalRedondeado <= 0 || montoTotalRedondeado > totalPendienteRedondeado + 0.01 || (userRole === UserRole.TIENDA && !trabajadorId)}
                 >
                     {loading ? 'Procesando...' : `Pagar ${ventas.length} Deuda(s)`}
                 </Button>
@@ -274,6 +322,7 @@ export const PagoAcumuladoModal: React.FC<PagoAcumuladoModalProps> = ({
         </Dialog>
     );
 };
+
 
 
 

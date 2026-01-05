@@ -80,6 +80,8 @@ export interface FormData {
     trabajadorId?: string;  // Trabajador asignado (obligatorio si usuario es TIENDA)
     normativaAceptada?: boolean;
     firmaSocio?: string; // Base64 de la firma
+    montoYaAbonado?: number; // Monto ya pagado (solo para edición)
+    precioOriginal?: number; // Precio original de la reserva (solo para edición)
 }
 
 export interface LiquidacionData {

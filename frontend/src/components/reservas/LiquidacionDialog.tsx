@@ -49,10 +49,12 @@ export const LiquidacionDialog: React.FC<LiquidacionDialogProps> = ({
         e.preventDefault();
 
         try {
-            const precioTotal = reserva.precio;
-            const montoPendiente = precioTotal - (reserva.montoAbonado || 0);
+            const precioTotal = Number(reserva.precio.toFixed(2));
+            const montoYaAbonado = Number((reserva.montoAbonado || 0).toFixed(2));
+            const montoPendiente = Number((precioTotal - montoYaAbonado).toFixed(2));
+            const montoAbonadoRedondeado = Number(liquidacionData.montoAbonado.toFixed(2));
 
-            if (liquidacionData.montoAbonado !== montoPendiente) {
+            if (Math.abs(montoAbonadoRedondeado - montoPendiente) > 0.01) {
                 alert(`Debe abonar el monto total pendiente (${montoPendiente.toFixed(2)}€)`);
                 return;
             }
@@ -68,12 +70,12 @@ export const LiquidacionDialog: React.FC<LiquidacionDialogProps> = ({
                     suplementos: liquidacionData.suplementos,
                     pagos: [
                         {
-                            monto: reserva.montoAbonado || 0,
+                            monto: Number((reserva.montoAbonado || 0).toFixed(2)),
                             metodoPago: reserva.metodoPago || '',
                             fecha: reserva.fecha
                         },
                         {
-                            monto: liquidacionData.montoAbonado,
+                            monto: Number(liquidacionData.montoAbonado.toFixed(2)),
                             metodoPago: liquidacionData.metodoPago,
                             fecha: new Date().toISOString()
                         }

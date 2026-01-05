@@ -71,8 +71,9 @@ export class VentasController {
     async registrarPago(
         @Param('id') id: string,
         @Body() pagoVentaDto: PagoVentaDto,
+        @Request() req,
     ) {
-        return this.ventasService.registrarPago(id, pagoVentaDto);
+        return this.ventasService.registrarPago(id, pagoVentaDto, req.user._id, req.user.role);
     }
 
     @Get('recaudaciones')

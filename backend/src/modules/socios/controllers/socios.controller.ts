@@ -32,7 +32,7 @@ export class SociosController {
     }
 
     @Get()
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async findAll() {
         this.logger.debug('Fetching all socios');
         return this.sociosService.findAll();
@@ -46,14 +46,14 @@ export class SociosController {
     }
 
     @Get('last-number')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async getLastNumber() {
         this.logger.debug('Getting last socio number');
         return this.sociosService.getLastNumber();
     }
 
     @Get('validate-number/:number')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async validateNumber(@Param('number') number: string) {
         this.logger.debug(`Validating socio number: ${number}`);
         return this.sociosService.validateNumber(number);
@@ -490,14 +490,14 @@ export class SociosController {
     }
 
     @Get(':id')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async findOne(@Param('id') id: string) {
         this.logger.debug(`Fetching socio with ID: ${id}`);
         return this.sociosService.findOne(id);
     }
 
     @Put(':id')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     @UseInterceptors(FileInterceptor('foto'))
     async update(
         @Param('id') id: string,
@@ -515,7 +515,7 @@ export class SociosController {
     }
 
     @Put(':id/foto')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async updateFoto(
         @Param('id') id: string,
         @Body() body: { filename: string }
@@ -549,13 +549,13 @@ export class SociosController {
     }
 
     @Get(':id/asociados')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async getAsociados(@Param('id') id: string) {
         return this.sociosService.getAsociados(id);
     }
 
     @Post(':id/asociados')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async addAsociado(
         @Param('id') id: string,
         @Body() createMiembroDto: CreateAsociadoDto
@@ -564,7 +564,7 @@ export class SociosController {
     }
 
     @Put(':id/asociados/:asociadoId')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async updateAsociado(
         @Param('id') id: string,
         @Param('asociadoId') asociadoId: string,

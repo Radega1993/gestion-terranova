@@ -44,31 +44,66 @@ export class ReservasService {
                 if (!createReservaDto.trabajadorId) {
                     throw new BadRequestException('Debe seleccionar un trabajador para realizar la reserva');
                 }
-                
+
                 // Obtener la tienda del usuario
                 const user = await this.usersService.findOne(usuarioId);
                 if (!user.tienda) {
                     throw new BadRequestException('No tiene una tienda asignada');
                 }
-                
+
                 // Validar que el trabajador pertenece a la tienda del usuario y está activo
                 const trabajador = await this.trabajadorModel.findOne({
                     _id: createReservaDto.trabajadorId,
                     tienda: user.tienda,
                     activo: true
                 }).exec();
-                
+
                 if (!trabajador) {
                     throw new BadRequestException('Trabajador no válido o no pertenece a esta tienda');
                 }
-                
+
                 trabajadorId = createReservaDto.trabajadorId;
+            }
+
+            // Redondear precio y montoAbonado a 2 decimales
+            const precioRedondeado = createReservaDto.precio ? Number(createReservaDto.precio.toFixed(2)) : createReservaDto.precio;
+
+            // Si el estado es LISTA_ESPERA, forzar montoAbonado a 0 y no permitir pago
+            let montoAbonadoRedondeado = 0;
+            if (createReservaDto.estado === EstadoReserva.LISTA_ESPERA) {
+                // Las reservas en lista de espera no pueden tener pago
+                montoAbonadoRedondeado = 0;
+            } else {
+                montoAbonadoRedondeado = createReservaDto.montoAbonado ? Number(createReservaDto.montoAbonado.toFixed(2)) : (createReservaDto.montoAbonado || 0);
+            }
+
+            // Determinar el estado basado en el pago
+            // Si se envía un estado especial (LISTA_ESPERA, CANCELADA), respetarlo
+            // De lo contrario, determinar el estado basado en el pago
+            let estadoReserva = createReservaDto.estado;
+
+            // Si no se envía estado o es PENDIENTE, determinar basado en el pago
+            if (!estadoReserva || estadoReserva === EstadoReserva.PENDIENTE) {
+                if (montoAbonadoRedondeado && precioRedondeado) {
+                    // Si el monto abonado es igual o mayor al precio (con tolerancia de 0.01), está completada
+                    if (Math.abs(montoAbonadoRedondeado - precioRedondeado) < 0.01) {
+                        estadoReserva = EstadoReserva.COMPLETADA;
+                    } else if (montoAbonadoRedondeado > 0) {
+                        estadoReserva = EstadoReserva.PENDIENTE; // Pago parcial, sigue pendiente
+                    } else {
+                        estadoReserva = EstadoReserva.PENDIENTE; // Sin pago, pendiente
+                    }
+                } else {
+                    estadoReserva = EstadoReserva.PENDIENTE; // Sin información de pago, pendiente
+                }
             }
 
             const reservaData: any = {
                 ...createReservaDto,
+                precio: precioRedondeado,
+                montoAbonado: montoAbonadoRedondeado,
                 usuarioCreacion: usuarioId,
-                estado: createReservaDto.estado || 'PENDIENTE'
+                estado: estadoReserva
             };
 
             // Añadir trabajador si existe
@@ -142,10 +177,40 @@ export class ReservasService {
                 throw new BadRequestException('No se puede modificar una reserva liquidada');
             }
 
+            // Redondear precio y montoAbonado a 2 decimales si están presentes
+            const updateData: any = { ...updateReservaDto };
+            let precioFinal = reserva.precio;
+            let montoAbonadoFinal = reserva.montoAbonado || 0;
+
+            if (updateReservaDto.precio !== undefined) {
+                precioFinal = Number(updateReservaDto.precio.toFixed(2));
+                updateData.precio = precioFinal;
+            }
+            if (updateReservaDto.montoAbonado !== undefined) {
+                montoAbonadoFinal = Number(updateReservaDto.montoAbonado.toFixed(2));
+                updateData.montoAbonado = montoAbonadoFinal;
+            }
+
+            // Determinar el estado basado en el pago
+            // Solo actualizar el estado si no se envía un estado explícito o si es PENDIENTE
+            // Respetar estados especiales como LISTA_ESPERA, CANCELADA, etc.
+            if (!updateReservaDto.estado || updateReservaDto.estado === EstadoReserva.PENDIENTE) {
+                // Si el monto abonado es igual o mayor al precio (con tolerancia de 0.01), está completada
+                if (Math.abs(montoAbonadoFinal - precioFinal) < 0.01 && montoAbonadoFinal > 0) {
+                    updateData.estado = EstadoReserva.COMPLETADA;
+                } else if (montoAbonadoFinal > 0 && montoAbonadoFinal < precioFinal) {
+                    // Si hay pago parcial pero no completo, mantener PENDIENTE
+                    updateData.estado = EstadoReserva.PENDIENTE;
+                } else if (montoAbonadoFinal === 0) {
+                    // Sin pago, mantener PENDIENTE
+                    updateData.estado = EstadoReserva.PENDIENTE;
+                }
+            }
+
             const reservaActualizada = await this.reservaModel.findByIdAndUpdate(
                 id,
                 {
-                    ...updateReservaDto,
+                    ...updateData,
                     usuarioActualizacion: usuarioId
                 },
                 { new: true }
@@ -203,8 +268,8 @@ export class ReservasService {
                 throw new BadRequestException('No se puede liquidar una reserva cancelada');
             }
 
-            // Calcular el monto total abonado
-            const montoTotalAbonado = liquidarReservaDto.pagos.reduce((total, pago) => total + pago.monto, 0);
+            // Calcular el monto total abonado y redondear a 2 decimales
+            const montoTotalAbonado = Number(liquidarReservaDto.pagos.reduce((total, pago) => total + Number(pago.monto.toFixed(2)), 0).toFixed(2));
 
             const reservaLiquidada = await this.reservaModel.findByIdAndUpdate(
                 id,
@@ -250,13 +315,14 @@ export class ReservasService {
                 throw new BadRequestException('No se puede cancelar una reserva liquidada');
             }
 
-            // Calcular el importe pendiente
-            const montoAbonado = reserva.montoAbonado || 0;
-            const importePendiente = reserva.precio - montoAbonado;
+            // Calcular el importe pendiente y redondear a 2 decimales
+            const montoAbonado = Number((reserva.montoAbonado || 0).toFixed(2));
+            const precioRedondeado = Number(reserva.precio.toFixed(2));
+            const importePendiente = Number((precioRedondeado - montoAbonado).toFixed(2));
 
             // Si se especifica un monto devuelto en el DTO, usarlo; si no, usar el importe pendiente
-            const montoDevuelto = cancelarReservaDto.montoDevuelto !== undefined 
-                ? cancelarReservaDto.montoDevuelto 
+            const montoDevuelto = cancelarReservaDto.montoDevuelto !== undefined
+                ? cancelarReservaDto.montoDevuelto
                 : importePendiente;
 
             // Actualizar la reserva: quitar el importe pendiente y marcar devolución

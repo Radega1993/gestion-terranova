@@ -73,7 +73,9 @@ export const DeudasList: React.FC = () => {
             if (filtros.codigoCliente) {
                 url += `codigoCliente=${filtros.codigoCliente}&`;
             }
-            if (filtros.estado) {
+            // No enviar estado si es 'PENDIENTE' para obtener todas las pendientes (PENDIENTE y PAGADO_PARCIAL)
+            // Solo enviar si se quiere filtrar específicamente por PAGADO_PARCIAL
+            if (filtros.estado && filtros.estado !== 'PENDIENTE') {
                 url += `estado=${filtros.estado}&`;
             }
 
@@ -89,17 +91,23 @@ export const DeudasList: React.FC = () => {
             }
 
             const data = await response.json();
+            console.log('Deudas recibidas:', data);
+            console.log('Número de deudas:', data.length);
             setVentas(data);
+            setError(null);
         } catch (error) {
             console.error('Error:', error);
             setError(error instanceof Error ? error.message : 'Error al cargar las deudas');
+            setVentas([]);
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchVentas();
+        if (token) {
+            fetchVentas();
+        }
     }, [token]);
 
     const handleFiltroChange = (campo: string, valor: any) => {
@@ -381,10 +389,10 @@ export const DeudasList: React.FC = () => {
                                 </TableCell>
                             </TableRow>
                         ))}
-                        {ventas.length === 0 && (
+                        {ventas.length === 0 && !loading && (
                             <TableRow>
                                 <TableCell colSpan={9} align="center">
-                                    No hay deudas pendientes
+                                    {error ? `Error: ${error}` : 'No hay deudas pendientes'}
                                 </TableCell>
                             </TableRow>
                         )}

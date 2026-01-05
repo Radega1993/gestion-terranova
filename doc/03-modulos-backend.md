@@ -14,6 +14,7 @@ Documentación detallada de los módulos del backend desarrollados con NestJS.
 6. [Reservas - Reservas](#6-reservas---reservas)
 7. [Invitaciones - Invitaciones](#7-invitaciones---invitaciones)
 8. [Uploads - Archivos](#8-uploads---archivos)
+9. [Configuracion - Configuración](#9-configuracion---configuración)
 
 ---
 
@@ -517,6 +518,56 @@ GET    /uploads/:filename    # Obtener archivo (estático)
 
 ---
 
+## 9. Configuracion - Configuración
+
+**Ruta**: `backend/src/modules/configuracion/`
+
+### Propósito
+Gestión de configuración del sistema, especialmente el texto de normativa que aparece en los PDFs de reserva.
+
+### Componentes
+
+#### Controllers
+- `configuracion.controller.ts` - Endpoints para obtener y actualizar configuración
+
+#### Services
+- `configuracion.service.ts` - Lógica de negocio para configuración
+
+#### Schemas
+- `normativa.schema.ts` - Schema para almacenar el texto de normativa
+
+#### DTOs
+- `update-normativa.dto.ts` - DTO para actualizar normativa
+
+### Endpoints
+
+```
+GET    /api/configuracion/normativa  # Obtener texto de normativa (todos los roles autenticados)
+PUT    /api/configuracion/normativa  # Actualizar texto de normativa (solo ADMINISTRADOR y JUNTA)
+```
+
+### Modelo de Datos
+
+```typescript
+Normativa {
+  _id: ObjectId
+  clave: string (único, por defecto: 'normativa-reservas')
+  texto: string (texto completo de la normativa)
+  ultimaActualizacion?: Date
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+### Características
+
+- El texto de normativa se crea automáticamente con valores por defecto si no existe
+- El texto aparece en los PDFs de reserva en una página separada
+- Solo ADMINISTRADOR y JUNTA pueden modificar el texto
+- Todos los roles autenticados pueden leer el texto para mostrarlo en PDFs
+
+---
+
 ## 🔗 Dependencias entre Módulos
 
 ```
@@ -535,6 +586,9 @@ Ventas Module
 
 Invitaciones Module
   └──> Socios Module (referencia a socios)
+
+Configuracion Module
+  └──> (módulo independiente)
 ```
 
 ---
@@ -549,7 +603,8 @@ Invitaciones Module
 
 ---
 
-*Última actualización: Enero 2025*
+*Última actualización: Enero 2026*
+
 
 
 

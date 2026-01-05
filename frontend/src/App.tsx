@@ -21,6 +21,7 @@ import RecaudacionesList from './components/recaudaciones/RecaudacionesList';
 import InvitacionesList from './components/invitaciones/InvitacionesList';
 import TiendasList from './components/tiendas/TiendasList';
 import { DevolucionesList } from './components/devoluciones/DevolucionesList';
+import { GestionNormativa } from './components/configuracion/GestionNormativa';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -159,6 +160,14 @@ function App() {
                   element={
                     <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
                       <UsersList />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/configuracion/normativa"
+                  element={
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
+                      <GestionNormativa />
                     </ProtectedRoute>
                   }
                 />

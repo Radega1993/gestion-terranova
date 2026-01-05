@@ -94,28 +94,30 @@ Los trabajadores y usuarios TIENDA deben poder registrar invitaciones.
 
 ## 5. Normativa para Reserva (Imprimir y Firma)
 
-### Estado: ❌ No implementado
+### Estado: ✅ **IMPLEMENTADO** (Enero 2026)
 
 ### Descripción
-Añadir normativa a la reserva para imprimir y que el socio firme.
+Sistema completo de gestión de normativa para reservas que aparece en los PDFs y puede ser editada por administradores.
 
-### Archivos a modificar
-- `backend/src/modules/reservas/schemas/reserva.schema.ts` - Añadir campo `normativaAceptada` y `firmaSocio`
-- `backend/src/modules/reservas/dto/create-reserva.dto.ts` - Añadir campo opcional
-- `frontend/src/components/reservas/ReservaPDF.tsx` - Incluir normativa en PDF
-- `frontend/src/components/reservas/ReservaForm.tsx` - Checkbox de aceptación de normativa
-- `frontend/src/components/reservas/ReservasList.tsx` - Campo para firma
+### Archivos implementados
+- `backend/src/modules/configuracion/` - Nuevo módulo completo
+  - `schemas/normativa.schema.ts` - Schema para almacenar normativa
+  - `services/configuracion.service.ts` - Lógica de negocio
+  - `controllers/configuracion.controller.ts` - Endpoints API
+  - `dto/update-normativa.dto.ts` - DTO para actualización
+- `frontend/src/services/configuracion.ts` - Servicio para API
+- `frontend/src/components/configuracion/GestionNormativa.tsx` - Componente de edición
+- `frontend/src/components/reservas/ReservaPDF.tsx` - PDF actualizado con normativa en página separada
 
-### Implementación
-1. Añadir campos al schema:
-   - `normativaAceptada: boolean`
-   - `firmaSocio: string` (base64 o URL de imagen)
-   - `fechaAceptacionNormativa: Date`
-2. Incluir normativa en el PDF de reserva
-3. Añadir checkbox de aceptación en el formulario
-4. Añadir campo para firma (canvas o upload)
+### Funcionalidades implementadas
+1. ✅ Módulo de configuración en backend para gestionar normativa
+2. ✅ Texto de normativa editable por ADMINISTRADOR y JUNTA
+3. ✅ Normativa incluida automáticamente en PDFs de reserva
+4. ✅ Normativa en página separada del PDF para facilitar firma
+5. ✅ Texto por defecto con todas las normas de la asociación
+6. ✅ Interfaz de gestión accesible desde el menú
 
-### Prioridad: Media
+### Prioridad: Media (Completada)
 
 ---
 

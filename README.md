@@ -68,6 +68,15 @@ npm run start:prod
 - **ADMINISTRADOR**: Acceso total al sistema
 - **JUNTA**: Acceso limitado a gestión de socios, reservas e invitaciones
 - **TRABAJADOR**: Acceso a inventario, TPV y reservas
+- **TIENDA**: Acceso a ventas, reservas y gestión de trabajadores asociados
+
+## 🆕 Funcionalidades Recientes
+
+### Gestión de Normativa de Reservas
+- ✅ Sistema de gestión de normativa editable para reservas
+- ✅ Normativa incluida automáticamente en PDFs de reserva
+- ✅ Edición de normativa disponible para ADMINISTRADOR y JUNTA
+- ✅ Normativa en página separada del PDF para facilitar firma
 
 ## 📝 Licencia
 

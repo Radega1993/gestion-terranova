@@ -29,7 +29,8 @@ import {
     AttachMoney as AttachMoneyIcon,
     ConfirmationNumber as ConfirmationNumberIcon,
     Badge as BadgeIcon,
-    Undo as UndoIcon
+    Undo as UndoIcon,
+    Description as DescriptionIcon
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 
@@ -143,6 +144,9 @@ export const Navbar: React.FC = () => {
                     <MenuItem onClick={() => { navigate('/devoluciones'); handleMobileMenuClose(); }}>
                         <UndoIcon sx={{ mr: 1 }} /> Devoluciones
                     </MenuItem>
+                    <MenuItem onClick={() => { navigate('/configuracion/normativa'); handleMobileMenuClose(); }}>
+                        <DescriptionIcon sx={{ mr: 1 }} /> Normativa
+                    </MenuItem>
                 </>
             )}
             {user?.role === 'TIENDA' && (
@@ -198,6 +202,9 @@ export const Navbar: React.FC = () => {
                     </MenuItem>
                     <MenuItem onClick={() => { navigate('/invitaciones'); handleMobileMenuClose(); }}>
                         <ConfirmationNumberIcon sx={{ mr: 1 }} /> Invitaciones
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/configuracion/normativa'); handleMobileMenuClose(); }}>
+                        <DescriptionIcon sx={{ mr: 1 }} /> Normativa
                     </MenuItem>
                 </>
             )}
@@ -303,6 +310,7 @@ export const Navbar: React.FC = () => {
                                     {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />)}
                                     {renderNavButton('/tiendas', 'Tiendas', <BadgeIcon />)}
                                     {renderNavButton('/devoluciones', 'Devoluciones', <UndoIcon />)}
+                                    {renderNavButton('/configuracion/normativa', 'Normativa', <DescriptionIcon />)}
                                 </>
                             )}
                             {user.role === 'JUNTA' && (
@@ -313,6 +321,7 @@ export const Navbar: React.FC = () => {
                                     {renderNavButton('/users', 'Usuarios', <PersonIcon />)}
                                     {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
                                     {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />)}
+                                    {renderNavButton('/configuracion/normativa', 'Normativa', <DescriptionIcon />)}
                                 </>
                             )}
                             {user.role === 'TRABAJADOR' && (

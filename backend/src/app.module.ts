@@ -14,6 +14,7 @@ import { InvitacionesModule } from './modules/invitaciones/invitaciones.module';
 import { TrabajadoresModule } from './modules/trabajadores/trabajadores.module';
 import { TiendasModule } from './modules/tiendas/tiendas.module';
 import { DevolucionesModule } from './modules/devoluciones/devoluciones.module';
+import { ConfiguracionModule } from './modules/configuracion/configuracion.module';
 import { UserRole } from './modules/users/types/user-roles.enum';
 
 @Module({
@@ -30,7 +31,8 @@ import { UserRole } from './modules/users/types/user-roles.enum';
         InvitacionesModule,
         TrabajadoresModule,
         TiendasModule,
-        DevolucionesModule
+        DevolucionesModule,
+        ConfiguracionModule
     ],
     controllers: [AppController],
     providers: [AppService],

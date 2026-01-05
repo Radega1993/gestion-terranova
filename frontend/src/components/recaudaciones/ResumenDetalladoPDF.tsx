@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Document, Page, Text, View, StyleSheet, PDFViewer } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -54,14 +54,50 @@ const styles = StyleSheet.create({
         borderLeftWidth: 0,
         borderTopWidth: 0,
     },
+    tableColSmall: {
+        width: '12.5%',
+        borderStyle: 'solid',
+        borderWidth: 1,
+        borderLeftWidth: 0,
+        borderTopWidth: 0,
+    },
     tableCell: {
         margin: 'auto',
         padding: 5,
         fontSize: 10,
     },
+    tableCellSmall: {
+        margin: 'auto',
+        padding: 3,
+        fontSize: 8,
+    },
     tableHeader: {
         backgroundColor: '#f0f0f0',
         fontWeight: 'bold',
+    },
+    daySection: {
+        marginTop: 15,
+        marginBottom: 10,
+        padding: 8,
+        backgroundColor: '#f5f5f5',
+    },
+    dayTitle: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        marginBottom: 5,
+    },
+    summaryRow: {
+        flexDirection: 'row',
+        marginBottom: 3,
+        fontSize: 10,
+    },
+    summaryLabel: {
+        width: '50%',
+        fontWeight: 'bold',
+    },
+    summaryValue: {
+        width: '50%',
+        textAlign: 'right',
     },
     footer: {
         position: 'absolute',
@@ -86,6 +122,11 @@ interface ResumenDetalladoPDFProps {
         usuario: {
             _id: string;
             username: string;
+        };
+        trabajador?: {
+            _id: string;
+            nombre: string;
+            identificador: string;
         };
         total: number;
         pagado: number;
@@ -133,6 +174,51 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
         };
         fetchCategorias();
     }, [token]);
+
+    // Agrupar ventas por día
+    const ventasPorDia = useMemo(() => {
+        const agrupadas: any = {};
+        
+        ventas.forEach(venta => {
+            const fechaVenta = new Date(venta.fecha);
+            const fechaKey = format(fechaVenta, 'yyyy-MM-dd');
+            
+            if (!agrupadas[fechaKey]) {
+                agrupadas[fechaKey] = {
+                    fecha: fechaVenta,
+                    ventas: [],
+                    total: 0,
+                    metodoPago: { efectivo: 0, tarjeta: 0 },
+                    trabajadores: new Set<string>(),
+                    cantidadVentas: 0
+                };
+            }
+            
+            agrupadas[fechaKey].ventas.push(venta);
+            agrupadas[fechaKey].total += venta.pagado;
+            agrupadas[fechaKey].cantidadVentas += 1;
+            
+            const metodoPago = venta.metodoPago || (venta.pagos && venta.pagos.length > 0 ? venta.pagos[0].metodoPago : '');
+            if (metodoPago === 'EFECTIVO' || metodoPago === 'efectivo') {
+                agrupadas[fechaKey].metodoPago.efectivo += venta.pagado;
+            } else if (metodoPago === 'TARJETA' || metodoPago === 'tarjeta') {
+                agrupadas[fechaKey].metodoPago.tarjeta += venta.pagado;
+            }
+            
+            const trabajadorKey = venta.trabajador 
+                ? `${venta.trabajador.nombre} (${venta.trabajador.identificador})`
+                : venta.usuario.username;
+            agrupadas[fechaKey].trabajadores.add(trabajadorKey);
+        });
+        
+        // Convertir Sets a arrays y ordenar por fecha
+        return Object.keys(agrupadas)
+            .sort()
+            .map(key => ({
+                ...agrupadas[key],
+                trabajadores: Array.from(agrupadas[key].trabajadores)
+            }));
+    }, [ventas]);
 
     // Agrupar productos vendidos
     const productosVendidos = ventas.reduce((acc: any, venta) => {
@@ -227,8 +313,28 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
 
     console.log('Productos por categoría:', productosPorCategoria);
 
+    // Calcular totales generales
+    const totalGeneral = ventas.reduce((sum, v) => sum + v.pagado, 0);
+    const totalEfectivo = ventas.reduce((sum, v) => {
+        const metodoPago = v.metodoPago || (v.pagos && v.pagos.length > 0 ? v.pagos[0].metodoPago : '');
+        return sum + (metodoPago === 'EFECTIVO' || metodoPago === 'efectivo' ? v.pagado : 0);
+    }, 0);
+    const totalTarjeta = ventas.reduce((sum, v) => {
+        const metodoPago = v.metodoPago || (v.pagos && v.pagos.length > 0 ? v.pagos[0].metodoPago : '');
+        return sum + (metodoPago === 'TARJETA' || metodoPago === 'tarjeta' ? v.pagado : 0);
+    }, 0);
+
+    // No renderizar el PDF hasta que las categorías estén cargadas
+    if (categorias.length === 0) {
+        return (
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+                <p>Cargando categorías...</p>
+            </div>
+        );
+    }
+
     return (
-        <PDFViewer style={{ width: '100%', height: '100%', border: 'none' }}>
+        <PDFViewer key={`pdf-detallado-${categorias.length}-${ventas.length}`} style={{ width: '100%', height: '100%', border: 'none' }}>
             <Document>
                 <Page size="A4" style={styles.page}>
                     <View style={styles.header}>
@@ -237,50 +343,159 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
                         <Text>Período: {format(fechaInicio, 'dd/MM/yyyy')} - {format(fechaFin, 'dd/MM/yyyy')}</Text>
                     </View>
 
-                    {/* Tabla de Productos por Categoría */}
-                    {Object.entries(productosPorCategoria)
-                        .filter(([_, productos]) => productos.length > 0)
-                        .map(([categoria, productos]) => (
-                            <View key={categoria} style={styles.section}>
-                                <Text style={styles.sectionTitle}>{categoria}</Text>
+                    {/* Resumen General */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Resumen General del Período</Text>
+                        <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Total Recaudado:</Text>
+                            <Text style={styles.summaryValue}>{totalGeneral.toFixed(2)}€</Text>
+                        </View>
+                        <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Total Efectivo:</Text>
+                            <Text style={styles.summaryValue}>{totalEfectivo.toFixed(2)}€</Text>
+                        </View>
+                        <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Total Tarjeta:</Text>
+                            <Text style={styles.summaryValue}>{totalTarjeta.toFixed(2)}€</Text>
+                        </View>
+                        <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Total Ventas:</Text>
+                            <Text style={styles.summaryValue}>{ventas.length}</Text>
+                        </View>
+                        <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Días con actividad:</Text>
+                            <Text style={styles.summaryValue}>{ventasPorDia.length}</Text>
+                        </View>
+                    </View>
 
-                                <View style={styles.table}>
-                                    {/* Encabezados */}
-                                    <View style={[styles.tableRow, styles.tableHeader]}>
-                                        <View style={styles.tableCol}>
-                                            <Text style={styles.tableCell}>Producto</Text>
-                                        </View>
-                                        <View style={styles.tableCol}>
-                                            <Text style={styles.tableCell}>Unidades</Text>
-                                        </View>
-                                        <View style={styles.tableCol}>
-                                            <Text style={styles.tableCell}>Precio Unit.</Text>
-                                        </View>
-                                        <View style={styles.tableCol}>
-                                            <Text style={styles.tableCell}>Total</Text>
-                                        </View>
-                                    </View>
-
-                                    {/* Filas de productos */}
-                                    {(productos as any[]).map((producto, index) => (
-                                        <View key={index} style={styles.tableRow}>
-                                            <View style={styles.tableCol}>
-                                                <Text style={styles.tableCell}>{producto.nombre}</Text>
-                                            </View>
-                                            <View style={styles.tableCol}>
-                                                <Text style={styles.tableCell}>{producto.unidades}</Text>
-                                            </View>
-                                            <View style={styles.tableCol}>
-                                                <Text style={styles.tableCell}>{producto.precioUnitario.toFixed(2)}€</Text>
-                                            </View>
-                                            <View style={styles.tableCol}>
-                                                <Text style={styles.tableCell}>{producto.total.toFixed(2)}€</Text>
-                                            </View>
-                                        </View>
-                                    ))}
+                    {/* Resumen por Día */}
+                    {ventasPorDia.map((dia: any, diaIndex: number) => (
+                        <View key={diaIndex} style={styles.section}>
+                            <View style={styles.daySection}>
+                                <Text style={styles.dayTitle}>
+                                    {format(dia.fecha, 'EEEE, dd MMMM yyyy', { locale: es })}
+                                </Text>
+                                <View style={styles.summaryRow}>
+                                    <Text style={styles.summaryLabel}>Total del día:</Text>
+                                    <Text style={styles.summaryValue}>{dia.total.toFixed(2)}€</Text>
+                                </View>
+                                <View style={styles.summaryRow}>
+                                    <Text style={styles.summaryLabel}>Ventas realizadas:</Text>
+                                    <Text style={styles.summaryValue}>{dia.cantidadVentas}</Text>
+                                </View>
+                                <View style={styles.summaryRow}>
+                                    <Text style={styles.summaryLabel}>Efectivo:</Text>
+                                    <Text style={styles.summaryValue}>{dia.metodoPago.efectivo.toFixed(2)}€</Text>
+                                </View>
+                                <View style={styles.summaryRow}>
+                                    <Text style={styles.summaryLabel}>Tarjeta:</Text>
+                                    <Text style={styles.summaryValue}>{dia.metodoPago.tarjeta.toFixed(2)}€</Text>
+                                </View>
+                                <View style={styles.summaryRow}>
+                                    <Text style={styles.summaryLabel}>Trabajadores:</Text>
+                                    <Text style={styles.summaryValue}>{dia.trabajadores.join(', ')}</Text>
                                 </View>
                             </View>
-                        ))}
+
+                            {/* Detalle de ventas del día */}
+                            <View style={styles.table}>
+                                <View style={[styles.tableRow, styles.tableHeader]}>
+                                    <View style={styles.tableColSmall}>
+                                        <Text style={styles.tableCellSmall}>Hora</Text>
+                                    </View>
+                                    <View style={styles.tableColSmall}>
+                                        <Text style={styles.tableCellSmall}>Tipo</Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCellSmall}>Socio</Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCellSmall}>Trabajador</Text>
+                                    </View>
+                                    <View style={styles.tableColSmall}>
+                                        <Text style={styles.tableCellSmall}>Método</Text>
+                                    </View>
+                                    <View style={styles.tableColSmall}>
+                                        <Text style={styles.tableCellSmall}>Total</Text>
+                                    </View>
+                                </View>
+                                {dia.ventas.map((venta: any, ventaIndex: number) => {
+                                    const fechaVenta = new Date(venta.fecha);
+                                    const trabajadorNombre = venta.trabajador 
+                                        ? `${venta.trabajador.nombre} (${venta.trabajador.identificador})`
+                                        : venta.usuario.username;
+                                    const metodoPago = venta.metodoPago || (venta.pagos && venta.pagos.length > 0 ? venta.pagos[0].metodoPago : 'Sin especificar');
+                                    
+                                    return (
+                                        <View key={ventaIndex} style={styles.tableRow}>
+                                            <View style={styles.tableColSmall}>
+                                                <Text style={styles.tableCellSmall}>{format(fechaVenta, 'HH:mm')}</Text>
+                                            </View>
+                                            <View style={styles.tableColSmall}>
+                                                <Text style={styles.tableCellSmall}>{venta.tipo}</Text>
+                                            </View>
+                                            <View style={styles.tableCol}>
+                                                <Text style={styles.tableCellSmall}>{venta.socio.nombre} ({venta.socio.codigo})</Text>
+                                            </View>
+                                            <View style={styles.tableCol}>
+                                                <Text style={styles.tableCellSmall}>{trabajadorNombre}</Text>
+                                            </View>
+                                            <View style={styles.tableColSmall}>
+                                                <Text style={styles.tableCellSmall}>{metodoPago}</Text>
+                                            </View>
+                                            <View style={styles.tableColSmall}>
+                                                <Text style={styles.tableCellSmall}>{venta.pagado.toFixed(2)}€</Text>
+                                            </View>
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                        </View>
+                    ))}
+
+                    {/* Tabla de Productos por Categoría */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Resumen de Productos por Categoría</Text>
+                        {Object.entries(productosPorCategoria)
+                            .filter(([_, productos]) => productos.length > 0)
+                            .map(([categoria, productos]) => (
+                                <View key={categoria} style={{ marginBottom: 10 }}>
+                                    <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 3 }}>{categoria}</Text>
+                                    <View style={styles.table}>
+                                        <View style={[styles.tableRow, styles.tableHeader]}>
+                                            <View style={styles.tableCol}>
+                                                <Text style={styles.tableCell}>Producto</Text>
+                                            </View>
+                                            <View style={styles.tableCol}>
+                                                <Text style={styles.tableCell}>Unidades</Text>
+                                            </View>
+                                            <View style={styles.tableCol}>
+                                                <Text style={styles.tableCell}>Precio Unit.</Text>
+                                            </View>
+                                            <View style={styles.tableCol}>
+                                                <Text style={styles.tableCell}>Total</Text>
+                                            </View>
+                                        </View>
+                                        {(productos as any[]).map((producto, index) => (
+                                            <View key={index} style={styles.tableRow}>
+                                                <View style={styles.tableCol}>
+                                                    <Text style={styles.tableCell}>{producto.nombre}</Text>
+                                                </View>
+                                                <View style={styles.tableCol}>
+                                                    <Text style={styles.tableCell}>{producto.unidades}</Text>
+                                                </View>
+                                                <View style={styles.tableCol}>
+                                                    <Text style={styles.tableCell}>{producto.precioUnitario.toFixed(2)}€</Text>
+                                                </View>
+                                                <View style={styles.tableCol}>
+                                                    <Text style={styles.tableCell}>{producto.total.toFixed(2)}€</Text>
+                                                </View>
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
+                            ))}
+                    </View>
 
                     <View style={styles.footer}>
                         <Text>Documento generado el {format(new Date(), 'dd/MM/yyyy HH:mm')}</Text>

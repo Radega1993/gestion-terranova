@@ -69,6 +69,10 @@ gestion-terranova/
 - ✅ Cancelación con devolución
 - ✅ Calendario de reservas
 - ✅ Generación de PDFs
+- ✅ Gestión de normativa editable
+- ✅ Normativa incluida en PDF en página separada
+- ✅ Detección automática de conflictos de reserva
+- ✅ Sistema de lista de espera con validación de pagos
 
 ### 7. Invitaciones
 - ✅ Gestión de invitaciones anuales (12 por socio)
@@ -82,11 +86,19 @@ gestion-terranova/
 - ✅ Resúmenes de recaudaciones
 - ✅ Filtros por fechas y tipos
 - ✅ Generación de PDFs
+- ✅ Pagos de deudas con selección de trabajador (TIENDA)
+- ✅ Manejo de cambio en pagos en efectivo
 
 ### 9. Subida de Archivos
 - ✅ Sistema de uploads
 - ✅ Almacenamiento de imágenes
 - ✅ Servicio de archivos estáticos
+
+### 10. Configuración
+- ✅ Gestión de normativa de reservas
+- ✅ Edición de texto de normativa (ADMINISTRADOR y JUNTA)
+- ✅ Normativa incluida automáticamente en PDFs
+- ✅ Texto por defecto con normas de la asociación
 
 ---
 
@@ -115,7 +127,7 @@ gestion-terranova/
 
 ## 📁 Estructura de Módulos
 
-### Backend (8 módulos principales)
+### Backend (9 módulos principales)
 1. **auth** - Autenticación y autorización
 2. **users** - Gestión de usuarios del sistema
 3. **socios** - Gestión de socios de la asociación
@@ -124,6 +136,7 @@ gestion-terranova/
 6. **reservas** - Gestión de reservas de instalaciones
 7. **invitaciones** - Control de invitaciones anuales
 8. **uploads** - Gestión de archivos
+9. **configuracion** - Gestión de configuración del sistema (normativa)
 
 ### Frontend (Componentes organizados por módulo)
 - **auth/** - Login, registro, protección de rutas
@@ -165,6 +178,7 @@ gestion-terranova/
   - invitaciones
   - servicios (reservas)
   - suplementos (reservas)
+  - normativas (configuracion)
 
 ---
 
@@ -250,6 +264,7 @@ gestion-terranova/
 ---
 
 *Última actualización: Enero 2025*
+
 
 
 

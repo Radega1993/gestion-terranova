@@ -20,6 +20,10 @@ import {
     DialogContent,
     IconButton,
     Chip,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
 } from '@mui/material';
 import { Close as CloseIcon, PictureAsPdf as PdfIcon } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -42,6 +46,7 @@ interface Filtros {
     codigoSocio: string;
     usuario: string | string[];
     trabajadorId: string | string[];
+    metodoPago: string; // 'todos', 'efectivo', 'tarjeta'
 }
 
 interface Usuario {
@@ -101,6 +106,7 @@ const RecaudacionesList: React.FC = () => {
         codigoSocio: '',
         usuario: [],
         trabajadorId: [],
+        metodoPago: 'todos',
     });
     const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<Usuario | null>(null);
     const [trabajadorSeleccionado, setTrabajadorSeleccionado] = useState<string | null>(null);
@@ -174,6 +180,11 @@ const RecaudacionesList: React.FC = () => {
             
             trabajadorIds.forEach(id => queryParams.append('trabajadorId', id));
             usuarioIds.forEach(id => queryParams.append('usuario', id));
+            
+            // Agregar filtro de método de pago si no es 'todos'
+            if (filtros.metodoPago && filtros.metodoPago !== 'todos') {
+                queryParams.append('metodoPago', filtros.metodoPago);
+            }
 
             const response = await fetch(`${API_BASE_URL}/ventas/recaudaciones?${queryParams.toString()}`, {
                 headers: {
@@ -204,6 +215,7 @@ const RecaudacionesList: React.FC = () => {
             codigoSocio: '',
             usuario: [],
             trabajadorId: [],
+            metodoPago: 'todos',
         });
         setUsuarioSeleccionado(null);
         setTrabajadorSeleccionado(null);
@@ -290,6 +302,20 @@ const RecaudacionesList: React.FC = () => {
                                 excluirTienda={true}
                             />
                         )}
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                        <FormControl fullWidth>
+                            <InputLabel>Método de Pago</InputLabel>
+                            <Select
+                                value={filtros.metodoPago}
+                                label="Método de Pago"
+                                onChange={(e) => handleFiltroChange('metodoPago', e.target.value)}
+                            >
+                                <MenuItem value="todos">Todos</MenuItem>
+                                <MenuItem value="efectivo">Efectivo</MenuItem>
+                                <MenuItem value="tarjeta">Tarjeta</MenuItem>
+                            </Select>
+                        </FormControl>
                     </Grid>
                     <Grid item xs={12}>
                         <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
