@@ -230,7 +230,11 @@ export const ResumenSociosPDF: React.FC<ResumenSociosPDFProps> = ({ ventas, fech
             socioData.diasConsumo.add(fechaConsumo);
             
             // Sumar al total pagado
-            socioData.totalPagado += venta.pagado;
+            // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
+            const montoVenta = venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined 
+                ? (venta as any).pagadoRecaudacion 
+                : venta.pagado;
+            socioData.totalPagado += montoVenta;
             socioData.totalVentas += 1;
 
             // Obtener método de pago
@@ -245,7 +249,7 @@ export const ResumenSociosPDF: React.FC<ResumenSociosPDFProps> = ({ ventas, fech
                     cantidad: d.cantidad,
                     total: d.total
                 })),
-                pagado: venta.pagado,
+                pagado: montoVenta,
                 metodoPago: metodoPago === 'EFECTIVO' || metodoPago === 'efectivo' ? 'Efectivo' : 
                            metodoPago === 'TARJETA' || metodoPago === 'tarjeta' ? 'Tarjeta' : metodoPago
             });

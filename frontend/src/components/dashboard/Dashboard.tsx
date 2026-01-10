@@ -64,6 +64,12 @@ const Dashboard: React.FC = () => {
             description: 'Gestión de devoluciones de productos',
             roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]
         },
+        {
+            title: 'Cambios',
+            path: '/cambios',
+            description: 'Cambio de productos en ventas del día',
+            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]
+        },
     ];
 
     // Filtrar módulos según el rol del usuario

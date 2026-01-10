@@ -62,7 +62,7 @@ interface Usuario {
 
 interface Venta {
     _id: string;
-    tipo: 'VENTA' | 'RESERVA';
+    tipo: 'VENTA' | 'RESERVA' | 'CAMBIO';
     fecha: string;
     socio: {
         codigo: string;
@@ -82,6 +82,24 @@ interface Venta {
     fianza?: number;
     metodoPago?: string;
     estado: string;
+    diferenciaPrecio?: number; // Solo para cambios
+    pagadoRecaudacion?: number; // Para cambios: positivo si PAGADO, negativo si DEVUELTO
+    totalPagadoAcumulado?: number; // Para ventas con múltiples pagos: total pagado acumulado hasta este pago
+    esMultiPago?: boolean; // Indica si la venta tiene múltiples pagos
+    indicePago?: number; // Índice del pago (0, 1, 2, ...)
+    productoOriginal?: {
+        nombre: string;
+        cantidad: number;
+        precio: number;
+        total: number;
+    };
+    productoNuevo?: {
+        nombre: string;
+        cantidad: number;
+        precio: number;
+        total: number;
+    };
+    motivo?: string;
     detalles: Array<{
         nombre: string;
         cantidad: number;
@@ -105,8 +123,8 @@ const RecaudacionesList: React.FC = () => {
         fechaInicio: null,
         fechaFin: null,
         codigoSocio: '',
-        usuario: [],
-        trabajadorId: [],
+        usuario: (userRole === UserRole.TIENDA || userRole === UserRole.ADMINISTRADOR || userRole === UserRole.JUNTA) ? [] : '',
+        trabajadorId: (userRole === UserRole.TIENDA || userRole === UserRole.ADMINISTRADOR || userRole === UserRole.JUNTA) ? [] : '',
         metodoPago: 'todos',
     });
     const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<Usuario | null>(null);
@@ -224,9 +242,15 @@ const RecaudacionesList: React.FC = () => {
         setVentas([]);
     };
 
-    const totalRecaudado = ventas.reduce((sum, venta) => sum + venta.pagado, 0);
+    const totalRecaudado = ventas.reduce((sum, venta) => {
+        // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
+        if (venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined) {
+            return sum + (venta as any).pagadoRecaudacion;
+        }
+        return sum + venta.pagado;
+    }, 0);
 
-    // Calcular totales por usuario/trabajador
+    // Calcular totales por usuario/trabajador (solo de las ventas filtradas)
     const totalesPorUsuario = ventas.reduce((acc: { [key: string]: { username: string; total: number; cantidad: number } }, venta) => {
         // Si hay trabajador, usar el trabajador; si no, usar el usuario
         const identificador = venta.trabajador 
@@ -240,12 +264,54 @@ const RecaudacionesList: React.FC = () => {
                 cantidad: 0
             };
         }
-        acc[identificador].total += venta.pagado;
+        // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
+        const monto = venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined
+            ? (venta as any).pagadoRecaudacion
+            : venta.pagado;
+        acc[identificador].total += monto;
         acc[identificador].cantidad += 1;
         return acc;
     }, {});
 
     const totalesPorUsuarioArray = Object.values(totalesPorUsuario).sort((a, b) => b.total - a.total);
+
+    const getEstadoChip = (estado: string) => {
+        let color: 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' = 'default';
+        let label = estado;
+        switch (estado) {
+            case 'PAGADO':
+                color = 'success';
+                label = 'Pagado';
+                break;
+            case 'PENDIENTE':
+                color = 'warning';
+                label = 'Pendiente';
+                break;
+            case 'PAGADO_PARCIAL':
+                color = 'info';
+                label = 'Pago Parcial';
+                break;
+            case 'COMPLETADA':
+                color = 'success';
+                label = 'Completada';
+                break;
+            case 'CANCELADA':
+                color = 'secondary';
+                label = 'Cancelada';
+                break;
+            case 'PENDIENTE_PAGO':
+                color = 'warning';
+                label = 'Pendiente Pago';
+                break;
+            case 'DEVUELTO':
+                color = 'info';
+                label = 'Devuelto';
+                break;
+            default:
+                color = 'default';
+        }
+        return <Chip label={label} size="small" color={color} />;
+    };
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
@@ -287,7 +353,7 @@ const RecaudacionesList: React.FC = () => {
                         />
                     </Grid>
                     <Grid item xs={12} md={3}>
-                        {userRole === UserRole.TIENDA ? (
+                        {(userRole === UserRole.TIENDA || userRole === UserRole.ADMINISTRADOR || userRole === UserRole.JUNTA) ? (
                             <UsuarioTrabajadorSelector
                                 value={[
                                     ...(Array.isArray(filtros.trabajadorId) ? filtros.trabajadorId : filtros.trabajadorId ? [filtros.trabajadorId] : []),
@@ -476,7 +542,15 @@ const RecaudacionesList: React.FC = () => {
                                                 minute: '2-digit'
                                             })}
                                         </TableCell>
-                                        <TableCell>{venta.tipo}</TableCell>
+                                        <TableCell>
+                                            <Chip 
+                                                label={venta.tipo === 'VENTA' ? 'Venta' : 
+                                                       venta.tipo === 'RESERVA' ? 'Reserva' : 'Cambio'}
+                                                color={venta.tipo === 'VENTA' ? 'primary' : 
+                                                       venta.tipo === 'RESERVA' ? 'secondary' : 'warning'}
+                                                size="small"
+                                            />
+                                        </TableCell>
                                         <TableCell>
                                             {venta.socio.nombre} ({venta.socio.codigo})
                                         </TableCell>
@@ -485,13 +559,58 @@ const RecaudacionesList: React.FC = () => {
                                                 ? `${venta.trabajador.nombre} (${venta.trabajador.identificador})`
                                                 : venta.usuario.username}
                                         </TableCell>
-                                        <TableCell align="right">{venta.total.toFixed(2)}€</TableCell>
-                                        <TableCell align="right">{venta.pagado.toFixed(2)}€</TableCell>
+                                        <TableCell align="right">
+                                            <Box>
+                                                <Typography variant="body2">
+                                                    {venta.total.toFixed(2)}€
+                                                </Typography>
+                                                {venta.esMultiPago && venta.indicePago !== undefined && (
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        Pago {venta.indicePago + 1}/{venta.pagos?.length || 1}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell align="right">
+                                            {venta.tipo === 'CAMBIO' && venta.pagadoRecaudacion !== undefined
+                                                ? (
+                                                    <Box>
+                                                        <Typography variant="body2">
+                                                            {venta.pagadoRecaudacion.toFixed(2)}€
+                                                        </Typography>
+                                                        {venta.pagadoRecaudacion < 0 && (
+                                                            <Typography variant="caption" color="error">
+                                                                (Devolución)
+                                                            </Typography>
+                                                        )}
+                                                    </Box>
+                                                )
+                                                : (
+                                                    <Box>
+                                                        <Typography variant="body2">
+                                                            {venta.pagado.toFixed(2)}€
+                                                        </Typography>
+                                                        {venta.esMultiPago && venta.totalPagadoAcumulado !== undefined && (
+                                                            <Typography variant="caption" color="text.secondary">
+                                                                Acumulado: {venta.totalPagadoAcumulado.toFixed(2)}€ / {venta.total.toFixed(2)}€
+                                                            </Typography>
+                                                        )}
+                                                    </Box>
+                                                )}
+                                        </TableCell>
                                         <TableCell align="right">
                                             {venta.tipo === 'RESERVA' && venta.fianza ? `${venta.fianza.toFixed(2)}€` : '-'}
                                         </TableCell>
                                         <TableCell>
-                                            {venta.metodoPago ? (
+                                            {venta.tipo === 'CAMBIO' ? (
+                                                <Chip 
+                                                    label={venta.diferenciaPrecio! > 0 ? 'Cobrar más' : 
+                                                           venta.diferenciaPrecio! < 0 ? 'Devolver' : 'Sin cambio'}
+                                                    color={venta.diferenciaPrecio! > 0 ? 'warning' : 
+                                                           venta.diferenciaPrecio! < 0 ? 'info' : 'default'}
+                                                    size="small"
+                                                />
+                                            ) : venta.metodoPago ? (
                                                 <Chip 
                                                     label={venta.metodoPago === 'EFECTIVO' ? 'Efectivo' : venta.metodoPago === 'TARJETA' ? 'Tarjeta' : venta.metodoPago}
                                                     size="small"
@@ -507,13 +626,44 @@ const RecaudacionesList: React.FC = () => {
                                                 ) : '-'
                                             )}
                                         </TableCell>
-                                        <TableCell>{venta.estado}</TableCell>
                                         <TableCell>
-                                            {venta.detalles.map((producto, index) => (
-                                                <div key={index}>
-                                                    {producto.cantidad} x {producto.nombre} = {producto.total.toFixed(2)}€
-                                                </div>
-                                            ))}
+                                            {venta.tipo === 'CAMBIO' ? (
+                                                <Box>
+                                                    {getEstadoChip(venta.estado)}
+                                                    {venta.diferenciaPrecio !== undefined && (
+                                                        <Typography variant="caption" display="block" color={venta.diferenciaPrecio > 0 ? 'warning.main' : venta.diferenciaPrecio < 0 ? 'info.main' : 'text.secondary'}>
+                                                            {venta.diferenciaPrecio > 0 ? `+${venta.diferenciaPrecio.toFixed(2)}€` : 
+                                                             venta.diferenciaPrecio < 0 ? `${venta.diferenciaPrecio.toFixed(2)}€` : '0.00€'}
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            ) : (
+                                                getEstadoChip(venta.estado)
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {venta.tipo === 'CAMBIO' && venta.productoOriginal && venta.productoNuevo ? (
+                                                <Box>
+                                                    <Typography variant="body2" color="error">
+                                                        {venta.productoOriginal.nombre} x{venta.productoOriginal.cantidad} = {venta.productoOriginal.total.toFixed(2)}€
+                                                    </Typography>
+                                                    <Typography variant="body2" sx={{ mx: 1 }}>→</Typography>
+                                                    <Typography variant="body2" sx={{ color: 'success.main' }}>
+                                                        {venta.productoNuevo.nombre} x{venta.productoNuevo.cantidad} = {venta.productoNuevo.total.toFixed(2)}€
+                                                    </Typography>
+                                                    {venta.motivo && (
+                                                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                                                            Motivo: {venta.motivo}
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            ) : (
+                                                venta.detalles.map((producto, index) => (
+                                                    <div key={index}>
+                                                        {producto.cantidad} x {producto.nombre} = {producto.total.toFixed(2)}€
+                                                    </div>
+                                                ))
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                     );

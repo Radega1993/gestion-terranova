@@ -5,7 +5,6 @@ import {
     Select,
     MenuItem,
     Box,
-    CircularProgress,
     Typography,
     Chip,
     OutlinedInput
@@ -49,18 +48,28 @@ export const UsuarioTrabajadorSelector: React.FC<UsuarioTrabajadorSelectorProps>
                 setLoading(true);
                 setError(null);
 
-                // Cargar trabajadores si el usuario es TIENDA
+                // Cargar trabajadores si el usuario es TIENDA, ADMINISTRADOR o JUNTA
                 if (userRole === UserRole.TIENDA) {
                     try {
                         const trabajadoresData = await trabajadoresService.getMisTrabajadores();
-                        setTrabajadores(trabajadoresData.filter(t => t.activo));
+                        const trabajadoresActivos = trabajadoresData.filter(t => t.activo);
+                        setTrabajadores(trabajadoresActivos);
                     } catch (error: any) {
                         if (error?.response?.status === 401 || error?.response?.status === 400) {
-                            console.warn('No tiene una tienda asignada');
                             setTrabajadores([]);
                         } else {
                             console.error('Error al obtener trabajadores:', error);
+                            setTrabajadores([]);
                         }
+                    }
+                } else if (userRole === UserRole.ADMINISTRADOR || userRole === UserRole.JUNTA) {
+                    try {
+                        const trabajadoresData = await trabajadoresService.getAll();
+                        const trabajadoresActivos = trabajadoresData.filter(t => t.activo);
+                        setTrabajadores(trabajadoresActivos);
+                    } catch (error: any) {
+                        console.error('Error al obtener trabajadores:', error);
+                        setTrabajadores([]);
                     }
                 }
 
@@ -79,14 +88,14 @@ export const UsuarioTrabajadorSelector: React.FC<UsuarioTrabajadorSelectorProps>
                         const usuariosFiltrados = data.filter((user: Usuario) => user.role !== 'TIENDA');
                         setUsuarios(usuariosFiltrados);
                     } else if (response.status === 401 || response.status === 403) {
-                        console.warn('No tiene permisos para ver la lista de usuarios');
                         setUsuarios([]);
                     }
                 } catch (error) {
                     console.error('Error al cargar usuarios:', error);
+                    setUsuarios([]);
                 }
             } catch (error) {
-                console.error('Error al cargar datos:', error);
+                console.error('Error general:', error);
                 setError('Error al cargar los datos');
             } finally {
                 setLoading(false);
@@ -112,19 +121,19 @@ export const UsuarioTrabajadorSelector: React.FC<UsuarioTrabajadorSelectorProps>
 
     const handleChange = (event: any) => {
         const selectedIds = event.target.value;
-        
+
         if (multiple) {
             // Selección múltiple
             const idsArray = typeof selectedIds === 'string' ? [selectedIds] : selectedIds;
             const tiposArray = idsArray.map((id: string) => {
                 const opcion = opciones.find(o => o.id === id);
                 return opcion ? opcion.tipo : null;
-            }).filter((tipo): tipo is 'usuario' | 'trabajador' => tipo !== null);
-            
+            }).filter((tipo: 'usuario' | 'trabajador' | null): tipo is 'usuario' | 'trabajador' => tipo !== null);
+
             onChange(idsArray, tiposArray);
         } else {
             // Selección única
-            const selectedId = selectedIds;
+            const selectedId = selectedIds as string;
             if (!selectedId) {
                 onChange([], []);
                 return;
@@ -139,22 +148,27 @@ export const UsuarioTrabajadorSelector: React.FC<UsuarioTrabajadorSelectorProps>
         }
     };
 
+    // Preparar el valor para el Select según si es múltiple o no
+    const selectValue = multiple
+        ? (Array.isArray(value) ? value : value ? [value as string] : [])
+        : (typeof value === 'string' ? value : Array.isArray(value) ? value[0] || '' : '');
+
     return (
         <FormControl fullWidth required={required}>
             <InputLabel id="usuario-trabajador-select-label">
-                {userRole === UserRole.TIENDA ? 'Trabajador/Usuario' : 'Usuario'}
+                {(userRole === UserRole.TIENDA || userRole === UserRole.ADMINISTRADOR || userRole === UserRole.JUNTA) ? 'Trabajador/Usuario' : 'Usuario'}
             </InputLabel>
             <Select
                 labelId="usuario-trabajador-select-label"
                 multiple={multiple}
-                value={multiple ? (Array.isArray(value) ? value : value ? [value] : []) : (value || '')}
+                value={selectValue as any}
                 onChange={handleChange}
-                label={userRole === UserRole.TIENDA ? 'Trabajador/Usuario' : 'Usuario'}
+                label={(userRole === UserRole.TIENDA || userRole === UserRole.ADMINISTRADOR || userRole === UserRole.JUNTA) ? 'Trabajador/Usuario' : 'Usuario'}
                 disabled={loading || opciones.length === 0}
-                input={multiple ? <OutlinedInput label={userRole === UserRole.TIENDA ? 'Trabajador/Usuario' : 'Usuario'} /> : undefined}
+                input={multiple ? <OutlinedInput label={(userRole === UserRole.TIENDA || userRole === UserRole.ADMINISTRADOR || userRole === UserRole.JUNTA) ? 'Trabajador/Usuario' : 'Usuario'} /> : undefined}
                 renderValue={(selected) => {
                     if (multiple) {
-                        const selectedArray = selected as string[];
+                        const selectedArray = Array.isArray(selected) ? selected : [selected as string];
                         if (selectedArray.length === 0) return <em>Seleccionar...</em>;
                         return (
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
@@ -217,4 +231,3 @@ export const UsuarioTrabajadorSelector: React.FC<UsuarioTrabajadorSelectorProps>
         </FormControl>
     );
 };
-

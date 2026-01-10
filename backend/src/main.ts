@@ -2,7 +2,6 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import { ensureAdmin } from './scripts/ensure-admin';
 import { Logger } from '@nestjs/common';
 import { Connection } from 'mongoose';
 import { getConnectionToken } from '@nestjs/mongoose';
@@ -74,9 +73,6 @@ async function bootstrap() {
 
   // Eliminar cualquier índice relacionado con email
   await dropEmailIndex(connection);
-
-  // Verificar/crear usuario administrador
-  await ensureAdmin();
 
   // Configurar Swagger
   const config = new DocumentBuilder()

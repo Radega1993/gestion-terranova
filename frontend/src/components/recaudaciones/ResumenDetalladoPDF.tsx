@@ -195,14 +195,18 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
             }
             
             agrupadas[fechaKey].ventas.push(venta);
-            agrupadas[fechaKey].total += venta.pagado;
+            // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
+            const montoVenta = venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined 
+                ? (venta as any).pagadoRecaudacion 
+                : venta.pagado;
+            agrupadas[fechaKey].total += montoVenta;
             agrupadas[fechaKey].cantidadVentas += 1;
             
             const metodoPago = venta.metodoPago || (venta.pagos && venta.pagos.length > 0 ? venta.pagos[0].metodoPago : '');
             if (metodoPago === 'EFECTIVO' || metodoPago === 'efectivo') {
-                agrupadas[fechaKey].metodoPago.efectivo += venta.pagado;
+                agrupadas[fechaKey].metodoPago.efectivo += montoVenta;
             } else if (metodoPago === 'TARJETA' || metodoPago === 'tarjeta') {
-                agrupadas[fechaKey].metodoPago.tarjeta += venta.pagado;
+                agrupadas[fechaKey].metodoPago.tarjeta += montoVenta;
             }
             
             const trabajadorKey = venta.trabajador 
@@ -238,7 +242,11 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
             // Solo incrementamos si esta venta no ha sido contada antes
             if (!acc[key].ventas.has(venta._id)) {
                 acc[key].unidades += 1;
-                acc[key].total += venta.pagado;
+                // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
+                const montoVenta = venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined 
+                    ? (venta as any).pagadoRecaudacion 
+                    : venta.pagado;
+                acc[key].total += montoVenta;
                 acc[key].ventas.add(venta._id);
             }
         } else {
@@ -314,14 +322,26 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
     console.log('Productos por categoría:', productosPorCategoria);
 
     // Calcular totales generales
-    const totalGeneral = ventas.reduce((sum, v) => sum + v.pagado, 0);
+    // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
+    const totalGeneral = ventas.reduce((sum, v) => {
+        if (v.tipo === 'CAMBIO' && (v as any).pagadoRecaudacion !== undefined) {
+            return sum + (v as any).pagadoRecaudacion;
+        }
+        return sum + v.pagado;
+    }, 0);
     const totalEfectivo = ventas.reduce((sum, v) => {
         const metodoPago = v.metodoPago || (v.pagos && v.pagos.length > 0 ? v.pagos[0].metodoPago : '');
-        return sum + (metodoPago === 'EFECTIVO' || metodoPago === 'efectivo' ? v.pagado : 0);
+        const monto = v.tipo === 'CAMBIO' && (v as any).pagadoRecaudacion !== undefined 
+            ? (v as any).pagadoRecaudacion 
+            : v.pagado;
+        return sum + (metodoPago === 'EFECTIVO' || metodoPago === 'efectivo' ? monto : 0);
     }, 0);
     const totalTarjeta = ventas.reduce((sum, v) => {
         const metodoPago = v.metodoPago || (v.pagos && v.pagos.length > 0 ? v.pagos[0].metodoPago : '');
-        return sum + (metodoPago === 'TARJETA' || metodoPago === 'tarjeta' ? v.pagado : 0);
+        const monto = v.tipo === 'CAMBIO' && (v as any).pagadoRecaudacion !== undefined 
+            ? (v as any).pagadoRecaudacion 
+            : v.pagado;
+        return sum + (metodoPago === 'TARJETA' || metodoPago === 'tarjeta' ? monto : 0);
     }, 0);
 
     // No renderizar el PDF hasta que las categorías estén cargadas
@@ -444,7 +464,11 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
                                                 <Text style={styles.tableCellSmall}>{metodoPago}</Text>
                                             </View>
                                             <View style={styles.tableColSmall}>
-                                                <Text style={styles.tableCellSmall}>{venta.pagado.toFixed(2)}€</Text>
+                                                <Text style={styles.tableCellSmall}>
+                                                    {(venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined
+                                                        ? (venta as any).pagadoRecaudacion
+                                                        : venta.pagado).toFixed(2)}€
+                                                </Text>
                                             </View>
                                         </View>
                                     );

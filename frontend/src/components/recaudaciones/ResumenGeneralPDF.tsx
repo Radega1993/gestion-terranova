@@ -200,7 +200,11 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
             }
 
             // Sumar al total del trabajador/usuario (siempre sumar el pagado de cada transacción)
-            const pagadoRedondeado = Number((venta.pagado || 0).toFixed(2));
+            // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
+            const montoVenta = venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined 
+                ? (venta as any).pagadoRecaudacion 
+                : (venta.pagado || 0);
+            const pagadoRedondeado = Number(montoVenta.toFixed(2));
             acc[key].total = Number((acc[key].total + pagadoRedondeado).toFixed(2));
 
             // Método de pago
@@ -344,7 +348,11 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
         // Calcular totales por método de pago
         const totalesPorMetodoPagoResult = ventas.reduce((acc: { efectivo: number; tarjeta: number }, venta) => {
             const metodoPago = venta.metodoPago || (venta.pagos && venta.pagos.length > 0 ? venta.pagos[0].metodoPago : '');
-            const pagadoRedondeado = Number((venta.pagado || 0).toFixed(2));
+            // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
+            const montoVenta = venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined 
+                ? (venta as any).pagadoRecaudacion 
+                : (venta.pagado || 0);
+            const pagadoRedondeado = Number(montoVenta.toFixed(2));
             if (metodoPago === 'EFECTIVO' || metodoPago === 'efectivo') {
                 acc.efectivo += pagadoRedondeado;
             } else if (metodoPago === 'TARJETA' || metodoPago === 'tarjeta') {

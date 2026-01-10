@@ -34,6 +34,7 @@ api.interceptors.response.use(
             const url = error.config?.url || '';
             const endpointsIgnorados = [
                 '/tiendas/mi-tienda',  // Puede devolver 401 si el usuario no tiene tienda asignada
+                '/trabajadores/mi-tienda',  // Puede devolver 401 si el usuario no tiene tienda asignada
             ];
             
             const debeIgnorar = endpointsIgnorados.some(endpoint => url.includes(endpoint));

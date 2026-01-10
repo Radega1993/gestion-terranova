@@ -30,6 +30,7 @@ import {
     ConfirmationNumber as ConfirmationNumberIcon,
     Badge as BadgeIcon,
     Undo as UndoIcon,
+    SwapHoriz as SwapHorizIcon,
     Description as DescriptionIcon
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
@@ -144,6 +145,9 @@ export const Navbar: React.FC = () => {
                     <MenuItem onClick={() => { navigate('/devoluciones'); handleMobileMenuClose(); }}>
                         <UndoIcon sx={{ mr: 1 }} /> Devoluciones
                     </MenuItem>
+                    <MenuItem onClick={() => { navigate('/cambios'); handleMobileMenuClose(); }}>
+                        <SwapHorizIcon sx={{ mr: 1 }} /> Cambios
+                    </MenuItem>
                     <MenuItem onClick={() => { navigate('/configuracion/normativa'); handleMobileMenuClose(); }}>
                         <DescriptionIcon sx={{ mr: 1 }} /> Normativa
                     </MenuItem>
@@ -177,6 +181,9 @@ export const Navbar: React.FC = () => {
                     </MenuItem>
                     <MenuItem onClick={() => { navigate('/devoluciones'); handleMobileMenuClose(); }}>
                         <UndoIcon sx={{ mr: 1 }} /> Devoluciones
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/cambios'); handleMobileMenuClose(); }}>
+                        <SwapHorizIcon sx={{ mr: 1 }} /> Cambios
                     </MenuItem>
                 </>
             )}
@@ -310,6 +317,7 @@ export const Navbar: React.FC = () => {
                                     {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />)}
                                     {renderNavButton('/tiendas', 'Tiendas', <BadgeIcon />)}
                                     {renderNavButton('/devoluciones', 'Devoluciones', <UndoIcon />)}
+                                    {renderNavButton('/cambios', 'Cambios', <SwapHorizIcon />)}
                                     {renderNavButton('/configuracion/normativa', 'Normativa', <DescriptionIcon />)}
                                 </>
                             )}
@@ -345,6 +353,7 @@ export const Navbar: React.FC = () => {
                                     {renderNavButton('/recaudaciones', 'Recaudaciones', <AttachMoneyIcon />)}
                                     {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />)}
                                     {renderNavButton('/devoluciones', 'Devoluciones', <UndoIcon />)}
+                                    {renderNavButton('/cambios', 'Cambios', <SwapHorizIcon />)}
                                 </>
                             )}
                         </>

@@ -15,6 +15,7 @@ import { TrabajadoresModule } from './modules/trabajadores/trabajadores.module';
 import { TiendasModule } from './modules/tiendas/tiendas.module';
 import { DevolucionesModule } from './modules/devoluciones/devoluciones.module';
 import { ConfiguracionModule } from './modules/configuracion/configuracion.module';
+import { CambiosModule } from './modules/cambios/cambios.module';
 import { UserRole } from './modules/users/types/user-roles.enum';
 
 @Module({
@@ -32,7 +33,8 @@ import { UserRole } from './modules/users/types/user-roles.enum';
         TrabajadoresModule,
         TiendasModule,
         DevolucionesModule,
-        ConfiguracionModule
+        ConfiguracionModule,
+        CambiosModule
     ],
     controllers: [AppController],
     providers: [AppService],

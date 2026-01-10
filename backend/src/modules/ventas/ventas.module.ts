@@ -10,6 +10,7 @@ import { Trabajador, TrabajadorSchema } from '../users/schemas/trabajador.schema
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { ReservasModule } from '../reservas/reservas.module';
 import { UsersModule } from '../users/users.module';
+import { CambiosModule } from '../cambios/cambios.module';
 
 @Module({
     imports: [
@@ -22,7 +23,8 @@ import { UsersModule } from '../users/users.module';
             { name: User.name, schema: UserSchema }
         ]),
         ReservasModule,
-        UsersModule
+        UsersModule,
+        CambiosModule
     ],
     controllers: [VentasController],
     providers: [VentasService],

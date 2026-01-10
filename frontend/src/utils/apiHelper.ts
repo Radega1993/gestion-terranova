@@ -34,6 +34,7 @@ export const authenticatedFetch = async (
         const urlObj = new URL(url, window.location.origin);
         const endpointsIgnorados = [
             '/tiendas/mi-tienda',  // Puede devolver 401 si el usuario no tiene tienda asignada
+            '/trabajadores/mi-tienda',  // Puede devolver 401 si el usuario no tiene tienda asignada
         ];
         
         const debeIgnorar = endpointsIgnorados.some(endpoint => urlObj.pathname.includes(endpoint));

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from '../modules/users/schemas/user.schema';
+import { UserRole } from '../modules/users/types/user-roles.enum';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -27,8 +28,9 @@ export class EnsureAdminService {
             const adminUser = new this.userModel({
                 username: 'admin',
                 password: hashedPassword,
-                email: 'admin@terranova.com',
-                role: 'admin',
+                nombre: 'Administrador',
+                apellidos: 'Sistema',
+                role: UserRole.ADMINISTRADOR,
                 isActive: true,
             });
 

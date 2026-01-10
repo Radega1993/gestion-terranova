@@ -13,6 +13,7 @@ import { Servicio } from '../../reservas/schemas/servicio.schema';
 import { RecaudacionesFiltrosDto } from '../dto/recaudaciones-filtros.dto';
 import { Trabajador } from '../../users/schemas/trabajador.schema';
 import { UsersService } from '../../users/users.service';
+import { CambiosService } from '../../cambios/services/cambios.service';
 
 interface PopulatedReserva extends Omit<Reserva, 'socio' | 'usuarioCreacion' | 'usuarioActualizacion' | 'confirmadoPor' | 'trabajador'> {
     _id: Types.ObjectId;
@@ -68,6 +69,7 @@ export class VentasService {
         @InjectModel(Product.name) private productModel: Model<Product>,
         @InjectModel(Reserva.name) private reservaModel: Model<Reserva>,
         @InjectModel(Socio.name) private socioModel: Model<Socio>,
+        private cambiosService: CambiosService,
         @InjectModel(Trabajador.name) private trabajadorModel: Model<Trabajador>,
         @InjectModel(User.name) private userModel: Model<User>,
         private usersService: UsersService
@@ -442,7 +444,6 @@ export class VentasService {
     }
 
     async getRecaudaciones(filtros: RecaudacionesFiltrosDto) {
-        console.log('Filtros recibidos:', filtros);
 
         // Construir el filtro base para ventas
         const filtroVentas: any = {};
@@ -462,31 +463,54 @@ export class VentasService {
         if (filtros.usuario) {
             const usuarioIds = Array.isArray(filtros.usuario) ? filtros.usuario : [filtros.usuario];
             const usuarioObjectIds = usuarioIds.map(id => new Types.ObjectId(id));
+            // Buscar usuario en la venta o en los pagos
+            const condicionesUsuario = [];
             if (usuarioObjectIds.length === 1) {
-                condicionesUsuarioTrabajador.push({ usuario: usuarioObjectIds[0] });
+                condicionesUsuario.push(
+                    { usuario: usuarioObjectIds[0] },
+                    { 'pagos.usuario': usuarioObjectIds[0] }
+                );
             } else if (usuarioObjectIds.length > 1) {
-                condicionesUsuarioTrabajador.push({ usuario: { $in: usuarioObjectIds } });
+                condicionesUsuario.push(
+                    { usuario: { $in: usuarioObjectIds } },
+                    { 'pagos.usuario': { $in: usuarioObjectIds } }
+                );
+            }
+            if (condicionesUsuario.length > 0) {
+                condicionesUsuarioTrabajador.push({ $or: condicionesUsuario });
             }
         }
         
         if (filtros.trabajadorId) {
             const trabajadorIds = Array.isArray(filtros.trabajadorId) ? filtros.trabajadorId : [filtros.trabajadorId];
             const trabajadorObjectIds = trabajadorIds.map(id => new Types.ObjectId(id));
+            // Buscar trabajador en la venta o en los pagos
+            const condicionesTrabajador = [];
             if (trabajadorObjectIds.length === 1) {
-                condicionesUsuarioTrabajador.push({ trabajador: trabajadorObjectIds[0] });
+                condicionesTrabajador.push(
+                    { trabajador: trabajadorObjectIds[0] },
+                    { 'pagos.trabajador': trabajadorObjectIds[0] }
+                );
             } else if (trabajadorObjectIds.length > 1) {
-                condicionesUsuarioTrabajador.push({ trabajador: { $in: trabajadorObjectIds } });
+                condicionesTrabajador.push(
+                    { trabajador: { $in: trabajadorObjectIds } },
+                    { 'pagos.trabajador': { $in: trabajadorObjectIds } }
+                );
+            }
+            if (condicionesTrabajador.length > 0) {
+                condicionesUsuarioTrabajador.push({ $or: condicionesTrabajador });
             }
         }
 
-        // Si hay condiciones de usuario o trabajador, usar $or para buscar cualquiera de ellos
+        // Si hay condiciones de usuario o trabajador, usar $and para que ambas condiciones se cumplan
+        // Si solo hay una condición, aplicarla directamente
         if (condicionesUsuarioTrabajador.length > 0) {
             if (condicionesUsuarioTrabajador.length === 1) {
                 // Solo una condición, aplicarla directamente
                 Object.assign(filtroVentas, condicionesUsuarioTrabajador[0]);
             } else {
-                // Múltiples condiciones, usar $or
-                filtroVentas.$or = condicionesUsuarioTrabajador;
+                // Múltiples condiciones, usar $and para que ambas se cumplan
+                filtroVentas.$and = condicionesUsuarioTrabajador;
             }
         }
 
@@ -581,14 +605,12 @@ export class VentasService {
                         const trabajadorId = (pago as any).trabajador;
                         if (Types.ObjectId.isValid(trabajadorId)) {
                             trabajadorIdsSet.add(trabajadorId.toString());
-                            this.logger.debug(`Trabajador encontrado en pago: ${trabajadorId}`);
                         }
                     }
                     if ((pago as any).usuario) {
                         const usuarioId = (pago as any).usuario;
                         if (Types.ObjectId.isValid(usuarioId)) {
                             usuarioIdsSet.add(usuarioId.toString());
-                            this.logger.debug(`Usuario encontrado en pago: ${usuarioId}`);
                         } else {
                             this.logger.warn(`Usuario ID no válido en pago: ${usuarioId}`);
                         }
@@ -626,13 +648,9 @@ export class VentasService {
                 .lean()
                 .exec();
             
-            this.logger.debug(`Usuarios encontrados: ${usuarios.length}`);
             usuarios.forEach(usuario => {
                 usuariosMap.set(usuario._id.toString(), usuario);
-                this.logger.debug(`Usuario agregado al map: ${usuario.username} (${usuario._id})`);
             });
-        } else {
-            this.logger.debug('No hay usuarios de pagos para popular');
         }
 
         // Asignar los trabajadores y usuarios populados a los pagos
@@ -654,7 +672,6 @@ export class VentasService {
                             const usuario = usuariosMap.get(usuarioId.toString());
                             if (usuario) {
                                 (pago as any).usuario = usuario;
-                                this.logger.debug(`Usuario populado para pago: ${usuario.username} (${usuarioId})`);
                             } else {
                                 this.logger.warn(`Usuario no encontrado en map para ID: ${usuarioId}`);
                             }
@@ -825,6 +842,9 @@ export class VentasService {
                     } : undefined,
                     total: Number(venta.total.toFixed(2)),
                     pagado: Number(venta.pagado.toFixed(2)),
+                    totalPagadoAcumulado: Number(venta.pagado.toFixed(2)),
+                    esMultiPago: false,
+                    indicePago: 0,
                     metodoPago: venta.metodoPago, // Método de pago de la venta
                     estado: venta.estado,
                     detalles: venta.productos.map(p => ({
@@ -833,12 +853,13 @@ export class VentasService {
                         precio: Number(p.precioUnitario.toFixed(2)),
                         total: Number(p.precioTotal.toFixed(2))
                     })),
-                    pagos: []
+                    pagos: [],
+                    usandoFallback: false
                 }];
             }
 
             // Transformar cada pago en una fila independiente
-            return venta.pagos.map(pago => {
+            return venta.pagos.map((pago, indicePago) => {
                 // Obtener trabajador y usuario del pago específico
                 const trabajadorPago = (pago as any).trabajador;
                 const usuarioPago = (pago as any).usuario;
@@ -872,16 +893,22 @@ export class VentasService {
                         usuarioFinal = venta.usuario;
                     }
                 } else {
-                    // El pago no tiene ni trabajador ni usuario, usar el trabajador de la venta si existe
+                    // El pago no tiene ni trabajador ni usuario
+                    // IMPORTANTE: Si el pago no tiene información de quién lo procesó, 
+                    // NO podemos usar el usuario/trabajador de la venta como fallback para el filtrado
+                    // porque eso haría que aparezcan pagos de otros trabajadores cuando filtramos por usuario específico
+                    // En su lugar, marcamos que este pago no tiene información de procesador
+                    // El filtro post-transformación deberá excluir estos pagos cuando se filtra por usuario/trabajador específico
                     if (venta.trabajador) {
                         trabajadorFinal = venta.trabajador;
-                        this.logger.debug(`No hay trabajador/usuario en pago, usando trabajador de venta: ${trabajadorFinal.nombre}`);
-                    } else {
-                        this.logger.debug(`No hay trabajador/usuario en pago, usando usuario de venta: ${usuarioFinal.username}`);
                     }
+                    // Marcamos que este pago usa fallback (no tiene información real de quién lo procesó)
+                    (pago as any).usandoFallback = true;
                 }
 
-                this.logger.debug(`Pago transformado - Usuario final: ${usuarioFinal.username}, Trabajador: ${trabajadorFinal ? trabajadorFinal.nombre : 'ninguno'}`);
+                // Calcular el total pagado acumulado hasta este pago
+                const totalPagadoAcumulado = venta.pagos.slice(0, indicePago + 1).reduce((sum, p) => sum + p.monto, 0);
+                const esMultiPago = venta.pagos.length > 1;
 
                 return {
                     _id: venta._id,
@@ -901,8 +928,13 @@ export class VentasService {
                         nombre: trabajadorFinal.nombre,
                         identificador: trabajadorFinal.identificador
                     } : undefined,
+                    // Marcar si este pago usa fallback (no tiene información real de quién lo procesó)
+                    usandoFallback: (pago as any).usandoFallback || false,
                     total: Number(venta.total.toFixed(2)),
-                    pagado: Number(pago.monto.toFixed(2)), // Usar el monto del pago específico
+                    pagado: Number(pago.monto.toFixed(2)), // Monto de este pago específico
+                    totalPagadoAcumulado: Number(totalPagadoAcumulado.toFixed(2)), // Total pagado acumulado hasta este pago
+                    esMultiPago: esMultiPago, // Indica si la venta tiene múltiples pagos
+                    indicePago: indicePago, // Índice del pago (0, 1, 2, ...)
                     metodoPago: pago.metodoPago, // Método de pago del pago específico
                     estado: venta.estado,
                     detalles: venta.productos.map(p => ({
@@ -921,13 +953,257 @@ export class VentasService {
             });
         });
 
-        // Combinar reservas y ventas
-        let recaudaciones = [...reservasTransformadas, ...ventasTransformadas];
+        // Obtener cambios
+        const filtrosCambios: any = {};
+        if (filtros.fechaInicio && filtros.fechaFin) {
+            filtrosCambios.fechaInicio = filtros.fechaInicio;
+            filtrosCambios.fechaFin = filtros.fechaFin;
+        }
+        // NO filtrar por usuario aquí porque necesitamos filtrar después por usuarioPago también
+
+        const cambios = await this.cambiosService.findAll(filtrosCambios);
+
+        // Filtrar cambios por usuario y/o trabajador si es necesario
+        let cambiosFiltrados = cambios;
+        if (filtros.usuario || filtros.trabajadorId) {
+            const usuarioIds = filtros.usuario 
+                ? (Array.isArray(filtros.usuario) ? filtros.usuario : [filtros.usuario])
+                : [];
+            const trabajadorIds = filtros.trabajadorId
+                ? (Array.isArray(filtros.trabajadorId) ? filtros.trabajadorId : [filtros.trabajadorId])
+                : [];
+            
+            cambiosFiltrados = cambios.filter(cambio => {
+                const cambioDoc = cambio as any;
+                
+                // Verificar si coincide con el filtro de usuario
+                let coincideUsuario = false;
+                if (usuarioIds.length === 0) {
+                    coincideUsuario = true; // No hay filtro de usuario
+                } else {
+                    const usuarioCambio = cambioDoc.usuario;
+                    const usuarioPago = cambioDoc.usuarioPago;
+                    const usuarioABuscar = usuarioPago || usuarioCambio;
+                    
+                    if (usuarioABuscar) {
+                        const usuarioId = typeof usuarioABuscar === 'object' && usuarioABuscar._id 
+                            ? usuarioABuscar._id.toString() 
+                            : usuarioABuscar.toString();
+                        coincideUsuario = usuarioIds.includes(usuarioId);
+                    }
+                }
+                
+                // Verificar si coincide con el filtro de trabajador
+                let coincideTrabajador = false;
+                if (trabajadorIds.length === 0) {
+                    coincideTrabajador = true; // No hay filtro de trabajador
+                } else {
+                    const trabajadorPago = cambioDoc.trabajadorPago;
+                    const trabajador = cambioDoc.trabajador;
+                    const trabajadorABuscar = trabajadorPago || trabajador;
+                    
+                    if (trabajadorABuscar) {
+                        const trabajadorId = typeof trabajadorABuscar === 'object' && trabajadorABuscar._id 
+                            ? trabajadorABuscar._id.toString() 
+                            : trabajadorABuscar.toString();
+                        coincideTrabajador = trabajadorIds.includes(trabajadorId);
+                    }
+                }
+                
+                // Si hay filtros de ambos, ambos deben coincidir (AND)
+                // Si solo hay uno, ese debe coincidir
+                if (usuarioIds.length > 0 && trabajadorIds.length > 0) {
+                    return coincideUsuario && coincideTrabajador;
+                } else if (usuarioIds.length > 0) {
+                    return coincideUsuario;
+                } else if (trabajadorIds.length > 0) {
+                    return coincideTrabajador;
+                }
+                
+                return true;
+            });
+        }
+
+        // Transformar cambios al formato común
+        const cambiosTransformados = cambiosFiltrados.map(cambio => {
+            const cambioDoc = cambio as any;
+            const venta = cambioDoc.venta;
+            const usuario = cambioDoc.usuario;
+            const trabajador = cambioDoc.trabajador;
+            const trabajadorPago = cambioDoc.trabajadorPago;
+            const usuarioPago = cambioDoc.usuarioPago;
+
+            // Determinar usuario/trabajador final
+            // Priorizar trabajador/usuario que procesó el pago, si existe
+            // Si no, usar el trabajador/usuario que hizo el cambio
+            let trabajadorFinal = trabajadorPago || trabajador;
+            let usuarioFinal = usuarioPago || usuario;
+
+            return {
+                _id: cambioDoc._id,
+                tipo: 'CAMBIO',
+                fecha: cambioDoc.createdAt,
+                socio: {
+                    codigo: venta?.codigoSocio || '',
+                    nombre: venta?.nombreSocio || ''
+                },
+                usuario: {
+                    _id: usuarioFinal._id,
+                    username: usuarioFinal.username
+                },
+                trabajador: trabajadorFinal ? {
+                    _id: trabajadorFinal._id,
+                    nombre: trabajadorFinal.nombre,
+                    identificador: trabajadorFinal.identificador || trabajadorFinal.apellidos
+                } : undefined,
+                total: Number(Math.abs(cambioDoc.diferenciaPrecio).toFixed(2)),
+                pagado: cambioDoc.estadoPago === 'PAGADO' || cambioDoc.estadoPago === 'DEVUELTO' 
+                    ? Number(Math.abs(cambioDoc.diferenciaPrecio).toFixed(2))
+                    : 0,
+                // Para recaudaciones, si es DEVUELTO, el pagado debe ser negativo para reflejar que es una salida de dinero
+                // Si es PAGADO, el pagado es positivo (entrada de dinero)
+                // Si es PENDIENTE, el pagado es 0 (aún no se ha procesado)
+                pagadoRecaudacion: cambioDoc.estadoPago === 'PAGADO' 
+                    ? Number(Math.abs(cambioDoc.diferenciaPrecio).toFixed(2))
+                    : cambioDoc.estadoPago === 'DEVUELTO'
+                        ? Number(cambioDoc.diferenciaPrecio.toFixed(2)) // diferenciaPrecio ya es negativo, así que se mantiene negativo
+                        : 0,
+                metodoPago: cambioDoc.metodoPago || 'EFECTIVO',
+                estado: cambioDoc.estadoPago === 'PAGADO' ? 'PAGADO' : 
+                       cambioDoc.estadoPago === 'DEVUELTO' ? 'DEVUELTO' : 'PENDIENTE',
+                diferenciaPrecio: Number(cambioDoc.diferenciaPrecio.toFixed(2)),
+                detalles: [
+                    {
+                        nombre: `${cambioDoc.productoOriginal.nombre} → ${cambioDoc.productoNuevo.nombre}`,
+                        cantidad: cambioDoc.productoOriginal.cantidad,
+                        precio: Number(cambioDoc.productoOriginal.precioUnitario.toFixed(2)),
+                        total: Number(cambioDoc.productoOriginal.total.toFixed(2))
+                    }
+                ],
+                productoOriginal: {
+                    nombre: cambioDoc.productoOriginal.nombre,
+                    cantidad: cambioDoc.productoOriginal.cantidad,
+                    precio: Number(cambioDoc.productoOriginal.precioUnitario.toFixed(2)),
+                    total: Number(cambioDoc.productoOriginal.total.toFixed(2))
+                },
+                productoNuevo: {
+                    nombre: cambioDoc.productoNuevo.nombre,
+                    cantidad: cambioDoc.productoNuevo.cantidad,
+                    precio: Number(cambioDoc.productoNuevo.precioUnitario.toFixed(2)),
+                    total: Number(cambioDoc.productoNuevo.total.toFixed(2))
+                },
+                motivo: cambioDoc.motivo,
+                observaciones: cambioDoc.observaciones,
+                pagos: []
+            };
+        });
+
+        // Combinar reservas, ventas y cambios
+        let recaudaciones = [...reservasTransformadas, ...ventasTransformadas, ...cambiosTransformados];
+
+        // Aplicar filtro adicional de usuario/trabajador después de transformar
+        // Esto es necesario porque cada pago puede tener un usuario/trabajador diferente
+        if (filtros.usuario || filtros.trabajadorId) {
+            const usuarioIds = filtros.usuario 
+                ? (Array.isArray(filtros.usuario) ? filtros.usuario : [filtros.usuario])
+                : [];
+            const trabajadorIds = filtros.trabajadorId
+                ? (Array.isArray(filtros.trabajadorId) ? filtros.trabajadorId : [filtros.trabajadorId])
+                : [];
+            
+            const totalAntesFiltro = recaudaciones.length;
+            
+            recaudaciones = recaudaciones.filter((recaudacion: any) => {
+                // Si esta recaudación usa fallback (no tiene información real de quién procesó el pago),
+                // y estamos filtrando por usuario/trabajador específico, excluirla
+                if (recaudacion.usandoFallback && (usuarioIds.length > 0 || trabajadorIds.length > 0)) {
+                    return false;
+                }
+                
+                // Verificar si la recaudación tiene trabajador o usuario
+                const tieneTrabajador = recaudacion.trabajador !== undefined && recaudacion.trabajador !== null;
+                const tieneUsuario = recaudacion.usuario !== undefined && recaudacion.usuario !== null;
+                
+                // Verificar si coincide con el filtro de usuario
+                let coincideUsuario = false;
+                if (usuarioIds.length === 0) {
+                    coincideUsuario = true; // No hay filtro de usuario
+                } else {
+                    // Solo considerar usuario si la recaudación NO tiene trabajador
+                    // Si tiene trabajador, no puede coincidir con filtro de usuario
+                    if (tieneTrabajador) {
+                        coincideUsuario = false;
+                    } else {
+                        // El usuario puede estar en recaudacion.usuario._id (objeto populado) o recaudacion.usuario (string)
+                        const usuarioId = typeof recaudacion.usuario === 'object' && recaudacion.usuario?._id
+                            ? recaudacion.usuario._id.toString()
+                            : typeof recaudacion.usuario === 'string'
+                                ? recaudacion.usuario
+                                : null;
+                        
+                        coincideUsuario = usuarioId && usuarioIds.some(id => id.toString() === usuarioId.toString());
+                    }
+                }
+                
+                // Verificar si coincide con el filtro de trabajador
+                let coincideTrabajador = false;
+                if (trabajadorIds.length === 0) {
+                    coincideTrabajador = true; // No hay filtro de trabajador
+                } else {
+                    // Solo considerar trabajador si la recaudación tiene trabajador
+                    // Si no tiene trabajador, no puede coincidir con filtro de trabajador
+                    if (!tieneTrabajador) {
+                        coincideTrabajador = false;
+                    } else {
+                        // El trabajador puede estar en recaudacion.trabajador._id (objeto populado) o recaudacion.trabajador (string)
+                        const trabajadorId = typeof recaudacion.trabajador === 'object' && recaudacion.trabajador?._id
+                            ? recaudacion.trabajador._id.toString()
+                            : typeof recaudacion.trabajador === 'string'
+                                ? recaudacion.trabajador
+                                : null;
+                        
+                        coincideTrabajador = trabajadorId && trabajadorIds.some(id => id.toString() === trabajadorId.toString());
+                    }
+                }
+                
+                // Si hay filtros de ambos, mostrar recaudaciones que coincidan con cualquiera (OR)
+                // Si solo hay filtro de usuario, solo mostrar recaudaciones con usuario (no trabajador)
+                // Si solo hay filtro de trabajador, solo mostrar recaudaciones con trabajador (no usuario)
+                let resultado = false;
+                if (usuarioIds.length > 0 && trabajadorIds.length > 0) {
+                    // Filtrar por ambos: mostrar recaudaciones que coincidan con usuario O trabajador
+                    resultado = coincideUsuario || coincideTrabajador;
+                } else if (usuarioIds.length > 0) {
+                    // Solo filtro de usuario: solo mostrar recaudaciones con usuario (excluir las que tienen trabajador)
+                    resultado = coincideUsuario && !tieneTrabajador;
+                } else if (trabajadorIds.length > 0) {
+                    // Solo filtro de trabajador: solo mostrar recaudaciones con trabajador (excluir las que tienen usuario)
+                    resultado = coincideTrabajador && tieneTrabajador;
+                } else {
+                    resultado = true;
+                }
+                
+                return resultado;
+            });
+            
+            // Log resumen del filtro
+            const totalDespuesFiltro = recaudaciones.length;
+            const resumenPorTipo = recaudaciones.reduce((acc: any, rec: any) => {
+                acc[rec.tipo] = (acc[rec.tipo] || 0) + 1;
+                return acc;
+            }, {});
+            const totalRecaudado: number = recaudaciones.reduce((sum: number, rec: any) => {
+                const monto = rec.tipo === 'CAMBIO' && rec.pagadoRecaudacion !== undefined ? rec.pagadoRecaudacion : rec.pagado;
+                return sum + (typeof monto === 'number' ? monto : 0);
+            }, 0);
+            
+            this.logger.log(`[Recaudaciones] Filtro aplicado: ${totalAntesFiltro} → ${totalDespuesFiltro} recaudaciones | Total: ${totalRecaudado.toFixed(2)}€ | Por tipo: ${JSON.stringify(resumenPorTipo)}`);
+        }
 
         // Aplicar filtro de método de pago si está presente
         if (filtros.metodoPago && filtros.metodoPago !== 'todos') {
             const metodoPagoFiltro = filtros.metodoPago.toLowerCase();
-            recaudaciones = recaudaciones.filter(recaudacion => {
+            recaudaciones = recaudaciones.filter((recaudacion: any) => {
                 // Función auxiliar para normalizar el método de pago
                 const normalizarMetodoPago = (metodo: string | undefined): string => {
                     if (!metodo) return '';
@@ -956,7 +1232,7 @@ export class VentasService {
         }
 
         // Ordenar por fecha
-        recaudaciones.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+        recaudaciones.sort((a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
         return recaudaciones;
     }

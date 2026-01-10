@@ -86,12 +86,27 @@ npm run start:prod
 - ✅ Resúmenes por motivo y por producto
 - ✅ Generación de informes en PDF
 
+### Módulo de Cambios de Productos
+- ✅ Cambio de productos en ventas del día actual
+- ✅ Gestión de diferencias de precio (cobrar más o devolver)
+- ✅ Procesamiento de pagos/devoluciones con selección de método y trabajador
+- ✅ Actualización automática de inventario (devuelve producto original, quita producto nuevo)
+- ✅ Estados de pago: PENDIENTE, PAGADO, DEVUELTO
+- ✅ Historial completo de cambios por venta
+- ✅ Integración con recaudaciones para reflejar movimientos de caja
+
 ### Mejoras en Recaudaciones
 - ✅ Resumen de Socios: Información detallada de pagos por socio con productos y días de consumo
 - ✅ Resumen de Productos: Productos vendidos con acumulado y desglose por trabajador
+- ✅ Resumen Detallado: Desglose diario con ventas, reservas y cambios
 - ✅ Filtros por método de pago (efectivo, tarjeta, todos)
+- ✅ Filtros por usuario y/o trabajador (selección múltiple para TIENDA, ADMINISTRADOR, JUNTA)
 - ✅ Trazabilidad completa de quién realizó cada pago (trabajador o usuario)
+- ✅ Manejo correcto de pagos múltiples en ventas (muestra índice y acumulado)
+- ✅ Inclusión de cambios en recaudaciones con signo correcto (positivo para cobros, negativo para devoluciones)
+- ✅ Cambios PENDIENTE no se cuentan en el total hasta ser procesados
 - ✅ Redondeo automático a 2 decimales en todos los montos
+- ✅ Sincronización correcta entre tabla y PDFs (mismo cálculo de totales)
 
 ### Mejoras en Invitaciones
 - ✅ Registro del usuario que crea cada invitación
