@@ -36,6 +36,8 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import AddIcon from '@mui/icons-material/Add';
 import { InvitacionesPDF } from './InvitacionesPDF';
 import CloseIcon from '@mui/icons-material/Close';
+import { TrabajadorSelector } from '../trabajadores/TrabajadorSelector';
+import { UserRole } from '../../types/user';
 
 interface Invitacion {
     _id: string;
@@ -46,6 +48,15 @@ interface Invitacion {
     fechaUso: string;
     nombreInvitado: string;
     observaciones?: string;
+    usuarioRegistro?: {
+        _id?: string;
+        username?: string;
+    };
+    trabajador?: {
+        _id?: string;
+        nombre?: string;
+        identificador?: string;
+    };
 }
 
 interface SocioInvitaciones {
@@ -72,8 +83,9 @@ const InvitacionesList: React.FC = () => {
     const [socioSeleccionado, setSocioSeleccionado] = useState<SocioSeleccionado | null>(null);
     const [cantidadAdicional, setCantidadAdicional] = useState<number>(1);
     const [motivoAdicional, setMotivoAdicional] = useState('');
+    const [trabajadorId, setTrabajadorId] = useState<string | null>(null);
     const queryClient = useQueryClient();
-    const { token, user } = useAuthStore();
+    const { token, user, userRole } = useAuthStore();
     const [showPDF, setShowPDF] = useState(false);
     const [pdfData, setPdfData] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
@@ -133,7 +145,7 @@ const InvitacionesList: React.FC = () => {
             nombreInvitado: string;
             fechaUso: Date;
             observaciones?: string;
-            usuarioRegistro: string;
+            trabajadorId?: string;
         }) => {
             const response = await fetch(`${API_BASE_URL}/invitaciones`, {
                 method: 'POST',
@@ -142,8 +154,11 @@ const InvitacionesList: React.FC = () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    ...data,
-                    fechaUso: data.fechaUso.toISOString()
+                    codigoSocio: data.codigoSocio,
+                    nombreInvitado: data.nombreInvitado,
+                    fechaUso: data.fechaUso.toISOString(),
+                    observaciones: data.observaciones,
+                    trabajadorId: data.trabajadorId
                 }),
             });
 
@@ -161,10 +176,12 @@ const InvitacionesList: React.FC = () => {
             setNombreInvitado('');
             setObservaciones('');
             setFechaUso(new Date());
+            setTrabajadorId(null);
+            setError(null);
         },
         onError: (error: Error) => {
             console.error('Error al crear la invitación:', error);
-            // Aquí podrías mostrar un mensaje de error al usuario
+            setError(error.message || 'Error al crear la invitación');
         }
     });
 
@@ -216,16 +233,24 @@ const InvitacionesList: React.FC = () => {
         setNombreInvitado('');
         setObservaciones('');
         setFechaUso(new Date());
+        setTrabajadorId(null);
+        setError(null);
     };
 
     const handleCreateInvitacion = () => {
-        if (socioSeleccionado && nombreInvitado && fechaUso && user?.username) {
+        if (socioSeleccionado && nombreInvitado && fechaUso) {
+            // Validar que si es TIENDA, debe seleccionar un trabajador
+            if (userRole === UserRole.TIENDA && !trabajadorId) {
+                setError('Debe seleccionar un trabajador');
+                return;
+            }
+
             createInvitacion.mutate({
                 codigoSocio: socioSeleccionado.codigo,
                 nombreInvitado,
                 fechaUso,
                 observaciones,
-                usuarioRegistro: user.username
+                trabajadorId: trabajadorId || undefined
             });
         }
     };
@@ -273,9 +298,13 @@ const InvitacionesList: React.FC = () => {
                 fechaUso: inv.fechaUso,
                 nombreInvitado: inv.nombreInvitado,
                 observaciones: inv.observaciones,
-                usuarioRegistro: {
-                    username: inv.usuarioRegistro?.username || '-'
-                }
+                usuarioRegistro: inv.usuarioRegistro ? {
+                    username: inv.usuarioRegistro.username
+                } : undefined,
+                trabajador: inv.trabajador ? {
+                    nombre: inv.trabajador.nombre,
+                    identificador: inv.trabajador.identificador
+                } : undefined
             })) : [];
 
             console.log('Invitaciones formateadas:', invitacionesFormateadas);
@@ -439,6 +468,7 @@ const InvitacionesList: React.FC = () => {
                                         <TableRow>
                                             <TableCell>Fecha</TableCell>
                                             <TableCell>Invitado</TableCell>
+                                            <TableCell>Registrado por</TableCell>
                                             <TableCell>Observaciones</TableCell>
                                         </TableRow>
                                     </TableHead>
@@ -449,12 +479,18 @@ const InvitacionesList: React.FC = () => {
                                                     {format(new Date(invitacion.fechaUso), 'dd/MM/yyyy', { locale: es })}
                                                 </TableCell>
                                                 <TableCell>{invitacion.nombreInvitado}</TableCell>
-                                                <TableCell>{invitacion.observaciones}</TableCell>
+                                                <TableCell>
+                                                    {invitacion.trabajador 
+                                                        ? `${invitacion.trabajador.nombre} (${invitacion.trabajador.identificador})`
+                                                        : invitacion.usuarioRegistro?.username || '-'
+                                                    }
+                                                </TableCell>
+                                                <TableCell>{invitacion.observaciones || '-'}</TableCell>
                                             </TableRow>
                                         ))}
                                         {(!invitaciones || invitaciones.length === 0) && (
                                             <TableRow>
-                                                <TableCell colSpan={3} align="center">
+                                                <TableCell colSpan={4} align="center">
                                                     No hay invitaciones registradas
                                                 </TableCell>
                                             </TableRow>
@@ -471,6 +507,11 @@ const InvitacionesList: React.FC = () => {
             <Dialog open={openDialog} onClose={handleCloseDialog}>
                 <DialogTitle>Registrar Invitación</DialogTitle>
                 <DialogContent>
+                    {error && (
+                        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+                            {error}
+                        </Alert>
+                    )}
                     <Grid container spacing={2} sx={{ mt: 1 }}>
                         <Grid item xs={12}>
                             <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
@@ -500,6 +541,16 @@ const InvitacionesList: React.FC = () => {
                                 rows={3}
                             />
                         </Grid>
+                        {userRole === UserRole.TIENDA && (
+                            <Grid item xs={12}>
+                                <TrabajadorSelector
+                                    value={trabajadorId || undefined}
+                                    onChange={setTrabajadorId}
+                                    required={true}
+                                    variant="select"
+                                />
+                            </Grid>
+                        )}
                     </Grid>
                 </DialogContent>
                 <DialogActions>
@@ -508,7 +559,7 @@ const InvitacionesList: React.FC = () => {
                         onClick={handleCreateInvitacion}
                         variant="contained"
                         color="primary"
-                        disabled={!nombreInvitado || !fechaUso}
+                        disabled={!nombreInvitado || !fechaUso || (userRole === UserRole.TIENDA && !trabajadorId)}
                     >
                         Registrar
                     </Button>

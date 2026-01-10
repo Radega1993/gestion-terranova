@@ -17,3 +17,6 @@ export class Normativa {
 
 export const NormativaSchema = SchemaFactory.createForClass(Normativa);
 
+
+
+

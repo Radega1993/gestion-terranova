@@ -9,6 +9,7 @@ import {
     Put,
     Query,
     Res,
+    Request,
     UploadedFile,
     UseGuards,
     UseInterceptors,
@@ -18,8 +19,11 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { InventoryService } from '../services/inventory.service';
+import { ProductosRetiradosService } from '../services/productos-retirados.service';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { UpdateProductDto } from '../dto/update-product.dto';
+import { CreateProductoRetiradoDto } from '../dto/create-producto-retirado.dto';
+import { FiltrosProductosRetiradosDto } from '../dto/filtros-productos-retirados.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { UserRole } from '../../users/types/user-roles.enum';
@@ -35,7 +39,10 @@ import * as ExcelJS from 'exceljs';
 export class InventoryController {
     private readonly logger = new Logger(InventoryController.name);
 
-    constructor(private readonly inventoryService: InventoryService) { }
+    constructor(
+        private readonly inventoryService: InventoryService,
+        private readonly productosRetiradosService: ProductosRetiradosService
+    ) { }
 
     @Get('search')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
@@ -165,6 +172,43 @@ export class InventoryController {
         // Aquí podrías implementar la lógica para corregir datos inválidos
         // Por ahora solo devolvemos success
         return { success: true };
+    }
+
+    // Endpoints para productos retirados (solo ADMINISTRADOR) - DEBEN ESTAR ANTES DE LAS RUTAS CON :id
+    // IMPORTANTE: Las rutas más específicas deben ir ANTES de las rutas con parámetros
+    @Post('productos-retirados')
+    @Roles(UserRole.ADMINISTRADOR)
+    async crearProductoRetirado(
+        @Body() createDto: CreateProductoRetiradoDto,
+        @Request() req
+    ) {
+        this.logger.debug('Registrando producto retirado');
+        return this.productosRetiradosService.create(createDto, req.user._id);
+    }
+
+    @Get('productos-retirados/resumen')
+    @Roles(UserRole.ADMINISTRADOR)
+    async obtenerResumenProductosRetirados(
+        @Query() filtros: FiltrosProductosRetiradosDto
+    ) {
+        this.logger.debug('Obteniendo resumen de productos retirados');
+        return this.productosRetiradosService.getResumen(filtros);
+    }
+
+    @Get('productos-retirados')
+    @Roles(UserRole.ADMINISTRADOR)
+    async obtenerProductosRetirados(
+        @Query() filtros: FiltrosProductosRetiradosDto
+    ) {
+        this.logger.debug('Obteniendo productos retirados');
+        return this.productosRetiradosService.findAll(filtros);
+    }
+
+    @Get('productos-retirados/:id')
+    @Roles(UserRole.ADMINISTRADOR)
+    async obtenerProductoRetirado(@Param('id') id: string) {
+        this.logger.debug(`Obteniendo producto retirado con ID: ${id}`);
+        return this.productosRetiradosService.findOne(id);
     }
 
     @Get(':id')

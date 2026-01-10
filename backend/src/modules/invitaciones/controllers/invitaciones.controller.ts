@@ -16,11 +16,11 @@ export class InvitacionesController {
     @Post()
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     create(@Body() createInvitacionDto: CreateInvitacionDto, @Request() req) {
-        return this.invitacionesService.create(createInvitacionDto, req.user.userId);
+        return this.invitacionesService.create(createInvitacionDto, req.user._id, req.user.role);
     }
 
     @Get()
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     findAll(@Query() filters: InvitacionesFiltersDto) {
         return this.invitacionesService.findAll(filters);
     }
@@ -35,18 +35,18 @@ export class InvitacionesController {
         return this.invitacionesService.updateInvitacionesSocio(
             codigoSocio,
             updateInvitacionesDto,
-            req.user.userId
+            req.user._id
         );
     }
 
     @Get(':codigoSocio/disponibles')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     getInvitacionesDisponibles(@Param('codigoSocio') codigoSocio: string) {
         return this.invitacionesService.getInvitacionesDisponibles(codigoSocio);
     }
 
     @Get('resumen/:ejercicio')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     getResumenEjercicio(@Param('ejercicio') ejercicio: string) {
         return this.invitacionesService.getResumenEjercicio(parseInt(ejercicio));
     }

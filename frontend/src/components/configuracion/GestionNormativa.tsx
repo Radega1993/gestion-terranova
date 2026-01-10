@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Box,
     Paper,
@@ -7,9 +7,11 @@ import {
     Button,
     Alert,
     CircularProgress,
-    Container
+    Container,
+    ButtonGroup,
+    Tooltip
 } from '@mui/material';
-import { Save as SaveIcon } from '@mui/icons-material';
+import { Save as SaveIcon, FormatBold, FormatItalic, FormatUnderlined } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { configuracionService } from '../../services/configuracion';
 import { useAuthStore } from '../../stores/authStore';
@@ -19,6 +21,7 @@ export const GestionNormativa: React.FC = () => {
     const { token } = useAuthStore();
     const queryClient = useQueryClient();
     const [texto, setTexto] = useState<string>('');
+    const textFieldRef = useRef<HTMLTextAreaElement>(null);
 
     // Consulta para obtener la normativa
     const { data: normativaTexto, isLoading, error } = useQuery({
@@ -62,6 +65,51 @@ export const GestionNormativa: React.FC = () => {
             });
         }
     });
+
+    const insertarFormato = (marcadorInicio: string, marcadorFin: string = marcadorInicio) => {
+        const textField = textFieldRef.current;
+        if (!textField) return;
+
+        const inicio = textField.selectionStart;
+        const fin = textField.selectionEnd;
+        const textoSeleccionado = texto.substring(inicio, fin);
+        
+        let nuevoTexto: string;
+        if (textoSeleccionado) {
+            // Si hay texto seleccionado, aplicar formato al texto seleccionado
+            nuevoTexto = texto.substring(0, inicio) + 
+                        marcadorInicio + textoSeleccionado + marcadorFin + 
+                        texto.substring(fin);
+        } else {
+            // Si no hay texto seleccionado, insertar los marcadores en la posición del cursor
+            nuevoTexto = texto.substring(0, inicio) + 
+                        marcadorInicio + marcadorFin + 
+                        texto.substring(fin);
+        }
+        
+        setTexto(nuevoTexto);
+        
+        // Restaurar el foco y la posición del cursor
+        setTimeout(() => {
+            textField.focus();
+            const nuevaPosicion = textoSeleccionado 
+                ? inicio + marcadorInicio.length + textoSeleccionado.length + marcadorFin.length
+                : inicio + marcadorInicio.length;
+            textField.setSelectionRange(nuevaPosicion, nuevaPosicion);
+        }, 0);
+    };
+
+    const aplicarNegrita = () => {
+        insertarFormato('**', '**');
+    };
+
+    const aplicarCursiva = () => {
+        insertarFormato('*', '*');
+    };
+
+    const aplicarSubrayado = () => {
+        insertarFormato('__', '__');
+    };
 
     const handleGuardar = () => {
         if (!texto.trim()) {
@@ -126,11 +174,40 @@ export const GestionNormativa: React.FC = () => {
                 </Alert>
 
                 <Paper elevation={3} sx={{ p: 3 }}>
-                    <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
-                        Texto de la Normativa
-                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6">
+                            Texto de la Normativa
+                        </Typography>
+                        <ButtonGroup size="small" variant="outlined">
+                            <Tooltip title="Negrita (**texto**)">
+                                <Button onClick={aplicarNegrita}>
+                                    <FormatBold />
+                                </Button>
+                            </Tooltip>
+                            <Tooltip title="Cursiva (*texto*)">
+                                <Button onClick={aplicarCursiva}>
+                                    <FormatItalic />
+                                </Button>
+                            </Tooltip>
+                            <Tooltip title="Subrayado (__texto__)">
+                                <Button onClick={aplicarSubrayado}>
+                                    <FormatUnderlined />
+                                </Button>
+                            </Tooltip>
+                        </ButtonGroup>
+                    </Box>
+
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                        <Typography variant="body2">
+                            <strong>Formato de texto:</strong> Seleccione el texto y use los botones de formato, o use los marcadores manualmente:
+                            <br />• <strong>**texto**</strong> para negrita
+                            <br />• <em>*texto*</em> para cursiva
+                            <br />• <u>__texto__</u> para subrayado
+                        </Typography>
+                    </Alert>
 
                     <TextField
+                        inputRef={textFieldRef}
                         fullWidth
                         multiline
                         rows={25}

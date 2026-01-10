@@ -28,13 +28,12 @@ import { Edit as EditIcon, Delete as DeleteIcon, Add as AddIcon } from '@mui/ico
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Product, ProductType, CreateProductDto, UpdateProductDto } from '../../types/product';
 import { API_BASE_URL } from '../../config';
-import { useAuthStore } from '../../stores/authStore';
 import { CurrencyInput } from '../common/CurrencyInput';
 import { formatCurrency } from '../../utils/formatters';
+import { authenticatedFetchJson, authenticatedFetch } from '../../utils/apiHelper';
 
 const ProductList: React.FC = () => {
     const queryClient = useQueryClient();
-    const { token } = useAuthStore();
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -51,33 +50,17 @@ const ProductList: React.FC = () => {
     const { data: products, isLoading } = useQuery<Product[]>({
         queryKey: ['products'],
         queryFn: async () => {
-            const response = await fetch(`${API_BASE_URL}/inventory`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            if (!response.ok) {
-                throw new Error('Error al cargar los productos');
-            }
-            return response.json();
+            return await authenticatedFetchJson<Product[]>(`${API_BASE_URL}/inventory`);
         }
     });
 
     // Mutación para crear producto
     const createMutation = useMutation({
         mutationFn: async (newProduct: CreateProductDto) => {
-            const response = await fetch(`${API_BASE_URL}/inventory`, {
+            return await authenticatedFetchJson<Product>(`${API_BASE_URL}/inventory`, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
                 body: JSON.stringify(newProduct)
             });
-            if (!response.ok) {
-                throw new Error('Error al crear el producto');
-            }
-            return response.json();
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -89,18 +72,10 @@ const ProductList: React.FC = () => {
     // Mutación para actualizar producto
     const updateMutation = useMutation({
         mutationFn: async ({ id, data }: { id: string; data: UpdateProductDto }) => {
-            const response = await fetch(`${API_BASE_URL}/inventory/${id}`, {
+            return await authenticatedFetchJson<Product>(`${API_BASE_URL}/inventory/${id}`, {
                 method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
                 body: JSON.stringify(data)
             });
-            if (!response.ok) {
-                throw new Error('Error al actualizar el producto');
-            }
-            return response.json();
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -112,16 +87,9 @@ const ProductList: React.FC = () => {
     // Mutación para eliminar producto
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
-            const response = await fetch(`${API_BASE_URL}/inventory/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+            return await authenticatedFetchJson(`${API_BASE_URL}/inventory/${id}`, {
+                method: 'DELETE'
             });
-            if (!response.ok) {
-                throw new Error('Error al eliminar el producto');
-            }
-            return response.json();
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -131,18 +99,10 @@ const ProductList: React.FC = () => {
     // Mutación para cambiar estado activo/inactivo
     const toggleStatusMutation = useMutation({
         mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-            const response = await fetch(`${API_BASE_URL}/inventory/${id}/status`, {
+            return await authenticatedFetchJson<Product>(`${API_BASE_URL}/inventory/${id}/status`, {
                 method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
                 body: JSON.stringify({ activo: isActive })
             });
-            if (!response.ok) {
-                throw new Error('Error al cambiar el estado del producto');
-            }
-            return response.json();
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -225,11 +185,7 @@ const ProductList: React.FC = () => {
 
     const handleExportExcel = async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/inventory/export`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            const response = await authenticatedFetch(`${API_BASE_URL}/inventory/export`);
             if (!response.ok) {
                 throw new Error('Error al exportar');
             }

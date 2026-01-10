@@ -39,6 +39,7 @@ import { UserRole } from '../../types/user';
 import { Cliente } from '../ventas/types';
 import { ResumenGeneralPDF } from './ResumenGeneralPDF';
 import { ResumenDetalladoPDF } from './ResumenDetalladoPDF';
+import { ResumenSociosPDF } from './ResumenSociosPDF';
 
 interface Filtros {
     fechaInicio: Date | null;
@@ -110,7 +111,8 @@ const RecaudacionesList: React.FC = () => {
     });
     const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<Usuario | null>(null);
     const [trabajadorSeleccionado, setTrabajadorSeleccionado] = useState<string | null>(null);
-    const [showResumenGeneral, setShowResumenGeneral] = useState(false);
+    const [showResumenProductos, setShowResumenProductos] = useState(false);
+    const [showResumenSocios, setShowResumenSocios] = useState(false);
     const [showResumenDetallado, setShowResumenDetallado] = useState(false);
 
     const handleFiltroChange = (campo: keyof Filtros, valor: any) => {
@@ -323,11 +325,21 @@ const RecaudacionesList: React.FC = () => {
                                 variant="outlined"
                                 startIcon={<PdfIcon />}
                                 onClick={() => {
-                                    setShowResumenGeneral(true);
+                                    setShowResumenProductos(true);
                                 }}
                                 disabled={ventas.length === 0}
                             >
-                                Resumen General
+                                Resumen de Productos
+                            </Button>
+                            <Button
+                                variant="outlined"
+                                startIcon={<PdfIcon />}
+                                onClick={() => {
+                                    setShowResumenSocios(true);
+                                }}
+                                disabled={ventas.length === 0}
+                            >
+                                Resumen de Socios
                             </Button>
                             <Button
                                 variant="outlined"
@@ -512,10 +524,10 @@ const RecaudacionesList: React.FC = () => {
                 </>
             )}
 
-            {/* Modal para Resumen General */}
+            {/* Modal para Resumen de Productos */}
             <Dialog
-                open={showResumenGeneral}
-                onClose={() => setShowResumenGeneral(false)}
+                open={showResumenProductos}
+                onClose={() => setShowResumenProductos(false)}
                 maxWidth="md"
                 fullWidth
                 PaperProps={{
@@ -526,9 +538,9 @@ const RecaudacionesList: React.FC = () => {
                 }}
             >
                 <DialogTitle>
-                    Resumen General de Recaudaciones
+                    Resumen de Productos
                     <IconButton
-                        onClick={() => setShowResumenGeneral(false)}
+                        onClick={() => setShowResumenProductos(false)}
                         sx={{ position: 'absolute', right: 8, top: 8 }}
                     >
                         <CloseIcon />
@@ -569,6 +581,72 @@ const RecaudacionesList: React.FC = () => {
                         
                         return (
                             <ResumenGeneralPDF
+                                ventas={ventas}
+                                fechaInicio={fechaInicioValida}
+                                fechaFin={fechaFinValida}
+                            />
+                        );
+                    })()}
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal para Resumen de Socios */}
+            <Dialog
+                open={showResumenSocios}
+                onClose={() => setShowResumenSocios(false)}
+                maxWidth="md"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        height: '90vh',
+                        maxHeight: '90vh'
+                    }
+                }}
+            >
+                <DialogTitle>
+                    Resumen de Socios
+                    <IconButton
+                        onClick={() => setShowResumenSocios(false)}
+                        sx={{ position: 'absolute', right: 8, top: 8 }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent sx={{
+                    p: 0,
+                    height: 'calc(90vh - 64px)',
+                    '& > div': {
+                        height: '100%'
+                    }
+                }}>
+                    {(() => {
+                        if (ventas.length === 0) {
+                            return (
+                                <Box sx={{ p: 3, textAlign: 'center' }}>
+                                    <Typography variant="body1" color="text.secondary">
+                                        No hay datos para mostrar. Por favor, aplica filtros y busca recaudaciones.
+                                    </Typography>
+                                </Box>
+                            );
+                        }
+                        
+                        const fechaInicio = filtros.fechaInicio || (ventas.length > 0 
+                            ? new Date(Math.min(...ventas.map(v => new Date(v.fecha).getTime())))
+                            : new Date());
+                        const fechaFin = filtros.fechaFin || (ventas.length > 0
+                            ? new Date(Math.max(...ventas.map(v => new Date(v.fecha).getTime())))
+                            : new Date());
+                        
+                        // Validar que las fechas sean válidas
+                        const fechaInicioValida = fechaInicio instanceof Date && !isNaN(fechaInicio.getTime()) 
+                            ? fechaInicio 
+                            : new Date();
+                        const fechaFinValida = fechaFin instanceof Date && !isNaN(fechaFin.getTime())
+                            ? fechaFin
+                            : new Date();
+                        
+                        return (
+                            <ResumenSociosPDF
                                 ventas={ventas}
                                 fechaInicio={fechaInicioValida}
                                 fechaFin={fechaFinValida}

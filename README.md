@@ -77,6 +77,36 @@ npm run start:prod
 - ✅ Normativa incluida automáticamente en PDFs de reserva
 - ✅ Edición de normativa disponible para ADMINISTRADOR y JUNTA
 - ✅ Normativa en página separada del PDF para facilitar firma
+- ✅ Editor de texto con formato (negrita, cursiva, subrayado)
+
+### Gestión de Productos Retirados
+- ✅ Registro de productos retirados del inventario (solo ADMINISTRADOR)
+- ✅ Motivos de retiro: Caducado, Dañado, Defectuoso, Roto, Contaminado, Otro
+- ✅ Historial completo de productos retirados
+- ✅ Resúmenes por motivo y por producto
+- ✅ Generación de informes en PDF
+
+### Mejoras en Recaudaciones
+- ✅ Resumen de Socios: Información detallada de pagos por socio con productos y días de consumo
+- ✅ Resumen de Productos: Productos vendidos con acumulado y desglose por trabajador
+- ✅ Filtros por método de pago (efectivo, tarjeta, todos)
+- ✅ Trazabilidad completa de quién realizó cada pago (trabajador o usuario)
+- ✅ Redondeo automático a 2 decimales en todos los montos
+
+### Mejoras en Invitaciones
+- ✅ Registro del usuario que crea cada invitación
+- ✅ Selector de trabajador para usuarios TIENDA
+- ✅ Visualización del usuario registrador en la lista de invitaciones
+
+### Mejoras en Deudas
+- ✅ Selección de trabajador al pagar deudas (rol TIENDA)
+- ✅ Manejo correcto de pagos parciales con múltiples trabajadores
+- ✅ Cálculo automático de cambio cuando se paga más de lo debido
+
+### Seguridad y Sesión
+- ✅ Logout automático cuando el token JWT expira
+- ✅ Redirección automática al login en caso de token inválido
+- ✅ Manejo mejorado de errores de autenticación
 
 ## 📝 Licencia
 

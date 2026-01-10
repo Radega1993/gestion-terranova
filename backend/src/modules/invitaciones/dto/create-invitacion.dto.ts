@@ -13,4 +13,8 @@ export class CreateInvitacionDto {
     @IsString()
     @IsOptional()
     observaciones?: string;
+
+    @IsString()
+    @IsOptional()
+    trabajadorId?: string;
 } 

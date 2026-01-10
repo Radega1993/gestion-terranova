@@ -1391,6 +1391,12 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 onClose={() => setShowReservaPDF(false)}
                 maxWidth="md"
                 fullWidth
+                PaperProps={{
+                    sx: {
+                        height: '90vh',
+                        maxHeight: '90vh'
+                    }
+                }}
             >
                 <DialogTitle>
                     Comprobante de Reserva
@@ -1401,7 +1407,13 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                         <CloseIcon />
                     </IconButton>
                 </DialogTitle>
-                <DialogContent>
+                <DialogContent sx={{
+                    p: 0,
+                    height: 'calc(90vh - 64px)',
+                    '& > div': {
+                        height: '100%'
+                    }
+                }}>
                     {selectedReservaForPDF && (
                         <ReservaPDF
                             reserva={selectedReservaForPDF}

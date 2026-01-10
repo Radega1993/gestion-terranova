@@ -167,7 +167,7 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
     }, [token]);
 
     // Agrupar ventas por trabajador/usuario usando useMemo para evitar recalcular
-    const { ventasPorTrabajador, totalesGenerales, totalesPorMetodoPago } = useMemo(() => {
+    const { ventasPorTrabajador, totalesGenerales, totalesPorMetodoPago, productosAcumulados } = useMemo(() => {
         // Si no hay categorías aún, retornar valores vacíos
         if (categorias.length === 0) {
             return {
@@ -200,14 +200,15 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
             }
 
             // Sumar al total del trabajador/usuario (siempre sumar el pagado de cada transacción)
-            acc[key].total += venta.pagado;
+            const pagadoRedondeado = Number((venta.pagado || 0).toFixed(2));
+            acc[key].total = Number((acc[key].total + pagadoRedondeado).toFixed(2));
 
             // Método de pago
             const metodoPago = venta.metodoPago || (venta.pagos && venta.pagos.length > 0 ? venta.pagos[0].metodoPago : '');
             if (metodoPago === 'EFECTIVO' || metodoPago === 'efectivo') {
-                acc[key].metodoPago.efectivo += venta.pagado;
+                acc[key].metodoPago.efectivo = Number((acc[key].metodoPago.efectivo + pagadoRedondeado).toFixed(2));
             } else if (metodoPago === 'TARJETA' || metodoPago === 'tarjeta') {
-                acc[key].metodoPago.tarjeta += venta.pagado;
+                acc[key].metodoPago.tarjeta = Number((acc[key].metodoPago.tarjeta + pagadoRedondeado).toFixed(2));
             }
 
             // Ventas por socio
@@ -221,7 +222,7 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                 });
             }
             const socioData = acc[key].ventasPorSocio.get(socioKey);
-            socioData.total += venta.pagado;
+            socioData.total = Number((socioData.total + pagadoRedondeado).toFixed(2));
 
             // Clasificar productos por categoría
             // IMPORTANTE: Solo procesar productos una vez por venta (evitar duplicados con múltiples pagos)
@@ -238,7 +239,7 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                     }
                     const prodData = socioData.productos.get(productoKey);
                     prodData.cantidad += producto.cantidad;
-                    prodData.total += producto.total;
+                    prodData.total = Number((prodData.total + Number((producto.total || 0).toFixed(2))).toFixed(2));
                 });
             }
             
@@ -246,7 +247,7 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                 // Para reservas, distribuir el pagado proporcionalmente
                 if (esVentaNueva) {
                     // Usar el pagado de esta transacción para las categorías
-                    acc[key].categorias.reservas += venta.pagado;
+                    acc[key].categorias.reservas = Number((acc[key].categorias.reservas + pagadoRedondeado).toFixed(2));
                     // Agregar reserva como producto
                     const productoKey = `Reserva - ${venta.detalles[0]?.nombre || 'Reserva'}`;
                     if (!acc[key].productos.has(productoKey)) {
@@ -254,7 +255,7 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                     }
                     const productoData = acc[key].productos.get(productoKey);
                     productoData.cantidad += 1;
-                    productoData.total += venta.pagado;
+                    productoData.total = Number((productoData.total + pagadoRedondeado).toFixed(2));
                     ventasProcesadas.add(ventaKey);
                 }
             } else {
@@ -268,15 +269,17 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                         const categoriaLower = categoria.toLowerCase();
                         
                         // Distribuir el pagado proporcionalmente según el total del producto
-                        const proporcion = totalProductos > 0 ? producto.total / totalProductos : 0;
-                        const montoCategoria = venta.pagado * proporcion;
+                        const productoTotalRedondeado = Number((producto.total || 0).toFixed(2));
+                        const totalProductosRedondeado = Number(totalProductos.toFixed(2));
+                        const proporcion = totalProductosRedondeado > 0 ? productoTotalRedondeado / totalProductosRedondeado : 0;
+                        const montoCategoria = Number((pagadoRedondeado * proporcion).toFixed(2));
                         
                         // Si la categoría existe en las categorías del inventario, usarla
                         // Si no, usar 'otros'
                         if (categorias.includes(categoria) && acc[key].categorias[categoriaLower] !== undefined) {
-                            acc[key].categorias[categoriaLower] += montoCategoria;
+                            acc[key].categorias[categoriaLower] = Number((acc[key].categorias[categoriaLower] + montoCategoria).toFixed(2));
                         } else {
-                            acc[key].categorias.otros += montoCategoria;
+                            acc[key].categorias.otros = Number((acc[key].categorias.otros + montoCategoria).toFixed(2));
                         }
 
                         // Agregar producto al detalle (usar el total del producto para cantidad/precio)
@@ -287,7 +290,7 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                         const productoData = acc[key].productos.get(productoKey);
                         productoData.cantidad += producto.cantidad;
                         // Para productos, usar el total del producto (no el pagado proporcional)
-                        productoData.total += producto.total;
+                        productoData.total = Number((productoData.total + productoTotalRedondeado).toFixed(2));
                     });
                     ventasProcesadas.add(ventaKey);
                 } else {
@@ -298,13 +301,15 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                         const categoria = (producto.categoria || 'OTROS').toUpperCase();
                         const categoriaLower = categoria.toLowerCase();
                         
-                        const proporcion = totalProductos > 0 ? producto.total / totalProductos : 0;
-                        const montoCategoria = venta.pagado * proporcion;
+                        const productoTotalRedondeado = Number((producto.total || 0).toFixed(2));
+                        const totalProductosRedondeado = Number(totalProductos.toFixed(2));
+                        const proporcion = totalProductosRedondeado > 0 ? productoTotalRedondeado / totalProductosRedondeado : 0;
+                        const montoCategoria = Number((pagadoRedondeado * proporcion).toFixed(2));
                         
                         if (categorias.includes(categoria) && acc[key].categorias[categoriaLower] !== undefined) {
-                            acc[key].categorias[categoriaLower] += montoCategoria;
+                            acc[key].categorias[categoriaLower] = Number((acc[key].categorias[categoriaLower] + montoCategoria).toFixed(2));
                         } else {
-                            acc[key].categorias.otros += montoCategoria;
+                            acc[key].categorias.otros = Number((acc[key].categorias.otros + montoCategoria).toFixed(2));
                         }
                     });
                 }
@@ -320,57 +325,106 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                 [key: string]: number;
             };
         }, trabajador: any) => {
-            acc.total += trabajador.total;
+            acc.total += Number((trabajador.total || 0).toFixed(2));
             Object.keys(trabajador.categorias).forEach(categoria => {
                 if (!acc.categorias[categoria]) {
                     acc.categorias[categoria] = 0;
                 }
-                acc.categorias[categoria] += trabajador.categorias[categoria];
+                acc.categorias[categoria] += Number((trabajador.categorias[categoria] || 0).toFixed(2));
             });
             return acc;
         }, { total: 0, categorias: {} });
+        
+        // Redondear el total general
+        totalesGeneralesResult.total = Number(totalesGeneralesResult.total.toFixed(2));
+        Object.keys(totalesGeneralesResult.categorias).forEach(categoria => {
+            totalesGeneralesResult.categorias[categoria] = Number(totalesGeneralesResult.categorias[categoria].toFixed(2));
+        });
 
         // Calcular totales por método de pago
         const totalesPorMetodoPagoResult = ventas.reduce((acc: { efectivo: number; tarjeta: number }, venta) => {
             const metodoPago = venta.metodoPago || (venta.pagos && venta.pagos.length > 0 ? venta.pagos[0].metodoPago : '');
+            const pagadoRedondeado = Number((venta.pagado || 0).toFixed(2));
             if (metodoPago === 'EFECTIVO' || metodoPago === 'efectivo') {
-                acc.efectivo += venta.pagado;
+                acc.efectivo += pagadoRedondeado;
             } else if (metodoPago === 'TARJETA' || metodoPago === 'tarjeta') {
-                acc.tarjeta += venta.pagado;
+                acc.tarjeta += pagadoRedondeado;
             }
             return acc;
         }, { efectivo: 0, tarjeta: 0 });
+        
+        // Redondear los totales por método de pago
+        totalesPorMetodoPagoResult.efectivo = Number(totalesPorMetodoPagoResult.efectivo.toFixed(2));
+        totalesPorMetodoPagoResult.tarjeta = Number(totalesPorMetodoPagoResult.tarjeta.toFixed(2));
 
         console.log('Ventas por trabajador:', ventasPorTrabajadorResult);
         console.log('Totales generales:', totalesGeneralesResult);
         console.log('Totales por método de pago:', totalesPorMetodoPagoResult);
 
-        // Convertir Maps a objetos para poder serializar
+        // Convertir Maps a objetos para poder serializar y redondear valores
         const ventasPorTrabajadorSerializado: any = {};
         Object.keys(ventasPorTrabajadorResult).forEach(key => {
+            const trabajador = ventasPorTrabajadorResult[key];
             ventasPorTrabajadorSerializado[key] = {
-                ...ventasPorTrabajadorResult[key],
-                productos: Array.from(ventasPorTrabajadorResult[key].productos.entries()).map(([nombre, datos]) => ({
+                ...trabajador,
+                total: Number((trabajador.total || 0).toFixed(2)),
+                categorias: Object.keys(trabajador.categorias).reduce((acc: any, cat) => {
+                    acc[cat] = Number((trabajador.categorias[cat] || 0).toFixed(2));
+                    return acc;
+                }, {}),
+                metodoPago: {
+                    efectivo: Number((trabajador.metodoPago?.efectivo || 0).toFixed(2)),
+                    tarjeta: Number((trabajador.metodoPago?.tarjeta || 0).toFixed(2))
+                },
+                productos: Array.from(trabajador.productos.entries()).map(([nombre, datos]: [string, any]) => ({
                     nombre,
-                    ...datos
+                    cantidad: datos.cantidad || 0,
+                    total: Number((datos.total || 0).toFixed(2))
                 })),
-                ventasPorSocio: Array.from(ventasPorTrabajadorResult[key].ventasPorSocio.entries()).map(([codigo, datos]) => ({
+                ventasPorSocio: Array.from(trabajador.ventasPorSocio.entries()).map(([codigo, datos]: [string, any]) => ({
                     codigo,
                     nombre: datos.nombre,
-                    total: datos.total,
-                    cantidad: datos.cantidad,
-                    productos: Array.from(datos.productos.entries()).map(([nombre, prodDatos]) => ({
+                    total: Number((datos.total || 0).toFixed(2)),
+                    cantidad: datos.cantidad || 0,
+                    productos: Array.from(datos.productos.entries()).map(([nombre, prodDatos]: [string, any]) => ({
                         nombre,
-                        ...prodDatos
+                        cantidad: prodDatos.cantidad || 0,
+                        total: Number((prodDatos.total || 0).toFixed(2))
                     }))
                 }))
             };
         });
 
+        // Calcular productos acumulados (suma de todos los trabajadores)
+        const productosAcumulados = new Map<string, { cantidad: number; total: number }>();
+        Object.values(ventasPorTrabajadorSerializado).forEach((trabajador: any) => {
+            // trabajador.productos ya es un array después de la serialización
+            if (trabajador.productos && Array.isArray(trabajador.productos)) {
+                trabajador.productos.forEach((producto: any) => {
+                    const nombre = producto.nombre;
+                    if (!productosAcumulados.has(nombre)) {
+                        productosAcumulados.set(nombre, { cantidad: 0, total: 0 });
+                    }
+                    const prodData = productosAcumulados.get(nombre)!;
+                    prodData.cantidad += producto.cantidad || 0;
+                    prodData.total += Number((producto.total || 0).toFixed(2));
+                });
+            }
+        });
+
+        const productosAcumuladosArray = Array.from(productosAcumulados.entries())
+            .map(([nombre, datos]) => ({
+                nombre,
+                cantidad: datos.cantidad,
+                total: Number(datos.total.toFixed(2))
+            }))
+            .sort((a, b) => b.total - a.total); // Ordenar por total descendente
+
         return {
             ventasPorTrabajador: ventasPorTrabajadorSerializado,
             totalesGenerales: totalesGeneralesResult,
-            totalesPorMetodoPago: totalesPorMetodoPagoResult
+            totalesPorMetodoPago: totalesPorMetodoPagoResult,
+            productosAcumulados: productosAcumuladosArray
         };
     }, [ventas, categorias]);
 
@@ -386,15 +440,111 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
     return (
         <PDFViewer key={`pdf-${categorias.length}-${ventas.length}`} style={{ width: '100%', height: '100%', border: 'none' }}>
             <Document>
+                {/* Primera página: Productos Acumulados */}
                 <Page size="A4" style={styles.page}>
                     <View style={styles.header}>
-                        <Text style={styles.title}>Resumen General de Recaudaciones</Text>
+                        <Text style={styles.title}>Resumen de Productos</Text>
                         <Text style={styles.subtitle}>Comunidad de Vecinos Terranova</Text>
                         <Text>Período: {format(fechaInicio, 'dd/MM/yyyy')} - {format(fechaFin, 'dd/MM/yyyy')}</Text>
                     </View>
 
-                    {/* Resumen por Trabajador */}
-                    {Object.entries(ventasPorTrabajador).map(([trabajador, datos]: [string, any]) => (
+                    {/* Tabla de Productos Acumulados */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Productos Consumidos (Acumulado Total)</Text>
+                        {productosAcumulados && productosAcumulados.length > 0 && (
+                            <View style={styles.table}>
+                                <View style={[styles.tableRow, styles.tableHeader]}>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>Producto</Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>Cantidad</Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>Total</Text>
+                                    </View>
+                                </View>
+                                {productosAcumulados.map((producto: any, index: number) => (
+                                    <View key={index} style={styles.tableRow}>
+                                        <View style={styles.tableCol}>
+                                            <Text style={styles.tableCell}>{producto.nombre}</Text>
+                                        </View>
+                                        <View style={styles.tableCol}>
+                                            <Text style={styles.tableCell}>{producto.cantidad}</Text>
+                                        </View>
+                                        <View style={styles.tableCol}>
+                                            <Text style={styles.tableCell}>{producto.total.toFixed(2)}€</Text>
+                                        </View>
+                                    </View>
+                                ))}
+                                {/* Fila de totales */}
+                                <View style={[styles.tableRow, { backgroundColor: '#f0f0f0', fontWeight: 'bold' }]}>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>TOTAL</Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>
+                                            {productosAcumulados.reduce((sum, p) => sum + p.cantidad, 0)}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>
+                                            {productosAcumulados.reduce((sum, p) => sum + p.total, 0).toFixed(2)}€
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Totales Generales */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Totales Generales</Text>
+                        {Object.entries(totalesGenerales.categorias)
+                            .filter(([_, total]) => total > 0)
+                            .map(([categoria, total]) => (
+                                <View key={categoria} style={styles.row}>
+                                    <Text style={styles.label}>Total {categoria.charAt(0).toUpperCase() + categoria.slice(1)}:</Text>
+                                    <Text style={styles.value}>{(total as number).toFixed(2)}€</Text>
+                                </View>
+                            ))}
+                        <View style={styles.totalRow}>
+                            <Text style={styles.label}>Total General:</Text>
+                            <Text style={styles.value}>{totalesGenerales.total.toFixed(2)}€</Text>
+                        </View>
+                    </View>
+
+                    {/* Totales por Método de Pago */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Totales por Método de Pago</Text>
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Total Efectivo:</Text>
+                            <Text style={styles.value}>{totalesPorMetodoPago.efectivo.toFixed(2)}€</Text>
+                        </View>
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Total Tarjeta:</Text>
+                            <Text style={styles.value}>{totalesPorMetodoPago.tarjeta.toFixed(2)}€</Text>
+                        </View>
+                        <View style={styles.totalRow}>
+                            <Text style={styles.label}>Total:</Text>
+                            <Text style={styles.value}>{(totalesPorMetodoPago.efectivo + totalesPorMetodoPago.tarjeta).toFixed(2)}€</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.footer}>
+                        <Text>Documento generado el {format(new Date(), 'dd/MM/yyyy HH:mm')}</Text>
+                    </View>
+                </Page>
+
+                {/* Páginas siguientes: Resumen por Trabajador */}
+                {Object.entries(ventasPorTrabajador).map(([trabajador, datos]: [string, any]) => (
+                    <Page key={trabajador} size="A4" style={styles.page}>
+                        <View style={styles.header}>
+                            <Text style={styles.title}>Resumen de Productos</Text>
+                            <Text style={styles.subtitle}>Comunidad de Vecinos Terranova</Text>
+                            <Text>Período: {format(fechaInicio, 'dd/MM/yyyy')} - {format(fechaFin, 'dd/MM/yyyy')}</Text>
+                        </View>
+
                         <View key={trabajador} style={styles.section}>
                             <Text style={styles.sectionTitle}>Trabajador: {trabajador}</Text>
 
@@ -453,97 +603,17 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                                 </>
                             )}
 
-                            {/* Ventas por Socio */}
-                            {datos.ventasPorSocio && datos.ventasPorSocio.length > 0 && (
-                                <>
-                                    <Text style={{ fontSize: 11, fontWeight: 'bold', marginTop: 8, marginBottom: 3 }}>Ventas por Socio:</Text>
-                                    {datos.ventasPorSocio.map((socio: any, index: number) => (
-                                        <View key={index} style={{ marginBottom: 8 }}>
-                                            <View style={styles.row}>
-                                                <Text style={{ fontSize: 10, fontWeight: 'bold' }}>
-                                                    {socio.codigo} - {socio.nombre} ({socio.cantidad} venta{socio.cantidad > 1 ? 's' : ''}): {socio.total.toFixed(2)}€
-                                                </Text>
-                                            </View>
-                                            {socio.productos && socio.productos.length > 0 && (
-                                                <View style={{ marginLeft: 10, marginTop: 3 }}>
-                                                    <View style={styles.table}>
-                                                        <View style={[styles.tableRow, styles.tableHeader]}>
-                                                            <View style={styles.tableCol}>
-                                                                <Text style={styles.tableCell}>Producto</Text>
-                                                            </View>
-                                                            <View style={styles.tableCol}>
-                                                                <Text style={styles.tableCell}>Cantidad</Text>
-                                                            </View>
-                                                            <View style={styles.tableCol}>
-                                                                <Text style={styles.tableCell}>Total</Text>
-                                                            </View>
-                                                        </View>
-                                                        {socio.productos.map((producto: any, prodIndex: number) => (
-                                                            <View key={prodIndex} style={styles.tableRow}>
-                                                                <View style={styles.tableCol}>
-                                                                    <Text style={styles.tableCell}>{producto.nombre}</Text>
-                                                                </View>
-                                                                <View style={styles.tableCol}>
-                                                                    <Text style={styles.tableCell}>{producto.cantidad}</Text>
-                                                                </View>
-                                                                <View style={styles.tableCol}>
-                                                                    <Text style={styles.tableCell}>{producto.total.toFixed(2)}€</Text>
-                                                                </View>
-                                                            </View>
-                                                        ))}
-                                                    </View>
-                                                </View>
-                                            )}
-                                        </View>
-                                    ))}
-                                </>
-                            )}
-
                             <View style={styles.totalRow}>
                                 <Text style={styles.label}>Total Trabajador:</Text>
                                 <Text style={styles.value}>{datos.total.toFixed(2)}€</Text>
                             </View>
                         </View>
-                    ))}
 
-                    {/* Totales Generales */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Totales Generales</Text>
-                        {Object.entries(totalesGenerales.categorias)
-                            .filter(([_, total]) => total > 0)
-                            .map(([categoria, total]) => (
-                                <View key={categoria} style={styles.row}>
-                                    <Text style={styles.label}>Total {categoria.charAt(0).toUpperCase() + categoria.slice(1)}:</Text>
-                                    <Text style={styles.value}>{(total as number).toFixed(2)}€</Text>
-                                </View>
-                            ))}
-                        <View style={styles.totalRow}>
-                            <Text style={styles.label}>Total General:</Text>
-                            <Text style={styles.value}>{totalesGenerales.total.toFixed(2)}€</Text>
+                        <View style={styles.footer}>
+                            <Text>Documento generado el {format(new Date(), 'dd/MM/yyyy HH:mm')}</Text>
                         </View>
-                    </View>
-
-                    {/* Totales por Método de Pago */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Totales por Método de Pago</Text>
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Total Efectivo:</Text>
-                            <Text style={styles.value}>{totalesPorMetodoPago.efectivo.toFixed(2)}€</Text>
-                        </View>
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Total Tarjeta:</Text>
-                            <Text style={styles.value}>{totalesPorMetodoPago.tarjeta.toFixed(2)}€</Text>
-                        </View>
-                        <View style={styles.totalRow}>
-                            <Text style={styles.label}>Total:</Text>
-                            <Text style={styles.value}>{(totalesPorMetodoPago.efectivo + totalesPorMetodoPago.tarjeta).toFixed(2)}€</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.footer}>
-                        <Text>Documento generado el {format(new Date(), 'dd/MM/yyyy HH:mm')}</Text>
-                    </View>
-                </Page>
+                    </Page>
+                ))}
             </Document>
         </PDFViewer>
     );

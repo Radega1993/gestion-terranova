@@ -28,9 +28,11 @@ gestion-terranova/
 ### 1. Autenticación y Autorización
 - ✅ Sistema de login/registro
 - ✅ Autenticación JWT
-- ✅ Control de acceso por roles (ADMINISTRADOR, JUNTA, TRABAJADOR)
+- ✅ Control de acceso por roles (ADMINISTRADOR, JUNTA, TRABAJADOR, TIENDA)
 - ✅ Guards y decorators para protección de rutas
 - ✅ Persistencia de sesión con Zustand
+- ✅ Logout automático cuando el token expira
+- ✅ Redirección automática al login en caso de token inválido
 
 ### 2. Gestión de Usuarios
 - ✅ CRUD completo de usuarios
@@ -52,6 +54,9 @@ gestion-terranova/
 - ✅ Importación/exportación Excel
 - ✅ Categorización de productos
 - ✅ Precios de compra
+- ✅ Registro de productos retirados (solo ADMINISTRADOR)
+- ✅ Gestión de productos en mal estado (caducados, dañados, etc.)
+- ✅ Informes de productos retirados con resúmenes por motivo y producto
 
 ### 5. Ventas (TPV)
 - ✅ Registro de ventas
@@ -60,6 +65,8 @@ gestion-terranova/
 - ✅ Pagos parciales
 - ✅ Historial de ventas
 - ✅ Filtros y búsqueda
+- ✅ Trazabilidad de trabajador/usuario por cada pago individual
+- ✅ Redondeo automático a 2 decimales en todos los montos
 
 ### 6. Reservas
 - ✅ Creación de reservas de instalaciones
@@ -79,6 +86,8 @@ gestion-terranova/
 - ✅ Registro de uso de invitaciones
 - ✅ Historial por socio
 - ✅ Generación de PDFs
+- ✅ Registro del usuario que crea cada invitación
+- ✅ Selector de trabajador para usuarios TIENDA
 
 ### 8. Deudas y Recaudaciones
 - ✅ Gestión de deudas
@@ -88,6 +97,10 @@ gestion-terranova/
 - ✅ Generación de PDFs
 - ✅ Pagos de deudas con selección de trabajador (TIENDA)
 - ✅ Manejo de cambio en pagos en efectivo
+- ✅ Resumen de Socios: Pagos detallados por socio con productos y días de consumo
+- ✅ Resumen de Productos: Productos vendidos con acumulado y desglose por trabajador
+- ✅ Filtros por método de pago (efectivo, tarjeta, todos)
+- ✅ Trazabilidad completa de quién realizó cada pago
 
 ### 9. Subida de Archivos
 - ✅ Sistema de uploads

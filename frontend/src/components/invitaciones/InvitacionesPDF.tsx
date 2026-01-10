@@ -103,8 +103,12 @@ interface InvitacionesPDFProps {
         fechaUso: string;
         nombreInvitado: string;
         observaciones?: string;
-        usuarioRegistro: {
+        usuarioRegistro?: {
             username: string;
+        };
+        trabajador?: {
+            nombre: string;
+            identificador: string;
         };
     }>;
     modificaciones: Array<{
@@ -201,7 +205,12 @@ export const InvitacionesPDF: React.FC<InvitacionesPDFProps> = ({
                                             <Text style={styles.tableCell}>{invitacion.nombreInvitado}</Text>
                                         </View>
                                         <View style={styles.tableCol}>
-                                            <Text style={styles.tableCell}>{invitacion.usuarioRegistro?.username || '-'}</Text>
+                                            <Text style={styles.tableCell}>
+                                                {invitacion.trabajador 
+                                                    ? `${invitacion.trabajador.nombre} (${invitacion.trabajador.identificador})`
+                                                    : invitacion.usuarioRegistro?.username || '-'
+                                                }
+                                            </Text>
                                         </View>
                                         <View style={styles.tableCol}>
                                             <Text style={styles.tableCell}>{invitacion.observaciones || '-'}</Text>

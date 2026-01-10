@@ -7,6 +7,8 @@ import { CreateInvitacionDto } from '../dto/create-invitacion.dto';
 import { UpdateInvitacionesDto } from '../dto/update-invitaciones.dto';
 import { InvitacionesFiltersDto } from '../dto/invitaciones-filters.dto';
 import { Socio } from '../../socios/schemas/socio.schema';
+import { Trabajador } from '../../users/schemas/trabajador.schema';
+import { UsersService } from '../../users/users.service';
 
 @Injectable()
 export class InvitacionesService {
@@ -15,7 +17,9 @@ export class InvitacionesService {
     constructor(
         @InjectModel(Invitacion.name) private invitacionModel: Model<InvitacionDocument>,
         @InjectModel(SocioInvitaciones.name) private socioInvitacionesModel: Model<SocioInvitacionesDocument>,
-        @InjectModel(Socio.name) private socioModel: Model<Socio>
+        @InjectModel(Socio.name) private socioModel: Model<Socio>,
+        @InjectModel(Trabajador.name) private trabajadorModel: Model<Trabajador>,
+        private usersService: UsersService
     ) { }
 
     private getEjercicioActual(): number {
@@ -44,7 +48,7 @@ export class InvitacionesService {
         return socioInvitaciones;
     }
 
-    async create(createInvitacionDto: CreateInvitacionDto, userId: string): Promise<InvitacionDocument> {
+    async create(createInvitacionDto: CreateInvitacionDto, userId: string, userRole: string): Promise<InvitacionDocument> {
         const socio = await this.socioModel.findOne({ socio: createInvitacionDto.codigoSocio });
         if (!socio) {
             throw new NotFoundException(`Socio no encontrado: ${createInvitacionDto.codigoSocio}`);
@@ -57,22 +61,60 @@ export class InvitacionesService {
             throw new BadRequestException('No quedan invitaciones disponibles para este socio');
         }
 
+        // Validar trabajador si el usuario es TIENDA
+        let trabajadorId = null;
+        if (userRole === 'TIENDA') {
+            if (!createInvitacionDto.trabajadorId) {
+                throw new BadRequestException('Debe seleccionar un trabajador para realizar la invitación');
+            }
+
+            // Obtener la tienda del usuario
+            const user = await this.usersService.findOne(userId);
+            if (!user.tienda) {
+                throw new BadRequestException('No tiene una tienda asignada');
+            }
+
+            // Validar que el trabajador pertenece a la tienda del usuario y está activo
+            const trabajador = await this.trabajadorModel.findOne({
+                _id: createInvitacionDto.trabajadorId,
+                tienda: user.tienda,
+                activo: true
+            }).exec();
+
+            if (!trabajador) {
+                throw new BadRequestException('Trabajador no válido o no pertenece a esta tienda');
+            }
+
+            trabajadorId = createInvitacionDto.trabajadorId;
+        }
+
         // Crear la invitación
-        const invitacion = await this.invitacionModel.create({
+        const invitacionData: any = {
             socio: socio._id,
             fechaUso: new Date(createInvitacionDto.fechaUso),
             nombreInvitado: createInvitacionDto.nombreInvitado,
             observaciones: createInvitacionDto.observaciones,
             usuarioRegistro: new Types.ObjectId(userId),
             ejercicio
-        });
+        };
+
+        if (trabajadorId) {
+            invitacionData.trabajador = new Types.ObjectId(trabajadorId);
+        }
+
+        const invitacion = await this.invitacionModel.create(invitacionData);
 
         // Actualizar invitaciones disponibles
         socioInvitaciones.invitacionesDisponibles -= 1;
         socioInvitaciones.usuarioActualizacion = new Types.ObjectId(userId);
         await socioInvitaciones.save();
 
-        return invitacion;
+        // Retornar la invitación con populate para incluir los datos del usuario y trabajador
+        return this.invitacionModel.findById(invitacion._id)
+            .populate('socio', 'socio nombre')
+            .populate('usuarioRegistro', 'username')
+            .populate('trabajador', 'nombre identificador')
+            .exec();
     }
 
     async findAll(filters: InvitacionesFiltersDto): Promise<InvitacionDocument[]> {
@@ -99,6 +141,7 @@ export class InvitacionesService {
         return this.invitacionModel.find(query)
             .populate('socio', 'socio nombre')
             .populate('usuarioRegistro', 'username')
+            .populate('trabajador', 'nombre identificador')
             .sort({ fechaUso: -1 })
             .exec();
     }
@@ -148,6 +191,7 @@ export class InvitacionesService {
         const invitaciones = await this.invitacionModel.find({ ejercicio })
             .populate('socio', 'socio nombre')
             .populate('usuarioRegistro', 'username')
+            .populate('trabajador', 'nombre identificador')
             .sort({ fechaUso: 1 })
             .exec();
 

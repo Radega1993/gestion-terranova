@@ -16,6 +16,12 @@ export class Pago {
 
     @Prop({ type: String })
     observaciones?: string;
+
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Trabajador' })
+    trabajador?: MongooseSchema.Types.ObjectId;  // Trabajador que realizó este pago específico (si usuario es TIENDA)
+
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+    usuario?: MongooseSchema.Types.ObjectId;  // Usuario que realizó este pago específico (si usuario NO es TIENDA)
 }
 
 @Schema({ timestamps: true })

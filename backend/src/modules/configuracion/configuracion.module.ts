@@ -14,3 +14,6 @@ import { Normativa, NormativaSchema } from './schemas/normativa.schema';
 })
 export class ConfiguracionModule {}
 
+
+
+

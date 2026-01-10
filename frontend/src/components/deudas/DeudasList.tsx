@@ -28,6 +28,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { es } from 'date-fns/locale';
 import { API_BASE_URL } from '../../config';
 import { useAuthStore } from '../../stores/authStore';
+import { authenticatedFetchJson } from '../../utils/apiHelper';
 import { Venta } from '../ventas/types';
 import { PagoDeudaModal } from './PagoDeudaModal';
 import { PagoAcumuladoModal } from './PagoAcumuladoModal';
@@ -79,18 +80,7 @@ export const DeudasList: React.FC = () => {
                 url += `estado=${filtros.estado}&`;
             }
 
-            const response = await fetch(url, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error('Error al cargar las deudas');
-            }
-
-            const data = await response.json();
+            const data = await authenticatedFetchJson<Venta[]>(url);
             console.log('Deudas recibidas:', data);
             console.log('Número de deudas:', data.length);
             setVentas(data);

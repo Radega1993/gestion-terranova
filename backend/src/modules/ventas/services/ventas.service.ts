@@ -69,6 +69,7 @@ export class VentasService {
         @InjectModel(Reserva.name) private reservaModel: Model<Reserva>,
         @InjectModel(Socio.name) private socioModel: Model<Socio>,
         @InjectModel(Trabajador.name) private trabajadorModel: Model<Trabajador>,
+        @InjectModel(User.name) private userModel: Model<User>,
         private usersService: UsersService
     ) { }
 
@@ -277,12 +278,22 @@ export class VentasService {
 
             // Si hay un pago inicial, crear el registro de pago
             if (pagadoRedondeado > 0) {
-                ventaData.pagos = [{
+                const pagoInicial: any = {
                     fecha: new Date(),
                     monto: pagadoRedondeado,
                     metodoPago: createVentaDto.metodoPago || 'EFECTIVO',
                     observaciones: createVentaDto.observaciones || ''
-                }];
+                };
+                
+                // Guardar el trabajador en el pago inicial si el usuario es TIENDA
+                if (trabajadorId) {
+                    pagoInicial.trabajador = new Types.ObjectId(trabajadorId);
+                } else {
+                    // Si no es TIENDA, guardar el usuario que realizó el pago
+                    pagoInicial.usuario = new Types.ObjectId(userId);
+                }
+                
+                ventaData.pagos = [pagoInicial];
             }
 
             // Añadir trabajador si existe
@@ -376,28 +387,56 @@ export class VentasService {
         });
 
         // Registrar el pago en el historial (redondeado a 2 decimales)
-        const pago = {
+        const pago: any = {
             fecha: new Date(),
             monto: montoPagoAjustado,
             metodoPago: pagoVentaDto.metodoPago,
             observaciones: pagoVentaDto.observaciones || ''
         };
 
+        // Guardar el trabajador en el pago específico si el usuario es TIENDA
+        if (trabajadorId) {
+            pago.trabajador = new Types.ObjectId(trabajadorId);
+            this.logger.debug(`Guardando trabajador ${trabajadorId} en pago`);
+        } else {
+            // Si no es TIENDA, guardar el usuario que realizó el pago
+            pago.usuario = new Types.ObjectId(userId);
+            this.logger.debug(`Guardando usuario ${userId} en pago (rol: ${userRole})`);
+        }
+
         venta.pagos = venta.pagos || [];
-        venta.pagos.push(pago);
+        // Crear un nuevo objeto pago para asegurar que se guarde correctamente
+        const nuevoPago = {
+            fecha: pago.fecha,
+            monto: pago.monto,
+            metodoPago: pago.metodoPago,
+            observaciones: pago.observaciones,
+            ...(pago.trabajador && { trabajador: pago.trabajador }),
+            ...(pago.usuario && { usuario: pago.usuario })
+        };
+        venta.pagos.push(nuevoPago);
+        
+        // Marcar el array de pagos como modificado para que Mongoose lo guarde correctamente
+        venta.markModified('pagos');
 
         // Actualizar la venta
         venta.pagado = nuevoPagado;
         venta.estado = nuevoEstado;
         
-        // Si se proporciona trabajadorId y la venta no tiene trabajador asignado, asignarlo
-        // O si el usuario es TIENDA y se proporciona trabajadorId, actualizarlo
-        if (trabajadorId) {
+        // Solo asignar el trabajador a la venta si NO tiene trabajador asignado
+        // Esto preserva el trabajador original que hizo la venta inicial
+        // Cada pago individual tiene su propio trabajador guardado
+        if (trabajadorId && !venta.trabajador) {
             venta.trabajador = trabajadorId as any;
         }
 
+        this.logger.debug(`Guardando venta con ${venta.pagos.length} pagos. Último pago ANTES de guardar: ${JSON.stringify(pago, null, 2)}`);
         const ventaActualizada = await venta.save();
-        this.logger.debug('Venta actualizada:', ventaActualizada);
+        // Verificar que el último pago guardado tiene el campo usuario o trabajador
+        const ultimoPagoGuardado = ventaActualizada.pagos[ventaActualizada.pagos.length - 1];
+        const pagoGuardadoObj = (ultimoPagoGuardado as any).toObject ? (ultimoPagoGuardado as any).toObject() : ultimoPagoGuardado;
+        this.logger.debug(`Último pago guardado tiene usuario?: ${!!pagoGuardadoObj.usuario}, tiene trabajador?: ${!!pagoGuardadoObj.trabajador}`);
+        this.logger.debug(`Último pago guardado DESPUÉS de guardar: ${JSON.stringify(pagoGuardadoObj, null, 2)}`);
 
         return ventaActualizada;
     }
@@ -501,13 +540,131 @@ export class VentasService {
         console.log('Filtro ventas:', JSON.stringify(filtroVentas, null, 2));
         console.log('Filtro reservas:', JSON.stringify(filtroReservas, null, 2));
 
-        // Obtener ventas
+        // Obtener ventas SIN lean primero para verificar estructura
+        const ventasSinLean = await this.ventaModel
+            .find(filtroVentas)
+            .populate('usuario', 'username')
+            .populate('trabajador', 'nombre identificador')
+            .exec();
+        
+        // Log para verificar estructura antes de lean
+        if (ventasSinLean.length > 0 && ventasSinLean[0].pagos && ventasSinLean[0].pagos.length > 0) {
+            const primerPago = ventasSinLean[0].pagos[0];
+            this.logger.debug(`Primer pago ANTES de lean: ${JSON.stringify(primerPago, null, 2)}`);
+            this.logger.debug(`Primer pago tiene usuario?: ${!!(primerPago as any).usuario}`);
+            this.logger.debug(`Primer pago tiene trabajador?: ${!!(primerPago as any).trabajador}`);
+        }
+
+        // Obtener ventas con lean para procesamiento
         const ventas = await this.ventaModel
             .find(filtroVentas)
             .populate('usuario', 'username')
             .populate('trabajador', 'nombre identificador')
             .lean()
             .exec() as unknown as PopulatedVenta[];
+
+        // Log para verificar estructura después de lean
+        if (ventas.length > 0 && ventas[0].pagos && ventas[0].pagos.length > 0) {
+            const primerPago = ventas[0].pagos[0];
+            this.logger.debug(`Primer pago DESPUÉS de lean: ${JSON.stringify(primerPago, null, 2)}`);
+            this.logger.debug(`Primer pago tiene usuario?: ${!!(primerPago as any).usuario}`);
+            this.logger.debug(`Primer pago tiene trabajador?: ${!!(primerPago as any).trabajador}`);
+        }
+
+        // Recopilar todos los IDs de trabajadores y usuarios de los pagos para hacer populate en batch
+        const trabajadorIdsSet = new Set<string>();
+        const usuarioIdsSet = new Set<string>();
+        for (const venta of ventas) {
+            if (venta.pagos && venta.pagos.length > 0) {
+                for (const pago of venta.pagos) {
+                    if ((pago as any).trabajador) {
+                        const trabajadorId = (pago as any).trabajador;
+                        if (Types.ObjectId.isValid(trabajadorId)) {
+                            trabajadorIdsSet.add(trabajadorId.toString());
+                            this.logger.debug(`Trabajador encontrado en pago: ${trabajadorId}`);
+                        }
+                    }
+                    if ((pago as any).usuario) {
+                        const usuarioId = (pago as any).usuario;
+                        if (Types.ObjectId.isValid(usuarioId)) {
+                            usuarioIdsSet.add(usuarioId.toString());
+                            this.logger.debug(`Usuario encontrado en pago: ${usuarioId}`);
+                        } else {
+                            this.logger.warn(`Usuario ID no válido en pago: ${usuarioId}`);
+                        }
+                    } else {
+                        this.logger.debug(`Pago sin campo usuario. Pago completo: ${JSON.stringify(pago)}`);
+                    }
+                }
+            }
+        }
+        this.logger.debug(`Total trabajadores a popular: ${trabajadorIdsSet.size}, Total usuarios a popular: ${usuarioIdsSet.size}`);
+
+        // Hacer populate en batch de todos los trabajadores
+        const trabajadoresMap = new Map<string, any>();
+        if (trabajadorIdsSet.size > 0) {
+            const trabajadorIdsArray = Array.from(trabajadorIdsSet).map(id => new Types.ObjectId(id));
+            const trabajadores = await this.trabajadorModel
+                .find({ _id: { $in: trabajadorIdsArray } })
+                .select('nombre identificador')
+                .lean()
+                .exec();
+            
+            trabajadores.forEach(trabajador => {
+                trabajadoresMap.set(trabajador._id.toString(), trabajador);
+            });
+        }
+
+        // Hacer populate en batch de todos los usuarios
+        const usuariosMap = new Map<string, any>();
+        if (usuarioIdsSet.size > 0) {
+            const usuarioIdsArray = Array.from(usuarioIdsSet).map(id => new Types.ObjectId(id));
+            this.logger.debug(`Populando ${usuarioIdsArray.length} usuarios de pagos: ${usuarioIdsArray.map(id => id.toString()).join(', ')}`);
+            const usuarios = await this.userModel
+                .find({ _id: { $in: usuarioIdsArray } })
+                .select('username')
+                .lean()
+                .exec();
+            
+            this.logger.debug(`Usuarios encontrados: ${usuarios.length}`);
+            usuarios.forEach(usuario => {
+                usuariosMap.set(usuario._id.toString(), usuario);
+                this.logger.debug(`Usuario agregado al map: ${usuario.username} (${usuario._id})`);
+            });
+        } else {
+            this.logger.debug('No hay usuarios de pagos para popular');
+        }
+
+        // Asignar los trabajadores y usuarios populados a los pagos
+        for (const venta of ventas) {
+            if (venta.pagos && venta.pagos.length > 0) {
+                for (const pago of venta.pagos) {
+                    if ((pago as any).trabajador) {
+                        const trabajadorId = (pago as any).trabajador;
+                        if (Types.ObjectId.isValid(trabajadorId)) {
+                            const trabajador = trabajadoresMap.get(trabajadorId.toString());
+                            if (trabajador) {
+                                (pago as any).trabajador = trabajador;
+                            }
+                        }
+                    }
+                    if ((pago as any).usuario) {
+                        const usuarioId = (pago as any).usuario;
+                        if (Types.ObjectId.isValid(usuarioId)) {
+                            const usuario = usuariosMap.get(usuarioId.toString());
+                            if (usuario) {
+                                (pago as any).usuario = usuario;
+                                this.logger.debug(`Usuario populado para pago: ${usuario.username} (${usuarioId})`);
+                            } else {
+                                this.logger.warn(`Usuario no encontrado en map para ID: ${usuarioId}`);
+                            }
+                        } else {
+                            this.logger.warn(`Usuario ID no válido: ${usuarioId}`);
+                        }
+                    }
+                }
+            }
+        }
 
         console.log('Ventas encontradas:', ventas.length);
         if (ventas.length > 0) {
@@ -681,40 +838,87 @@ export class VentasService {
             }
 
             // Transformar cada pago en una fila independiente
-            return venta.pagos.map(pago => ({
-                _id: venta._id,
-                tipo: 'VENTA',
-                fecha: pago.fecha, // Usar la fecha del pago en lugar de la fecha de la venta
-                socio: {
-                    codigo: venta.codigoSocio,
-                    nombre: venta.nombreSocio
-                },
-                usuario: {
-                    _id: venta.usuario._id,
-                    username: venta.usuario.username
-                },
-                trabajador: venta.trabajador ? {
-                    _id: venta.trabajador._id,
-                    nombre: venta.trabajador.nombre,
-                    identificador: venta.trabajador.identificador
-                } : undefined,
-                total: Number(venta.total.toFixed(2)),
-                pagado: Number(pago.monto.toFixed(2)), // Usar el monto del pago específico
-                metodoPago: pago.metodoPago, // Método de pago del pago específico
-                estado: venta.estado,
-                detalles: venta.productos.map(p => ({
-                    nombre: p.nombre,
-                    cantidad: p.unidades,
-                    precio: Number(p.precioUnitario.toFixed(2)),
-                    total: Number(p.precioTotal.toFixed(2))
-                })),
-                pagos: [{
-                    fecha: pago.fecha,
-                    monto: Number(pago.monto.toFixed(2)),
-                    metodoPago: pago.metodoPago,
-                    observaciones: pago.observaciones
-                }]
-            }));
+            return venta.pagos.map(pago => {
+                // Obtener trabajador y usuario del pago específico
+                const trabajadorPago = (pago as any).trabajador;
+                const usuarioPago = (pago as any).usuario;
+                
+                // Determinar qué mostrar para ESTE pago específico:
+                // 1. Si el pago tiene trabajador, usar ese trabajador (pago hecho por TIENDA)
+                // 2. Si el pago tiene usuario (y no tiene trabajador), usar ese usuario (pago hecho por usuario no TIENDA)
+                // 3. Si el pago no tiene ni trabajador ni usuario, usar el trabajador de la venta si existe, sino el usuario de la venta
+                let trabajadorFinal = undefined;
+                let usuarioFinal = venta.usuario; // Por defecto usar usuario de la venta
+                
+                if (trabajadorPago) {
+                    // El pago tiene trabajador (hecho por TIENDA)
+                    if (typeof trabajadorPago === 'object' && trabajadorPago.nombre) {
+                        trabajadorFinal = trabajadorPago;
+                        this.logger.debug(`Pago tiene trabajador: ${trabajadorFinal.nombre}`);
+                    } else if (Types.ObjectId.isValid(trabajadorPago)) {
+                        // Es un ObjectId, debería estar populado pero no lo está
+                        this.logger.warn(`Trabajador del pago no está populado: ${trabajadorPago}`);
+                        // Intentar usar el trabajador de la venta como fallback
+                        trabajadorFinal = venta.trabajador;
+                    }
+                } else if (usuarioPago) {
+                    // El pago tiene usuario (hecho por usuario no TIENDA)
+                    if (typeof usuarioPago === 'object' && usuarioPago.username) {
+                        usuarioFinal = usuarioPago;
+                        this.logger.debug(`Pago tiene usuario: ${usuarioFinal.username}`);
+                    } else {
+                        // Si es solo un ObjectId, usar el usuario de la venta (no debería pasar si el populate funcionó)
+                        this.logger.warn(`Usuario del pago no está populado, usando usuario de venta. Usuario ID: ${usuarioPago}`);
+                        usuarioFinal = venta.usuario;
+                    }
+                } else {
+                    // El pago no tiene ni trabajador ni usuario, usar el trabajador de la venta si existe
+                    if (venta.trabajador) {
+                        trabajadorFinal = venta.trabajador;
+                        this.logger.debug(`No hay trabajador/usuario en pago, usando trabajador de venta: ${trabajadorFinal.nombre}`);
+                    } else {
+                        this.logger.debug(`No hay trabajador/usuario en pago, usando usuario de venta: ${usuarioFinal.username}`);
+                    }
+                }
+
+                this.logger.debug(`Pago transformado - Usuario final: ${usuarioFinal.username}, Trabajador: ${trabajadorFinal ? trabajadorFinal.nombre : 'ninguno'}`);
+
+                return {
+                    _id: venta._id,
+                    tipo: 'VENTA',
+                    fecha: pago.fecha, // Usar la fecha del pago en lugar de la fecha de la venta
+                    socio: {
+                        codigo: venta.codigoSocio,
+                        nombre: venta.nombreSocio
+                    },
+                    // Enviar el usuario correspondiente (el frontend prioriza trabajador sobre usuario si ambos existen)
+                    usuario: {
+                        _id: usuarioFinal._id,
+                        username: usuarioFinal.username
+                    },
+                    trabajador: trabajadorFinal ? {
+                        _id: trabajadorFinal._id || trabajadorFinal,
+                        nombre: trabajadorFinal.nombre,
+                        identificador: trabajadorFinal.identificador
+                    } : undefined,
+                    total: Number(venta.total.toFixed(2)),
+                    pagado: Number(pago.monto.toFixed(2)), // Usar el monto del pago específico
+                    metodoPago: pago.metodoPago, // Método de pago del pago específico
+                    estado: venta.estado,
+                    detalles: venta.productos.map(p => ({
+                        nombre: p.nombre,
+                        cantidad: p.unidades,
+                        precio: Number(p.precioUnitario.toFixed(2)),
+                        total: Number(p.precioTotal.toFixed(2))
+                    })),
+                    pagos: [{
+                        fecha: pago.fecha,
+                        monto: Number(pago.monto.toFixed(2)),
+                        metodoPago: pago.metodoPago,
+                        observaciones: pago.observaciones
+                    }]
+                };
+            });
         });
 
         // Combinar reservas y ventas

@@ -175,6 +175,52 @@ Product {
 ### Relaciones
 
 - Usado en: `ventas.productos` (referencia por nombre)
+- Referenciado en: `productosretirados.producto`
+
+---
+
+## 🗑️ Productos Retirados - Productos Retirados del Inventario
+
+**Colección**: `productosretirados`
+
+**Schema**: `backend/src/modules/inventory/schemas/producto-retirado.schema.ts`
+
+### Estructura
+
+```typescript
+ProductoRetirado {
+  _id: ObjectId                   // ID único de MongoDB
+  
+  // Producto
+  producto: ObjectId              // Producto retirado (ref: Product, requerido)
+  
+  // Información de retiro
+  cantidad: number                // Cantidad retirada (requerido, min: 1)
+  motivo: string                  // Motivo: "Caducado", "Dañado", "Defectuoso", "Roto", "Contaminado", "Otro" (requerido)
+  fechaRetiro: Date              // Fecha de retiro (default: Date.now)
+  
+  // Registro
+  usuarioRegistro: ObjectId       // Usuario que registró la retirada (ref: User, requerido)
+  observaciones?: string          // Observaciones adicionales (opcional)
+  
+  createdAt: Date                // Fecha de creación (automático)
+  updatedAt: Date                // Fecha de actualización (automático)
+}
+```
+
+### Índices
+
+- No hay índices únicos definidos
+
+### Relaciones
+
+- `producto` → `Product`
+- `usuarioRegistro` → `User`
+
+### Notas
+
+- Solo usuarios con rol `ADMINISTRADOR` pueden registrar productos retirados
+- Se utiliza para llevar un control de productos que deben ser retirados del inventario por estar en mal estado, caducados, etc.
 
 ---
 
@@ -192,6 +238,7 @@ Venta {
   
   // Usuario y socio
   usuario: ObjectId               // Usuario que realiza la venta (ref: User, requerido)
+  trabajador?: ObjectId           // Trabajador asignado (ref: Trabajador, solo si usuario es TIENDA)
   codigoSocio: string            // Código del socio (requerido)
   nombreSocio: string            // Nombre del socio (requerido)
   esSocio: boolean               // Indica si es socio o no (requerido)
@@ -220,6 +267,8 @@ Venta {
     monto: number                // Monto pagado (requerido)
     metodoPago: string           // Método: 'EFECTIVO' | 'TARJETA' (requerido)
     observaciones?: string       // Observaciones (opcional)
+    trabajador?: ObjectId        // Trabajador que realizó este pago específico (ref: Trabajador, solo si usuario es TIENDA)
+    usuario?: ObjectId           // Usuario que realizó este pago específico (ref: User, solo si usuario NO es TIENDA)
   }]
   
   createdAt: Date                // Fecha de creación (automático)
@@ -237,6 +286,16 @@ Venta {
 ### Relaciones
 
 - `usuario` → `User`
+- `trabajador` → `Trabajador` (opcional)
+- `pagos.trabajador` → `Trabajador` (opcional, por pago)
+- `pagos.usuario` → `User` (opcional, por pago)
+
+### Notas
+
+- Cada pago individual puede tener su propio `trabajador` o `usuario` para trazabilidad completa
+- Si el usuario es `TIENDA`, se guarda el `trabajador` en cada pago
+- Si el usuario no es `TIENDA`, se guarda el `usuario` en cada pago
+- Esto permite saber exactamente quién realizó cada pago en ventas con múltiples pagos parciales
 
 ---
 
@@ -356,6 +415,9 @@ Invitacion {
   fechaUso: Date                 // Fecha de uso de la invitación (requerido)
   nombreInvitado: string         // Nombre del invitado (requerido)
   observaciones?: string         // Observaciones (opcional)
+  usuarioRegistro: ObjectId     // Usuario que registró la invitación (ref: User, requerido)
+  trabajador?: ObjectId          // Trabajador asignado (ref: Trabajador, solo si usuarioRegistro es TIENDA)
+  ejercicio: number              // Año del ejercicio (requerido)
   createdAt: Date                // Fecha de creación (automático)
   updatedAt: Date                // Fecha de actualización (automático)
 }
@@ -376,6 +438,14 @@ Invitacion {
 ### Relaciones
 
 - `socio` → `Socio`
+- `usuarioRegistro` → `User`
+- `trabajador` → `Trabajador` (opcional)
+
+### Notas
+
+- El campo `usuarioRegistro` permite saber quién registró cada invitación
+- Si el usuario es `TIENDA`, se puede asignar un `trabajador` específico
+- El campo `ejercicio` permite agrupar invitaciones por año
 
 ---
 
@@ -529,6 +599,9 @@ Suplementos
 ---
 
 *Última actualización: Enero 2025*
+
+
+
 
 
 

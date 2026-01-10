@@ -20,6 +20,9 @@ export class Invitacion extends Document {
     @Prop({ type: Types.ObjectId, ref: 'User', required: true })
     usuarioRegistro: Types.ObjectId;
 
+    @Prop({ type: Types.ObjectId, ref: 'Trabajador' })
+    trabajador?: Types.ObjectId;  // Trabajador asignado (solo si usuarioRegistro es TIENDA)
+
     @Prop({ required: true })
     ejercicio: number;
 }

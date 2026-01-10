@@ -24,9 +24,12 @@ const LoginForm = () => {
     // Verificar si la sesión expiró al cargar el componente
     useEffect(() => {
         const sessionExpired = localStorage.getItem('sessionExpired');
-        if (sessionExpired === 'true') {
+        const tokenExpired = localStorage.getItem('tokenExpired');
+        
+        if (sessionExpired === 'true' || tokenExpired === 'true') {
             setError('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
             localStorage.removeItem('sessionExpired');
+            localStorage.removeItem('tokenExpired');
         }
     }, []);
 

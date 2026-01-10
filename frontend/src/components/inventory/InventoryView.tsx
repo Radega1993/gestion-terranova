@@ -45,6 +45,8 @@ import { Product, ProductType, CreateProductDto, UpdateProductDto } from '../../
 import { UserRole } from '../../types/user';
 import { API_BASE_URL } from '../../config';
 import { useAuthStore } from '../../stores/authStore';
+import { RegistrarProductoRetiradoModal } from './RegistrarProductoRetiradoModal';
+import { ProductosRetiradosList } from './ProductosRetiradosList';
 
 const STOCK_BAJO = 10;
 
@@ -81,6 +83,8 @@ export const InventoryView: React.FC = () => {
     const [productTypes, setProductTypes] = useState<ProductType[]>([]);
     const [newType, setNewType] = useState<string>('');
     const [isNewType, setIsNewType] = useState(false);
+    const [showProductosRetirados, setShowProductosRetirados] = useState(false);
+    const [showRegistrarRetirado, setShowRegistrarRetirado] = useState(false);
 
     const { token, user } = useAuthStore();
     const userRole = user?.role;
@@ -479,6 +483,32 @@ export const InventoryView: React.FC = () => {
                                         Nuevo Producto
                                     </Button>
                                 </Box>
+                                {userRole === UserRole.ADMINISTRADOR && (
+                                    <>
+                                        <Box sx={{ flex: { sm: 1, md: 2 } }}>
+                                            <Button
+                                                fullWidth
+                                                variant="outlined"
+                                                color="warning"
+                                                startIcon={<WarningIcon />}
+                                                onClick={() => setShowRegistrarRetirado(true)}
+                                            >
+                                                Registrar Retirado
+                                            </Button>
+                                        </Box>
+                                        <Box sx={{ flex: { sm: 1, md: 2 } }}>
+                                            <Button
+                                                fullWidth
+                                                variant="outlined"
+                                                color="warning"
+                                                startIcon={<WarningIcon />}
+                                                onClick={() => setShowProductosRetirados(true)}
+                                            >
+                                                Ver Retirados
+                                            </Button>
+                                        </Box>
+                                    </>
+                                )}
                                 <Box sx={{ flex: { sm: 1, md: 2 } }}>
                                     <Button
                                         fullWidth
@@ -646,6 +676,35 @@ export const InventoryView: React.FC = () => {
                         </DialogActions>
                     </form>
                 </Dialog>
+
+                {/* Modales para productos retirados */}
+                {userRole === UserRole.ADMINISTRADOR && (
+                    <>
+                        <RegistrarProductoRetiradoModal
+                            open={showRegistrarRetirado}
+                            onClose={() => setShowRegistrarRetirado(false)}
+                            onSuccess={() => {
+                                fetchProducts();
+                            }}
+                        />
+                        {showProductosRetirados && (
+                            <Dialog
+                                open={showProductosRetirados}
+                                onClose={() => setShowProductosRetirados(false)}
+                                maxWidth="lg"
+                                fullWidth
+                            >
+                                <DialogTitle>Productos Retirados</DialogTitle>
+                                <DialogContent>
+                                    <ProductosRetiradosList />
+                                </DialogContent>
+                                <DialogActions>
+                                    <Button onClick={() => setShowProductosRetirados(false)}>Cerrar</Button>
+                                </DialogActions>
+                            </Dialog>
+                        )}
+                    </>
+                )}
             </Paper>
         </Box>
     );
