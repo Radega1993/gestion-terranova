@@ -1,6 +1,6 @@
 # Release v1.0.0 - Gestión Terranova
 
-**Fecha de Release:** $(date +%Y-%m-%d)
+**Fecha de Release:** 2026-01-11
 
 ## 🎉 Versión 1.0 - Finalizada
 
