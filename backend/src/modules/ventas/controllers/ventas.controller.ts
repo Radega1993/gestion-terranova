@@ -1,6 +1,7 @@
-import { Controller, Post, Get, Body, UseGuards, Request, Logger, Query, Param } from '@nestjs/common';
+import { Controller, Post, Get, Put, Body, UseGuards, Request, Logger, Query, Param } from '@nestjs/common';
 import { VentasService } from '../services/ventas.service';
 import { CreateVentaDto } from '../dto/create-venta.dto';
+import { UpdateVentaDto } from '../dto/update-venta.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -76,5 +77,11 @@ export class VentasController {
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async getRecaudaciones(@Query() filtros: RecaudacionesFiltrosDto) {
         return this.ventasService.getRecaudaciones(filtros);
+    }
+
+    @Put(':id')
+    @Roles(UserRole.ADMINISTRADOR)
+    async update(@Param('id') id: string, @Body() updateVentaDto: UpdateVentaDto) {
+        return this.ventasService.update(id, updateVentaDto);
     }
 } 

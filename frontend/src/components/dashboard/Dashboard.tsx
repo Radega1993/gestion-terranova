@@ -27,7 +27,12 @@ const Dashboard: React.FC = () => {
             description: 'Gestión de ventas',
             roles: [UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA, UserRole.TIENDA]
         },
-        { title: 'Socios', path: '/socios', description: 'Gestión de socios' },
+        {
+            title: 'Socios',
+            path: '/socios',
+            description: 'Gestión de socios',
+            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]
+        },
         {
             title: 'Inventario',
             path: '/inventory',
@@ -69,6 +74,18 @@ const Dashboard: React.FC = () => {
             path: '/cambios',
             description: 'Cambio de productos en ventas del día',
             roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]
+        },
+        {
+            title: 'Gestión de Ventas',
+            path: '/gestion-ventas',
+            description: 'Panel de gestión y edición de ventas',
+            roles: [UserRole.ADMINISTRADOR]
+        },
+        {
+            title: 'Normativa',
+            path: '/configuracion/normativa',
+            description: 'Gestión de normativa y documentos',
+            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA]
         },
     ];
 

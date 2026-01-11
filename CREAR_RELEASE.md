@@ -106,3 +106,4 @@ Después de crear la release, verifica que:
 - La release aparece en: https://github.com/Radega1993/gestion-terranova/releases
 - El README.md muestra la versión 1.0 como finalizada
 
+

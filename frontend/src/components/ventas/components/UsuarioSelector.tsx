@@ -17,9 +17,10 @@ interface UsuarioSelectorProps {
     onUsuarioSeleccionado: (usuario: Usuario | null) => void;
     value: Usuario | null;
     excluirTienda?: boolean; // Si es true, excluye usuarios con rol TIENDA
+    disabled?: boolean; // Si es true, deshabilita el selector
 }
 
-export const UsuarioSelector: React.FC<UsuarioSelectorProps> = ({ onUsuarioSeleccionado, value, excluirTienda = false }) => {
+export const UsuarioSelector: React.FC<UsuarioSelectorProps> = ({ onUsuarioSeleccionado, value, excluirTienda = false, disabled = false }) => {
     const [usuarios, setUsuarios] = useState<Usuario[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -69,6 +70,7 @@ export const UsuarioSelector: React.FC<UsuarioSelectorProps> = ({ onUsuarioSelec
             getOptionLabel={(option) => `${option.nombre} ${option.apellidos} (${option.username})`}
             value={value}
             onChange={(_, newValue) => onUsuarioSeleccionado(newValue)}
+            disabled={disabled}
             renderInput={(params) => (
                 <TextField
                     {...params}

@@ -4,6 +4,7 @@ import { Model, Document, Types, Schema } from 'mongoose';
 import { Venta } from '../schemas/venta.schema';
 import { CreateVentaDto } from '../dto/create-venta.dto';
 import { PagoVentaDto } from '../dto/pago-venta.dto';
+import { UpdateVentaDto } from '../dto/update-venta.dto';
 import { Product } from '../../inventory/schemas/product.schema';
 import { VentaFiltersDto } from '../dto/venta-filters.dto';
 import { Reserva } from '../../reservas/schemas/reserva.schema';
@@ -12,8 +13,10 @@ import { Socio } from '../../socios/schemas/socio.schema';
 import { Servicio } from '../../reservas/schemas/servicio.schema';
 import { RecaudacionesFiltrosDto } from '../dto/recaudaciones-filtros.dto';
 import { Trabajador } from '../../users/schemas/trabajador.schema';
+import { Tienda } from '../../tiendas/schemas/tienda.schema';
 import { UsersService } from '../../users/users.service';
 import { CambiosService } from '../../cambios/services/cambios.service';
+import { UserRole } from '../../users/types/user-roles.enum';
 
 interface PopulatedReserva extends Omit<Reserva, 'socio' | 'usuarioCreacion' | 'usuarioActualizacion' | 'confirmadoPor' | 'trabajador'> {
     _id: Types.ObjectId;
@@ -72,6 +75,7 @@ export class VentasService {
         private cambiosService: CambiosService,
         @InjectModel(Trabajador.name) private trabajadorModel: Model<Trabajador>,
         @InjectModel(User.name) private userModel: Model<User>,
+        @InjectModel(Tienda.name) private tiendaModel: Model<Tienda>,
         private usersService: UsersService
     ) { }
 
@@ -398,6 +402,171 @@ export class VentasService {
         const ventaActualizada = await venta.save();
 
         return ventaActualizada;
+    }
+
+    async update(id: string, updateVentaDto: UpdateVentaDto): Promise<Venta> {
+        const venta = await this.ventaModel.findById(id);
+        if (!venta) {
+            throw new NotFoundException(`Venta ${id} no encontrada`);
+        }
+
+        // Si se actualizan productos, necesitamos ajustar el stock
+        if (updateVentaDto.productos) {
+            // Calcular diferencia de stock para cada producto
+            const productosActuales = venta.productos;
+            const productosNuevos = updateVentaDto.productos;
+
+            // Crear un mapa de productos actuales por nombre
+            const productosActualesMap = new Map<string, { unidades: number }>();
+            productosActuales.forEach(p => {
+                productosActualesMap.set(p.nombre, { unidades: p.unidades });
+            });
+
+            // Crear un mapa de productos nuevos por nombre
+            const productosNuevosMap = new Map<string, { unidades: number }>();
+            productosNuevos.forEach(p => {
+                productosNuevosMap.set(p.nombre, { unidades: p.unidades });
+            });
+
+            // Calcular diferencias y actualizar stock
+            const todosLosProductos = new Set([
+                ...productosActualesMap.keys(),
+                ...productosNuevosMap.keys()
+            ]);
+
+            for (const nombreProducto of todosLosProductos) {
+                const actual = productosActualesMap.get(nombreProducto) || { unidades: 0 };
+                const nuevo = productosNuevosMap.get(nombreProducto) || { unidades: 0 };
+                const diferencia = nuevo.unidades - actual.unidades;
+
+                if (diferencia !== 0) {
+                    const producto = await this.productModel.findOne({ nombre: nombreProducto });
+                    if (!producto) {
+                        throw new BadRequestException(`Producto no encontrado: ${nombreProducto}`);
+                    }
+
+                    // Si se reducen unidades, aumentar stock; si se aumentan, reducir stock
+                    producto.stock_actual += -diferencia;
+
+                    if (producto.stock_actual < 0) {
+                        throw new BadRequestException(`Stock insuficiente para ${nombreProducto}`);
+                    }
+
+                    await producto.save();
+                }
+            }
+
+            // Actualizar productos con categorías
+            const productosConCategoria = await Promise.all(
+                updateVentaDto.productos.map(async (producto) => {
+                    const productoEncontrado = await this.productModel.findOne({ nombre: producto.nombre });
+                    if (!productoEncontrado) {
+                        throw new BadRequestException(`Producto no encontrado: ${producto.nombre}`);
+                    }
+
+                    return {
+                        nombre: producto.nombre,
+                        categoria: productoEncontrado.tipo,
+                        unidades: producto.unidades,
+                        precioUnitario: producto.precioUnitario,
+                        precioTotal: producto.precioTotal
+                    };
+                })
+            );
+
+            venta.productos = productosConCategoria as any;
+        }
+
+        // Actualizar otros campos
+        if (updateVentaDto.codigoSocio !== undefined) {
+            venta.codigoSocio = updateVentaDto.codigoSocio;
+        }
+        if (updateVentaDto.nombreSocio !== undefined) {
+            venta.nombreSocio = updateVentaDto.nombreSocio;
+        }
+        if (updateVentaDto.esSocio !== undefined) {
+            venta.esSocio = updateVentaDto.esSocio;
+        }
+        if (updateVentaDto.total !== undefined) {
+            venta.total = Number(updateVentaDto.total.toFixed(2));
+        }
+        if (updateVentaDto.pagado !== undefined) {
+            venta.pagado = Number(updateVentaDto.pagado.toFixed(2));
+        }
+        if (updateVentaDto.metodoPago !== undefined) {
+            venta.metodoPago = updateVentaDto.metodoPago;
+        }
+        if (updateVentaDto.observaciones !== undefined) {
+            venta.observaciones = updateVentaDto.observaciones;
+        }
+        // Usuario y trabajador son mutuamente excluyentes
+        // IMPORTANTE: El usuario siempre debe existir (requerido por el schema)
+        // Si hay trabajador, el usuario debe ser el usuario TIENDA de la tienda del trabajador
+        if (updateVentaDto.trabajadorId !== undefined) {
+            if (updateVentaDto.trabajadorId) {
+                // Obtener el trabajador y su tienda
+                const trabajador = await this.trabajadorModel.findById(updateVentaDto.trabajadorId).exec();
+                if (!trabajador) {
+                    throw new NotFoundException(`Trabajador ${updateVentaDto.trabajadorId} no encontrado`);
+                }
+                
+                // Obtener la tienda del trabajador
+                const tienda = await this.tiendaModel.findById(trabajador.tienda).exec();
+                if (!tienda) {
+                    throw new NotFoundException(`Tienda del trabajador no encontrada`);
+                }
+                
+                // Obtener el usuario TIENDA asignado a esa tienda
+                if (!tienda.usuarioAsignado) {
+                    throw new BadRequestException(`La tienda ${tienda.nombre} no tiene un usuario TIENDA asignado`);
+                }
+                
+                // Verificar que el usuario es realmente TIENDA
+                const usuarioTienda = await this.userModel.findById(tienda.usuarioAsignado).exec();
+                if (!usuarioTienda) {
+                    throw new NotFoundException(`Usuario TIENDA asignado a la tienda no encontrado`);
+                }
+                if (usuarioTienda.role !== UserRole.TIENDA) {
+                    throw new BadRequestException(`El usuario asignado a la tienda no es de tipo TIENDA`);
+                }
+                
+                // Establecer el trabajador y el usuario TIENDA
+                venta.trabajador = updateVentaDto.trabajadorId as any;
+                venta.usuario = tienda.usuarioAsignado as any;
+            } else {
+                venta.trabajador = undefined;
+                // Si se elimina el trabajador y no se proporciona usuarioId, mantener el usuario original
+            }
+        }
+        if (updateVentaDto.usuarioId !== undefined) {
+            // Si se establece un usuario explícitamente, limpiar trabajador
+            if (updateVentaDto.usuarioId) {
+                venta.usuario = updateVentaDto.usuarioId as any;
+                venta.trabajador = undefined; // Limpiar trabajador si se establece usuario
+            }
+            // Si usuarioId es null o undefined, mantener el usuario original (no cambiar)
+        }
+
+        // Recalcular estado basado en pagado y total
+        if (updateVentaDto.pagado !== undefined || updateVentaDto.total !== undefined) {
+            const total = venta.total;
+            const pagado = venta.pagado;
+            if (Math.abs(pagado - total) < 0.01) {
+                venta.estado = 'PAGADO';
+            } else if (pagado > 0) {
+                venta.estado = 'PAGADO_PARCIAL';
+            } else {
+                venta.estado = 'PENDIENTE';
+            }
+        } else if (updateVentaDto.estado !== undefined) {
+            venta.estado = updateVentaDto.estado;
+        }
+
+        const ventaActualizada = await venta.save();
+        return this.ventaModel.findById(ventaActualizada._id)
+            .populate('usuario', 'username nombre')
+            .populate('trabajador', 'nombre identificador')
+            .exec() as Promise<Venta>;
     }
 
     async getRecaudaciones(filtros: RecaudacionesFiltrosDto) {

@@ -81,6 +81,7 @@ npm run start:prod
 | Socios | ✅ | ✅ | ❌ | ✅ (solo lectura) |
 | Inventario | ✅ | ❌ | ✅ | ✅ |
 | Ventas (TPV) | ✅ | ❌ | ✅ | ✅ |
+| Gestión de Ventas | ✅ | ❌ | ❌ | ❌ |
 | Cambios | ✅ | ✅ | ✅ | ✅ |
 | Devoluciones | ✅ | ✅ | ❌ | ❌ |
 | Deudas | ✅ | ✅ | ✅ | ✅ |
@@ -135,6 +136,11 @@ npm run start:prod
 - ✅ Cálculo automático de cambio
 - ✅ Trazabilidad de trabajador/usuario que realiza la venta
 - ✅ Historial completo de ventas
+- ✅ **Panel de Gestión de Ventas** (solo ADMINISTRADOR): Edición completa de ventas existentes
+  - Modificación de productos y cantidades
+  - Edición de montos pagados y métodos de pago
+  - Cambio de usuario/trabajador que realizó la venta
+  - Actualización automática de inventario al modificar productos
 
 ### 6. Cambios de Productos
 - ✅ Cambio de productos en ventas del día actual
@@ -213,10 +219,13 @@ npm run start:prod
 ## 🎯 Características Principales
 
 - ✅ **Interfaz moderna y responsive** con Material-UI
+- ✅ **Navbar optimizado** con menús desplegables para mejor usabilidad en pantallas pequeñas
+- ✅ **Dashboard completo** con acceso a todos los módulos según el rol del usuario
 - ✅ **Autenticación segura** con JWT
 - ✅ **Control de acceso granular** por roles
 - ✅ **Gestión completa de inventario** con control de stock
 - ✅ **Sistema TPV completo** para ventas
+- ✅ **Panel de Gestión de Ventas** para administradores con edición completa
 - ✅ **Gestión de reservas** con calendario y disponibilidad
 - ✅ **Sistema de invitaciones** con límite anual por socio
 - ✅ **Recaudaciones avanzadas** con múltiples filtros y reportes

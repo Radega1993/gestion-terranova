@@ -23,6 +23,7 @@ import TiendasList from './components/tiendas/TiendasList';
 import { DevolucionesList } from './components/devoluciones/DevolucionesList';
 import { CambiosList } from './components/cambios/CambiosList';
 import { GestionNormativa } from './components/configuracion/GestionNormativa';
+import GestionVentasList from './components/ventas/GestionVentasList';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -105,6 +106,14 @@ function App() {
                   element={
                     <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]}>
                       <RecaudacionesList />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/gestion-ventas"
+                  element={
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR]}>
+                      <GestionVentasList />
                     </ProtectedRoute>
                   }
                 />

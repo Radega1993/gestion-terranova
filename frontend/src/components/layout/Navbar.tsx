@@ -31,7 +31,9 @@ import {
     Badge as BadgeIcon,
     Undo as UndoIcon,
     SwapHoriz as SwapHorizIcon,
-    Description as DescriptionIcon
+    Description as DescriptionIcon,
+    MoreVert as MoreVertIcon,
+    Settings as SettingsIcon
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 
@@ -43,6 +45,8 @@ export const Navbar: React.FC = () => {
     const { logout, user, isAuthenticated } = useAuthStore();
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState<null | HTMLElement>(null);
+    const [moreMenuAnchorEl, setMoreMenuAnchorEl] = useState<null | HTMLElement>(null);
+    const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
 
     useEffect(() => {
         if (!isAuthenticated()) {
@@ -64,6 +68,14 @@ export const Navbar: React.FC = () => {
 
     const handleMobileMenuClose = () => {
         setMobileMenuAnchorEl(null);
+    };
+
+    const handleMoreMenu = (event: React.MouseEvent<HTMLElement>) => {
+        setMoreMenuAnchorEl(event.currentTarget);
+    };
+
+    const handleMoreMenuClose = () => {
+        setMoreMenuAnchorEl(null);
     };
 
     const handleLogout = async () => {
@@ -88,7 +100,7 @@ export const Navbar: React.FC = () => {
         return location.pathname === path;
     };
 
-    const renderNavButton = (path: string, label: string, icon: React.ReactNode) => (
+    const renderNavButton = (path: string, label: string, icon: React.ReactNode, iconOnly?: boolean) => (
         <Button
             color="inherit"
             onClick={() => navigate(path)}
@@ -98,9 +110,10 @@ export const Navbar: React.FC = () => {
                 '&:hover': {
                     backgroundColor: 'rgba(255, 255, 255, 0.2)',
                 },
+                minWidth: iconOnly ? 48 : 'auto',
             }}
         >
-            {!isMobile && label}
+            {(!isMobile && !iconOnly) ? label : ''}
         </Button>
     );
 
@@ -148,6 +161,9 @@ export const Navbar: React.FC = () => {
                     <MenuItem onClick={() => { navigate('/cambios'); handleMobileMenuClose(); }}>
                         <SwapHorizIcon sx={{ mr: 1 }} /> Cambios
                     </MenuItem>
+                    <MenuItem onClick={() => { navigate('/gestion-ventas'); handleMobileMenuClose(); }}>
+                        <SettingsIcon sx={{ mr: 1 }} /> Gestión de Ventas
+                    </MenuItem>
                     <MenuItem onClick={() => { navigate('/configuracion/normativa'); handleMobileMenuClose(); }}>
                         <DescriptionIcon sx={{ mr: 1 }} /> Normativa
                     </MenuItem>
@@ -178,6 +194,9 @@ export const Navbar: React.FC = () => {
                     </MenuItem>
                     <MenuItem onClick={() => { navigate('/invitaciones'); handleMobileMenuClose(); }}>
                         <ConfirmationNumberIcon sx={{ mr: 1 }} /> Invitaciones
+                    </MenuItem>
+                    <MenuItem onClick={() => { navigate('/devoluciones'); handleMobileMenuClose(); }}>
+                        <UndoIcon sx={{ mr: 1 }} /> Devoluciones
                     </MenuItem>
                     <MenuItem onClick={() => { navigate('/cambios'); handleMobileMenuClose(); }}>
                         <SwapHorizIcon sx={{ mr: 1 }} /> Cambios
@@ -240,37 +259,6 @@ export const Navbar: React.FC = () => {
                     </MenuItem>
                 </>
             )}
-            {user?.role === 'TIENDA' && (
-                <>
-                    <MenuItem onClick={() => { navigate('/'); handleMobileMenuClose(); }}>
-                        <DashboardIcon sx={{ mr: 1 }} /> Dashboard
-                    </MenuItem>
-                    <MenuItem onClick={() => { navigate('/deudas'); handleMobileMenuClose(); }}>
-                        <AccountBalanceIcon sx={{ mr: 1 }} /> Deudas
-                    </MenuItem>
-                    <MenuItem onClick={() => { navigate('/reservas'); handleMobileMenuClose(); }}>
-                        <EventIcon sx={{ mr: 1 }} /> Reservas
-                    </MenuItem>
-                    <MenuItem onClick={() => { navigate('/ventas'); handleMobileMenuClose(); }}>
-                        <ShoppingCartIcon sx={{ mr: 1 }} /> Ventas
-                    </MenuItem>
-                    <MenuItem onClick={() => { navigate('/socios'); handleMobileMenuClose(); }}>
-                        <PeopleIcon sx={{ mr: 1 }} /> Socios
-                    </MenuItem>
-                    <MenuItem onClick={() => { navigate('/inventory'); handleMobileMenuClose(); }}>
-                        <InventoryIcon sx={{ mr: 1 }} /> Inventario
-                    </MenuItem>
-                    <MenuItem onClick={() => { navigate('/recaudaciones'); handleMobileMenuClose(); }}>
-                        <AttachMoneyIcon sx={{ mr: 1 }} /> Recaudaciones
-                    </MenuItem>
-                    <MenuItem onClick={() => { navigate('/invitaciones'); handleMobileMenuClose(); }}>
-                        <ConfirmationNumberIcon sx={{ mr: 1 }} /> Invitaciones
-                    </MenuItem>
-                    <MenuItem onClick={() => { navigate('/devoluciones'); handleMobileMenuClose(); }}>
-                        <UndoIcon sx={{ mr: 1 }} /> Devoluciones
-                    </MenuItem>
-                </>
-            )}
             <MenuItem onClick={handleLogout}>
                 <LogoutIcon sx={{ mr: 1 }} /> Cerrar Sesión
             </MenuItem>
@@ -301,56 +289,131 @@ export const Navbar: React.FC = () => {
                         </>
                     ) : (
                         <>
-                            {renderNavButton('/', 'Inicio', <HomeIcon />)}
+                            {renderNavButton('/', 'Inicio', <HomeIcon />, isTablet)}
                             {user.role === 'ADMINISTRADOR' && (
                                 <>
-                                    {renderNavButton('/inventory', 'Inventario', <InventoryIcon />)}
-                                    {renderNavButton('/ventas', 'Ventas', <ShoppingCartIcon />)}
-                                    {renderNavButton('/deudas', 'Deudas', <AccountBalanceIcon />)}
-                                    {renderNavButton('/recaudaciones', 'Recaudaciones', <AttachMoneyIcon />)}
-                                    {renderNavButton('/socios', 'Socios', <PeopleIcon />)}
-                                    {renderNavButton('/users', 'Usuarios', <PersonIcon />)}
-                                    {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
-                                    {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />)}
-                                    {renderNavButton('/tiendas', 'Tiendas', <BadgeIcon />)}
-                                    {renderNavButton('/devoluciones', 'Devoluciones', <UndoIcon />)}
-                                    {renderNavButton('/cambios', 'Cambios', <SwapHorizIcon />)}
-                                    {renderNavButton('/configuracion/normativa', 'Normativa', <DescriptionIcon />)}
+                                    {renderNavButton('/inventory', 'Inventario', <InventoryIcon />, isTablet)}
+                                    {renderNavButton('/ventas', 'Ventas', <ShoppingCartIcon />, isTablet)}
+                                    {renderNavButton('/deudas', 'Deudas', <AccountBalanceIcon />, isTablet)}
+                                    {renderNavButton('/recaudaciones', 'Recaudaciones', <AttachMoneyIcon />, isTablet)}
+                                    {renderNavButton('/socios', 'Socios', <PeopleIcon />, isTablet)}
+                                    {renderNavButton('/reservas', 'Reservas', <EventIcon />, isTablet)}
+                                    {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />, isTablet)}
+                                    <IconButton
+                                        color="inherit"
+                                        onClick={handleMoreMenu}
+                                        sx={{
+                                            backgroundColor: Boolean(moreMenuAnchorEl) ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                                            '&:hover': {
+                                                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                                            },
+                                        }}
+                                    >
+                                        <MoreVertIcon />
+                                    </IconButton>
+                                    <Menu
+                                        anchorEl={moreMenuAnchorEl}
+                                        open={Boolean(moreMenuAnchorEl)}
+                                        onClose={handleMoreMenuClose}
+                                    >
+                                        <MenuItem onClick={() => { navigate('/users'); handleMoreMenuClose(); }}>
+                                            <PersonIcon sx={{ mr: 1 }} /> Usuarios
+                                        </MenuItem>
+                                        <MenuItem onClick={() => { navigate('/tiendas'); handleMoreMenuClose(); }}>
+                                            <BadgeIcon sx={{ mr: 1 }} /> Tiendas
+                                        </MenuItem>
+                                        <MenuItem onClick={() => { navigate('/devoluciones'); handleMoreMenuClose(); }}>
+                                            <UndoIcon sx={{ mr: 1 }} /> Devoluciones
+                                        </MenuItem>
+                                        <MenuItem onClick={() => { navigate('/cambios'); handleMoreMenuClose(); }}>
+                                            <SwapHorizIcon sx={{ mr: 1 }} /> Cambios
+                                        </MenuItem>
+                                        <MenuItem onClick={() => { navigate('/gestion-ventas'); handleMoreMenuClose(); }}>
+                                            <SettingsIcon sx={{ mr: 1 }} /> Gestión de Ventas
+                                        </MenuItem>
+                                        <MenuItem onClick={() => { navigate('/configuracion/normativa'); handleMoreMenuClose(); }}>
+                                            <DescriptionIcon sx={{ mr: 1 }} /> Normativa
+                                        </MenuItem>
+                                    </Menu>
                                 </>
                             )}
                             {user.role === 'JUNTA' && (
                                 <>
-                                    {renderNavButton('/deudas', 'Deudas', <AccountBalanceIcon />)}
-                                    {renderNavButton('/recaudaciones', 'Recaudaciones', <AttachMoneyIcon />)}
-                                    {renderNavButton('/socios', 'Socios', <PeopleIcon />)}
-                                    {renderNavButton('/users', 'Usuarios', <PersonIcon />)}
-                                    {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
-                                    {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />)}
-                                    {renderNavButton('/configuracion/normativa', 'Normativa', <DescriptionIcon />)}
+                                    {renderNavButton('/deudas', 'Deudas', <AccountBalanceIcon />, isTablet)}
+                                    {renderNavButton('/recaudaciones', 'Recaudaciones', <AttachMoneyIcon />, isTablet)}
+                                    {renderNavButton('/socios', 'Socios', <PeopleIcon />, isTablet)}
+                                    {renderNavButton('/reservas', 'Reservas', <EventIcon />, isTablet)}
+                                    {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />, isTablet)}
+                                    <IconButton
+                                        color="inherit"
+                                        onClick={handleMoreMenu}
+                                        sx={{
+                                            backgroundColor: Boolean(moreMenuAnchorEl) ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                                            '&:hover': {
+                                                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                                            },
+                                        }}
+                                    >
+                                        <MoreVertIcon />
+                                    </IconButton>
+                                    <Menu
+                                        anchorEl={moreMenuAnchorEl}
+                                        open={Boolean(moreMenuAnchorEl)}
+                                        onClose={handleMoreMenuClose}
+                                    >
+                                        <MenuItem onClick={() => { navigate('/users'); handleMoreMenuClose(); }}>
+                                            <PersonIcon sx={{ mr: 1 }} /> Usuarios
+                                        </MenuItem>
+                                        <MenuItem onClick={() => { navigate('/configuracion/normativa'); handleMoreMenuClose(); }}>
+                                            <DescriptionIcon sx={{ mr: 1 }} /> Normativa
+                                        </MenuItem>
+                                    </Menu>
                                 </>
                             )}
                             {user.role === 'TRABAJADOR' && (
                                 <>
-                                    {renderNavButton('/deudas', 'Deudas', <AccountBalanceIcon />)}
-                                    {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
-                                    {renderNavButton('/ventas', 'Ventas', <ShoppingCartIcon />)}
-                                    {renderNavButton('/socios', 'Socios', <PeopleIcon />)}
-                                    {renderNavButton('/inventory', 'Inventario', <InventoryIcon />)}
-                                    {renderNavButton('/recaudaciones', 'Recaudaciones', <AttachMoneyIcon />)}
-                                    {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />)}
+                                    {renderNavButton('/deudas', 'Deudas', <AccountBalanceIcon />, isTablet)}
+                                    {renderNavButton('/reservas', 'Reservas', <EventIcon />, isTablet)}
+                                    {renderNavButton('/ventas', 'Ventas', <ShoppingCartIcon />, isTablet)}
+                                    {renderNavButton('/socios', 'Socios', <PeopleIcon />, isTablet)}
+                                    {renderNavButton('/inventory', 'Inventario', <InventoryIcon />, isTablet)}
+                                    {renderNavButton('/recaudaciones', 'Recaudaciones', <AttachMoneyIcon />, isTablet)}
+                                    {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />, isTablet)}
                                 </>
                             )}
                             {user.role === 'TIENDA' && (
                                 <>
-                                    {renderNavButton('/deudas', 'Deudas', <AccountBalanceIcon />)}
-                                    {renderNavButton('/reservas', 'Reservas', <EventIcon />)}
-                                    {renderNavButton('/ventas', 'Ventas', <ShoppingCartIcon />)}
-                                    {renderNavButton('/socios', 'Socios', <PeopleIcon />)}
-                                    {renderNavButton('/inventory', 'Inventario', <InventoryIcon />)}
-                                    {renderNavButton('/recaudaciones', 'Recaudaciones', <AttachMoneyIcon />)}
-                                    {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />)}
-                                    {renderNavButton('/devoluciones', 'Devoluciones', <UndoIcon />)}
-                                    {renderNavButton('/cambios', 'Cambios', <SwapHorizIcon />)}
+                                    {renderNavButton('/deudas', 'Deudas', <AccountBalanceIcon />, isTablet)}
+                                    {renderNavButton('/reservas', 'Reservas', <EventIcon />, isTablet)}
+                                    {renderNavButton('/ventas', 'Ventas', <ShoppingCartIcon />, isTablet)}
+                                    {renderNavButton('/socios', 'Socios', <PeopleIcon />, isTablet)}
+                                    {renderNavButton('/inventory', 'Inventario', <InventoryIcon />, isTablet)}
+                                    {renderNavButton('/recaudaciones', 'Recaudaciones', <AttachMoneyIcon />, isTablet)}
+                                    {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />, isTablet)}
+                                    <IconButton
+                                        color="inherit"
+                                        onClick={handleMoreMenu}
+                                        sx={{
+                                            backgroundColor: Boolean(moreMenuAnchorEl) ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                                            '&:hover': {
+                                                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                                            },
+                                        }}
+                                    >
+                                        <MoreVertIcon />
+                                    </IconButton>
+                                    <Menu
+                                        anchorEl={moreMenuAnchorEl}
+                                        open={Boolean(moreMenuAnchorEl)}
+                                        onClose={handleMoreMenuClose}
+                                    >
+                                        <MenuItem onClick={() => { navigate('/devoluciones'); handleMoreMenuClose(); }}>
+                                            <UndoIcon sx={{ mr: 1 }} /> Devoluciones
+                                        </MenuItem>
+                                        <MenuItem onClick={() => { navigate('/cambios'); handleMoreMenuClose(); }}>
+                                            <SwapHorizIcon sx={{ mr: 1 }} /> Cambios
+                                        </MenuItem>
+                                    </Menu>
                                 </>
                             )}
                         </>

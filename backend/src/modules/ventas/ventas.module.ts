@@ -8,6 +8,7 @@ import { Reserva, ReservaSchema } from '../reservas/schemas/reserva.schema';
 import { Socio, SocioSchema } from '../socios/schemas/socio.schema';
 import { Trabajador, TrabajadorSchema } from '../users/schemas/trabajador.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { Tienda, TiendaSchema } from '../tiendas/schemas/tienda.schema';
 import { ReservasModule } from '../reservas/reservas.module';
 import { UsersModule } from '../users/users.module';
 import { CambiosModule } from '../cambios/cambios.module';
@@ -20,7 +21,8 @@ import { CambiosModule } from '../cambios/cambios.module';
             { name: Reserva.name, schema: ReservaSchema },
             { name: Socio.name, schema: SocioSchema },
             { name: Trabajador.name, schema: TrabajadorSchema },
-            { name: User.name, schema: UserSchema }
+            { name: User.name, schema: UserSchema },
+            { name: Tienda.name, schema: TiendaSchema }
         ]),
         ReservasModule,
         UsersModule,
