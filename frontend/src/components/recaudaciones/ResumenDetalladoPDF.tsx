@@ -166,7 +166,6 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
                     throw new Error('Error al obtener categorías');
                 }
                 const data = await response.json();
-                console.log('Categorías obtenidas:', data);
                 setCategorias(data);
             } catch (error) {
                 console.error('Error al obtener categorías:', error);
@@ -226,7 +225,6 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
 
     // Agrupar productos vendidos
     const productosVendidos = ventas.reduce((acc: any, venta) => {
-        console.log('Procesando venta:', venta);
         if (venta.tipo === 'RESERVA') {
             const key = `Reserva - ${venta.detalles[0].nombre}`;
             if (!acc[key]) {
@@ -250,9 +248,7 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
                 acc[key].ventas.add(venta._id);
             }
         } else {
-            console.log('Procesando detalles de venta:', venta.detalles);
             venta.detalles.forEach((producto) => {
-                console.log('Producto:', producto);
                 // Asegurarnos de que el producto tenga un nombre
                 if (!producto.nombre) {
                     console.warn('Producto sin nombre:', producto);
@@ -287,7 +283,6 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
         return acc;
     }, {});
 
-    console.log('Productos vendidos:', productosVendidos);
 
     // Convertir a array y ordenar por total
     const productosOrdenados = Object.values(productosVendidos)
@@ -299,7 +294,6 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
         })
         .sort((a: any, b: any) => b.total - a.total);
 
-    console.log('Productos ordenados:', productosOrdenados);
 
     // Agrupar por categoría
     const productosPorCategoria = productosOrdenados.reduce((acc: {
@@ -319,7 +313,6 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
         return acc;
     }, {});
 
-    console.log('Productos por categoría:', productosPorCategoria);
 
     // Calcular totales generales
     // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)

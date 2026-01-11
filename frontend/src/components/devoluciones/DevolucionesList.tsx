@@ -20,17 +20,14 @@ import {
     TextField,
     Alert,
     CircularProgress,
-    Grid,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem
+    Grid
 } from '@mui/material';
 import {
     Delete as DeleteIcon,
     CheckCircle as CheckCircleIcon,
     Cancel as CancelIcon,
-    Visibility as VisibilityIcon
+    Visibility as VisibilityIcon,
+    Add as AddIcon
 } from '@mui/icons-material';
 import { devolucionesService, Devolucion, DevolucionesFilters } from '../../services/devoluciones';
 import { formatCurrency } from '../../utils/formatters';
@@ -41,6 +38,10 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { es } from 'date-fns/locale';
+import { DevolucionModal } from './DevolucionModal';
+import { Venta } from '../ventas/types';
+import { API_BASE_URL } from '../../config';
+import { authenticatedFetchJson } from '../../utils/apiHelper';
 
 export const DevolucionesList: React.FC = () => {
     const { user } = useAuthStore();
@@ -50,6 +51,12 @@ export const DevolucionesList: React.FC = () => {
     const [filtros, setFiltros] = useState<DevolucionesFilters>({});
     const [selectedDevolucion, setSelectedDevolucion] = useState<Devolucion | null>(null);
     const [openDetailDialog, setOpenDetailDialog] = useState(false);
+    const [openDevolucionModal, setOpenDevolucionModal] = useState(false);
+    const [ventaSeleccionada, setVentaSeleccionada] = useState<Venta | null>(null);
+    const [openVentaSelector, setOpenVentaSelector] = useState(false);
+    const [ventas, setVentas] = useState<Venta[]>([]);
+    const [loadingVentas, setLoadingVentas] = useState(false);
+    const [busquedaVenta, setBusquedaVenta] = useState('');
 
     useEffect(() => {
         fetchDevoluciones();
@@ -175,6 +182,43 @@ export const DevolucionesList: React.FC = () => {
         }
     };
 
+    const handleNuevaDevolucion = () => {
+        setOpenVentaSelector(true);
+        buscarVentas();
+    };
+
+    const buscarVentas = async () => {
+        try {
+            setLoadingVentas(true);
+            let url = `${API_BASE_URL}/ventas?`;
+
+            if (busquedaVenta.trim()) {
+                url += `codigoSocio=${encodeURIComponent(busquedaVenta.trim())}&`;
+            }
+
+            // Limitar a las últimas 50 ventas para no sobrecargar
+            url += `limit=50&sort=-createdAt`;
+
+            const data = await authenticatedFetchJson<Venta[]>(url);
+            setVentas(data);
+        } catch (err) {
+            Swal.fire('Error', 'Error al buscar ventas', 'error');
+        } finally {
+            setLoadingVentas(false);
+        }
+    };
+
+    const handleSeleccionarVenta = (venta: Venta) => {
+        setVentaSeleccionada(venta);
+        setOpenVentaSelector(false);
+        setOpenDevolucionModal(true);
+    };
+
+    const handleDevolucionCompletada = () => {
+        fetchDevoluciones();
+        setVentaSeleccionada(null);
+    };
+
     if (loading && devoluciones.length === 0) {
         return (
             <Container>
@@ -189,6 +233,16 @@ export const DevolucionesList: React.FC = () => {
         <Container>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h4">Devoluciones</Typography>
+                {(user?.role === UserRole.ADMINISTRADOR || user?.role === UserRole.JUNTA) && (
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        startIcon={<AddIcon />}
+                        onClick={handleNuevaDevolucion}
+                    >
+                        Nueva Devolución
+                    </Button>
+                )}
             </Box>
 
             {error && (
@@ -263,8 +317,8 @@ export const DevolucionesList: React.FC = () => {
                     </TableHead>
                     <TableBody>
                         {devoluciones.map((devolucion) => {
-                            const venta = typeof devolucion.venta === 'string' 
-                                ? null 
+                            const venta = typeof devolucion.venta === 'string'
+                                ? null
                                 : devolucion.venta;
                             const usuario = typeof devolucion.usuario === 'string'
                                 ? null
@@ -276,7 +330,7 @@ export const DevolucionesList: React.FC = () => {
                                         {new Date(devolucion.createdAt).toLocaleDateString()}
                                     </TableCell>
                                     <TableCell>
-                                        {venta ? `#${venta._id.slice(-6)}` : devolucion.venta}
+                                        {venta ? `#${venta._id.slice(-6)}` : typeof devolucion.venta === 'string' ? devolucion.venta : '-'}
                                     </TableCell>
                                     <TableCell>
                                         {venta ? `${venta.nombreSocio} (${venta.codigoSocio})` : '-'}
@@ -286,8 +340,8 @@ export const DevolucionesList: React.FC = () => {
                                     </TableCell>
                                     <TableCell>{formatCurrency(devolucion.totalDevolucion)}</TableCell>
                                     <TableCell>
-                                        <Chip 
-                                            label={devolucion.metodoDevolucion} 
+                                        <Chip
+                                            label={devolucion.metodoDevolucion}
                                             size="small"
                                             color={devolucion.metodoDevolucion === 'EFECTIVO' ? 'default' : 'primary'}
                                         />
@@ -406,9 +460,109 @@ export const DevolucionesList: React.FC = () => {
                     <Button onClick={() => setOpenDetailDialog(false)}>Cerrar</Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Modal selector de venta */}
+            <Dialog open={openVentaSelector} onClose={() => setOpenVentaSelector(false)} maxWidth="md" fullWidth>
+                <DialogTitle>Seleccionar Venta para Devolución</DialogTitle>
+                <DialogContent>
+                    <Box sx={{ mt: 2 }}>
+                        <TextField
+                            fullWidth
+                            label="Buscar por código de socio"
+                            value={busquedaVenta}
+                            onChange={(e) => setBusquedaVenta(e.target.value)}
+                            onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                    buscarVentas();
+                                }
+                            }}
+                            sx={{ mb: 2 }}
+                        />
+                        <Button variant="outlined" onClick={buscarVentas} disabled={loadingVentas} sx={{ mb: 2 }}>
+                            Buscar
+                        </Button>
+
+                        {loadingVentas ? (
+                            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                                <CircularProgress />
+                            </Box>
+                        ) : (
+                            <TableContainer>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>Fecha</TableCell>
+                                            <TableCell>Cliente</TableCell>
+                                            <TableCell>Total</TableCell>
+                                            <TableCell>Estado</TableCell>
+                                            <TableCell>Acción</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {ventas.map((venta) => (
+                                            <TableRow key={venta._id}>
+                                                <TableCell>
+                                                    {new Date(venta.createdAt).toLocaleDateString()}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {venta.nombreSocio} ({venta.codigoSocio})
+                                                </TableCell>
+                                                <TableCell>{formatCurrency(venta.total)}</TableCell>
+                                                <TableCell>
+                                                    <Chip
+                                                        label={venta.estado}
+                                                        size="small"
+                                                        color={
+                                                            venta.estado === 'PAGADO' ? 'success' :
+                                                                venta.estado === 'PENDIENTE' ? 'warning' : 'default'
+                                                        }
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        onClick={() => handleSeleccionarVenta(venta)}
+                                                    >
+                                                        Seleccionar
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {ventas.length === 0 && !loadingVentas && (
+                                            <TableRow>
+                                                <TableCell colSpan={5} align="center">
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        No se encontraron ventas. Intente buscar por código de socio.
+                                                    </Typography>
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        )}
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setOpenVentaSelector(false)}>Cancelar</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Modal de devolución */}
+            <DevolucionModal
+                open={openDevolucionModal}
+                onClose={() => {
+                    setOpenDevolucionModal(false);
+                    setVentaSeleccionada(null);
+                }}
+                venta={ventaSeleccionada}
+                onDevolucionCompletada={handleDevolucionCompletada}
+            />
         </Container>
     );
 };
+
 
 
 

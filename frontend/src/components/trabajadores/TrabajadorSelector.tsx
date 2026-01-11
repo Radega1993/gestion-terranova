@@ -43,11 +43,8 @@ export const TrabajadorSelector: React.FC<TrabajadorSelectorProps> = ({
                 // Si el usuario es TIENDA y no se proporciona tiendaId, usar el endpoint directo
                 if (!tiendaId && userRole === UserRole.TIENDA) {
                     try {
-                        console.log('Obteniendo trabajadores de mi tienda...');
                         const data = await trabajadoresService.getMisTrabajadores();
-                        console.log('Trabajadores obtenidos:', data);
                         const trabajadoresActivos = data.filter(t => t.activo);
-                        console.log('Trabajadores activos:', trabajadoresActivos);
                         setTrabajadores(trabajadoresActivos);
                         setError(null);
                         return;

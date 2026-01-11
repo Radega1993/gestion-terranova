@@ -128,27 +128,17 @@ export const InvitacionesPDF: React.FC<InvitacionesPDFProps> = ({
     invitaciones = [],
     modificaciones = []
 }) => {
-    console.log('Datos recibidos en el PDF:', {
-        socio,
-        ejercicio,
-        invitacionesDisponibles,
-        invitaciones,
-        modificaciones
-    });
-
     // Ordenar invitaciones por fecha (más recientes primero)
     const invitacionesOrdenadas = [...invitaciones].sort((a, b) =>
         new Date(b.fechaUso).getTime() - new Date(a.fechaUso).getTime()
     );
 
-    console.log('Invitaciones ordenadas:', invitacionesOrdenadas);
 
     // Ordenar modificaciones por fecha (más recientes primero)
     const modificacionesOrdenadas = [...modificaciones].sort((a, b) =>
         new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
     );
 
-    console.log('Modificaciones ordenadas:', modificacionesOrdenadas);
 
     return (
         <PDFViewer style={{ width: '100%', height: '100%', border: 'none' }}>

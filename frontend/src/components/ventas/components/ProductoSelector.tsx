@@ -42,7 +42,6 @@ export const ProductoSelector: React.FC<ProductoSelectorProps> = ({ onProductoSe
                 }
 
                 const data = await response.json();
-                console.log('Productos cargados:', data);
                 setProductos(data);
             } catch (error) {
                 console.error('Error al obtener productos:', error);

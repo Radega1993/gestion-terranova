@@ -81,8 +81,6 @@ export const DeudasList: React.FC = () => {
             }
 
             const data = await authenticatedFetchJson<Venta[]>(url);
-            console.log('Deudas recibidas:', data);
-            console.log('Número de deudas:', data.length);
             setVentas(data);
             setError(null);
         } catch (error) {

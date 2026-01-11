@@ -178,12 +178,6 @@ const RecaudacionesList: React.FC = () => {
                 fechaFin.setHours(23, 59, 59, 999);
             }
 
-            console.log('Filtros enviados:', {
-                ...filtros,
-                fechaInicio: fechaInicio?.toISOString(),
-                fechaFin: fechaFin?.toISOString()
-            });
-
             // Construir query string con soporte para arrays
             const queryParams = new URLSearchParams();
             if (fechaInicio) queryParams.append('fechaInicio', fechaInicio.toISOString());
@@ -218,10 +212,8 @@ const RecaudacionesList: React.FC = () => {
             }
 
             const data = await response.json();
-            console.log('Datos recibidos:', data);
             setVentas(data);
         } catch (error: any) {
-            console.error('Error completo:', error);
             setError(error.message || 'Error desconocido');
         } finally {
             setLoading(false);
@@ -411,10 +403,6 @@ const RecaudacionesList: React.FC = () => {
                                 variant="outlined"
                                 startIcon={<PdfIcon />}
                                 onClick={() => {
-                                    console.log('Abriendo Resumen Detallado');
-                                    console.log('Fecha Inicio:', filtros.fechaInicio);
-                                    console.log('Fecha Fin:', filtros.fechaFin);
-                                    console.log('Ventas:', ventas);
                                     setShowResumenDetallado(true);
                                 }}
                                 disabled={ventas.length === 0}

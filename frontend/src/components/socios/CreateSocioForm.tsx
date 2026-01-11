@@ -218,7 +218,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
         queryFn: async () => {
             if (!editMode || !id) return null;
 
-            console.log('Cargando datos del socio:', id);
             const response = await fetch(`${API_BASE_URL}/socios/${id}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -228,7 +227,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
                 throw new Error('Error al cargar el socio');
             }
             const data = await response.json();
-            console.log('Datos del socio cargados:', data);
             return data;
         },
         enabled: editMode && !!id && !!token,
@@ -238,7 +236,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
     const { data: lastSocioNumber, isLoading: isLoadingLastNumber, error: lastNumberError } = useQuery({
         queryKey: ['lastSocioNumber'],
         queryFn: async () => {
-            console.log('Iniciando petición para obtener último número de socio');
             try {
                 const response = await fetch(`${API_BASE_URL}/socios/last-number`, {
                     headers: {
@@ -246,7 +243,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
                     }
                 });
 
-                console.log('Respuesta recibida:', response.status);
 
                 if (!response.ok) {
                     const errorText = await response.text();
@@ -255,11 +251,9 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
                 }
 
                 const text = await response.text();
-                console.log('Respuesta texto:', text);
 
                 try {
                     const data = JSON.parse(text);
-                    console.log('Número de socio obtenido del backend:', data);
                     return data.number;
                 } catch (parseError) {
                     console.error('Error al parsear JSON:', parseError);
@@ -277,10 +271,8 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
 
     // Efecto para inicializar el formulario
     useEffect(() => {
-        console.log('useEffect ejecutándose - editMode:', editMode, 'lastSocioNumber:', lastSocioNumber, 'error:', lastNumberError);
 
         if (editMode && socioData) {
-            console.log('Inicializando formulario con datos de edición:', socioData);
             setFormData({
                 ...socioData,
                 fechaNacimiento: socioData.fechaNacimiento ? new Date(socioData.fechaNacimiento) : undefined,
@@ -301,7 +293,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
                 rgpd: socioData.rgpd || false
             });
         } else if (!editMode) {
-            console.log('Modo creación - lastSocioNumber:', lastSocioNumber, 'isLoading:', isLoadingLastNumber);
 
             if (lastNumberError) {
                 console.error('Error al obtener el número de socio:', lastNumberError);
@@ -310,12 +301,10 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
             }
 
             if (isLoadingLastNumber) {
-                console.log('Cargando número de socio...');
                 return;
             }
 
             if (lastSocioNumber) {
-                console.log('Inicializando formulario con nuevo número:', lastSocioNumber);
                 setFormData(prev => ({
                     ...prev,
                     nombre: { nombre: '', primerApellido: '', segundoApellido: '' },
@@ -350,7 +339,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
                     fechaNacimiento: undefined
                 }));
             } else {
-                console.log('No se pudo obtener el número de socio');
                 setFormError('No se pudo obtener el número de socio. Por favor, inténtalo de nuevo.');
             }
         }
@@ -407,7 +395,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
                         }))
                 };
 
-                console.log('Enviando datos al servidor:', dataToSend);
 
                 const response = await fetch(url, {
                     method,
@@ -502,7 +489,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
                 const formData = new FormData();
                 formData.append('file', file);
 
-                console.log('Subiendo imagen para socio:', id);
                 const response = await fetch(`${API_BASE_URL}/uploads/image`, {
                     method: 'POST',
                     headers: {
@@ -514,7 +500,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('Imagen subida exitosamente:', data.filename);
                     setFormData(prev => ({
                         ...prev,
                         foto: data.filename
@@ -745,7 +730,6 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
                     }))
             };
 
-            console.log('Enviando datos:', dataToSubmit);
 
             await mutation.mutateAsync(dataToSubmit);
 

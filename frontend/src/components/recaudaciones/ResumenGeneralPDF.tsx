@@ -157,7 +157,6 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                     throw new Error('Error al obtener categorías');
                 }
                 const data = await response.json();
-                console.log('Categorías obtenidas:', data);
                 setCategorias(data);
             } catch (error) {
                 console.error('Error al obtener categorías:', error);
@@ -365,9 +364,6 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
         totalesPorMetodoPagoResult.efectivo = Number(totalesPorMetodoPagoResult.efectivo.toFixed(2));
         totalesPorMetodoPagoResult.tarjeta = Number(totalesPorMetodoPagoResult.tarjeta.toFixed(2));
 
-        console.log('Ventas por trabajador:', ventasPorTrabajadorResult);
-        console.log('Totales generales:', totalesGeneralesResult);
-        console.log('Totales por método de pago:', totalesPorMetodoPagoResult);
 
         // Convertir Maps a objetos para poder serializar y redondear valores
         const ventasPorTrabajadorSerializado: any = {};

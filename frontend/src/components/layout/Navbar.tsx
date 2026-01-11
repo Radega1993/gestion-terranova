@@ -179,9 +179,6 @@ export const Navbar: React.FC = () => {
                     <MenuItem onClick={() => { navigate('/invitaciones'); handleMobileMenuClose(); }}>
                         <ConfirmationNumberIcon sx={{ mr: 1 }} /> Invitaciones
                     </MenuItem>
-                    <MenuItem onClick={() => { navigate('/devoluciones'); handleMobileMenuClose(); }}>
-                        <UndoIcon sx={{ mr: 1 }} /> Devoluciones
-                    </MenuItem>
                     <MenuItem onClick={() => { navigate('/cambios'); handleMobileMenuClose(); }}>
                         <SwapHorizIcon sx={{ mr: 1 }} /> Cambios
                     </MenuItem>

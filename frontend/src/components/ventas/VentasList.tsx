@@ -50,9 +50,7 @@ const VentasList: React.FC = () => {
     }, [token]);
 
     const handleProductoSeleccionado = (producto: Producto) => {
-        console.log('Producto seleccionado completo:', producto);
         const precioUnitario = producto.precio_compra_unitario;
-        console.log('Producto seleccionado con precio:', precioUnitario);
 
         const nuevoProducto: ProductoSeleccionado = {
             ...producto,

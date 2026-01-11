@@ -187,7 +187,6 @@ export const GestionSuplementos: React.FC<GestionSuplementosProps> = ({
         if (modifiedSuplementos.length > 0) {
             onSaveSuplementos(modifiedSuplementos);
         } else {
-            console.log('No hay suplementos modificados para guardar');
         }
         onClose();
     };

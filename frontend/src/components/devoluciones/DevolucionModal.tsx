@@ -27,9 +27,7 @@ import { devolucionesService, CreateDevolucionDto, ProductoDevolucion } from '..
 import { Venta } from '../ventas/types';
 import { CurrencyInput } from '../common/CurrencyInput';
 import { formatCurrency } from '../../utils/formatters';
-import { TrabajadorSelector } from '../trabajadores/TrabajadorSelector';
 import { useAuthStore } from '../../stores/authStore';
-import { UserRole } from '../../types/user';
 import Swal from 'sweetalert2';
 
 interface DevolucionModalProps {
@@ -50,7 +48,6 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({
     const [metodoDevolucion, setMetodoDevolucion] = useState<'EFECTIVO' | 'TARJETA'>('EFECTIVO');
     const [motivo, setMotivo] = useState('');
     const [observaciones, setObservaciones] = useState('');
-    const [trabajadorId, setTrabajadorId] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
@@ -61,7 +58,6 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({
             setMetodoDevolucion('EFECTIVO');
             setMotivo('');
             setObservaciones('');
-            setTrabajadorId('');
             setError(null);
         }
     }, [open, venta]);
@@ -108,12 +104,6 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({
             return;
         }
 
-        // Si es TIENDA, trabajadorId es obligatorio
-        if (user?.role === UserRole.TIENDA && !trabajadorId) {
-            setError('Debe seleccionar un trabajador');
-            return;
-        }
-
         try {
             setLoading(true);
             setError(null);
@@ -131,7 +121,6 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({
 
             const devolucionData: CreateDevolucionDto = {
                 venta: venta._id,
-                trabajador: user?.role === UserRole.TIENDA ? trabajadorId : undefined,
                 productos,
                 totalDevolucion: calcularTotal(),
                 metodoDevolucion,
@@ -175,16 +164,6 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({
                     <Typography variant="subtitle1" gutterBottom>
                         <strong>Total Venta:</strong> {formatCurrency(venta.total)}
                     </Typography>
-
-                    {user?.role === UserRole.TIENDA && (
-                        <Box sx={{ mt: 2, mb: 2 }}>
-                            <TrabajadorSelector
-                                value={trabajadorId}
-                                onChange={setTrabajadorId}
-                                required
-                            />
-                        </Box>
-                    )}
 
                     <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
                         Productos de la Venta
@@ -314,6 +293,7 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({
         </Dialog>
     );
 };
+
 
 
 

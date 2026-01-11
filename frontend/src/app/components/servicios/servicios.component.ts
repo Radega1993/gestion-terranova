@@ -19,19 +19,16 @@ export class ServiciosComponent implements OnInit {
     ) { }
 
     ngOnInit(): void {
-        console.log('Inicializando componente de servicios');
         this.cargarServicios();
         this.cargarSuplementos();
     }
 
     cargarServicios(): void {
-        console.log('Cargando servicios');
         this.loading = true;
         this.error = null;
 
         this.serviciosService.getServicios().subscribe({
             next: (data) => {
-                console.log('Servicios cargados exitosamente:', data);
                 this.servicios = data;
                 this.loading = false;
             },
@@ -45,13 +42,11 @@ export class ServiciosComponent implements OnInit {
     }
 
     cargarSuplementos(): void {
-        console.log('Cargando suplementos');
         this.loading = true;
         this.error = null;
 
         this.serviciosService.getSuplementos().subscribe({
             next: (data) => {
-                console.log('Suplementos cargados exitosamente:', data);
                 this.suplementos = data;
                 this.loading = false;
             },
@@ -65,13 +60,11 @@ export class ServiciosComponent implements OnInit {
     }
 
     crearServicio(servicio: any): void {
-        console.log('Intentando crear nuevo servicio:', servicio);
         this.loading = true;
         this.error = null;
 
         this.serviciosService.createServicio(servicio).subscribe({
             next: (data) => {
-                console.log('Servicio creado exitosamente:', data);
                 this.servicios.push(data);
                 this.loading = false;
                 this.snackBar.open('Servicio creado exitosamente', 'Cerrar', { duration: 5000 });
@@ -86,13 +79,11 @@ export class ServiciosComponent implements OnInit {
     }
 
     actualizarServicio(id: string, servicio: any): void {
-        console.log('Intentando actualizar servicio:', { id, servicio });
         this.loading = true;
         this.error = null;
 
         this.serviciosService.updateServicio(id, servicio).subscribe({
             next: (data) => {
-                console.log('Servicio actualizado exitosamente:', data);
                 const index = this.servicios.findIndex(s => s.id === id);
                 if (index !== -1) {
                     this.servicios[index] = data;
@@ -110,13 +101,11 @@ export class ServiciosComponent implements OnInit {
     }
 
     eliminarServicio(id: string): void {
-        console.log('Intentando eliminar servicio con ID:', id);
         this.loading = true;
         this.error = null;
 
         this.serviciosService.deleteServicio(id).subscribe({
             next: () => {
-                console.log('Servicio eliminado exitosamente');
                 this.servicios = this.servicios.filter(s => s.id !== id);
                 this.loading = false;
                 this.snackBar.open('Servicio eliminado exitosamente', 'Cerrar', { duration: 5000 });
@@ -131,13 +120,11 @@ export class ServiciosComponent implements OnInit {
     }
 
     crearSuplemento(suplemento: any): void {
-        console.log('Intentando crear nuevo suplemento:', suplemento);
         this.loading = true;
         this.error = null;
 
         this.serviciosService.createSuplemento(suplemento).subscribe({
             next: (data) => {
-                console.log('Suplemento creado exitosamente:', data);
                 this.suplementos.push(data);
                 this.loading = false;
                 this.snackBar.open('Suplemento creado exitosamente', 'Cerrar', { duration: 5000 });
@@ -152,13 +139,11 @@ export class ServiciosComponent implements OnInit {
     }
 
     actualizarSuplemento(id: string, suplemento: any): void {
-        console.log('Intentando actualizar suplemento:', { id, suplemento });
         this.loading = true;
         this.error = null;
 
         this.serviciosService.updateSuplemento(id, suplemento).subscribe({
             next: (data) => {
-                console.log('Suplemento actualizado exitosamente:', data);
                 const index = this.suplementos.findIndex(s => s.id === id);
                 if (index !== -1) {
                     this.suplementos[index] = data;
@@ -176,13 +161,11 @@ export class ServiciosComponent implements OnInit {
     }
 
     eliminarSuplemento(id: string): void {
-        console.log('Intentando eliminar suplemento con ID:', id);
         this.loading = true;
         this.error = null;
 
         this.serviciosService.deleteSuplemento(id).subscribe({
             next: () => {
-                console.log('Suplemento eliminado exitosamente');
                 this.suplementos = this.suplementos.filter(s => s.id !== id);
                 this.loading = false;
                 this.snackBar.open('Suplemento eliminado exitosamente', 'Cerrar', { duration: 5000 });

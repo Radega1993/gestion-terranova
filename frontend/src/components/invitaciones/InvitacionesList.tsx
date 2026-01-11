@@ -272,7 +272,6 @@ const InvitacionesList: React.FC = () => {
             }
 
             const dataDisponibles = await responseDisponibles.json();
-            console.log('Datos de invitaciones disponibles:', dataDisponibles);
 
             // Obtener historial de invitaciones
             const responseHistorial = await fetch(`${API_BASE_URL}/invitaciones?codigoSocio=${socioSeleccionado.codigo}`, {
@@ -287,7 +286,6 @@ const InvitacionesList: React.FC = () => {
             }
 
             const dataHistorial = await responseHistorial.json();
-            console.log('Datos del historial completo:', dataHistorial);
 
             const ejercicio = new Date().getFullYear();
             const mes = new Date().getMonth() + 1;
@@ -307,7 +305,6 @@ const InvitacionesList: React.FC = () => {
                 } : undefined
             })) : [];
 
-            console.log('Invitaciones formateadas:', invitacionesFormateadas);
 
             // Crear una modificación a partir de las observaciones si existen
             const modificacionesFormateadas = [];
@@ -326,7 +323,6 @@ const InvitacionesList: React.FC = () => {
                 });
             }
 
-            console.log('Modificaciones formateadas:', modificacionesFormateadas);
 
             const pdfDataToSend = {
                 socio: {
@@ -339,7 +335,6 @@ const InvitacionesList: React.FC = () => {
                 modificaciones: modificacionesFormateadas
             };
 
-            console.log('Datos finales enviados al PDF:', pdfDataToSend);
             setPdfData(pdfDataToSend);
             setShowPDF(true);
         } catch (error) {

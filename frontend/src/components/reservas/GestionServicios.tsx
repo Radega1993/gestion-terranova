@@ -166,7 +166,6 @@ export const GestionServicios: React.FC<GestionServiciosProps> = ({
                     severity: 'success'
                 });
             } else {
-                console.log('No hay servicios modificados para guardar');
             }
             onClose();
         } catch (error) {

@@ -21,9 +21,9 @@ const Dashboard: React.FC = () => {
             description: 'Gestión de reservas de instalaciones',
             roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]
         },
-        { 
-            title: 'Ventas', 
-            path: '/ventas', 
+        {
+            title: 'Ventas',
+            path: '/ventas',
             description: 'Gestión de ventas',
             roles: [UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA, UserRole.TIENDA]
         },
@@ -62,7 +62,7 @@ const Dashboard: React.FC = () => {
             title: 'Devoluciones',
             path: '/devoluciones',
             description: 'Gestión de devoluciones de productos',
-            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA]
+            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA]
         },
         {
             title: 'Cambios',

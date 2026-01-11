@@ -95,7 +95,6 @@ const MiembroForm: React.FC<MiembroFormProps> = ({
                 }
             }
 
-            console.log('Enviando datos al backend:', dataToSubmit);
             await onSubmit(dataToSubmit);
         } catch (error) {
             console.error('Error al guardar el asociado:', error);

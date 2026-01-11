@@ -76,28 +76,6 @@ export const PagoDeudaModal: React.FC<PagoDeudaModalProps> = ({
                 pagoData.trabajadorId = trabajadorId;
             }
 
-            // Redondear todos los valores a 2 decimales para evitar problemas de precisión
-            const totalRedondeadoLog = Number(venta.total.toFixed(2));
-            const yaPagadoRedondeadoLog = Number(venta.pagado.toFixed(2));
-            const pendienteRedondeadoLog = Number((totalRedondeadoLog - yaPagadoRedondeadoLog).toFixed(2));
-
-            const cambioLog = metodoPago === 'EFECTIVO' && pagadoRedondeado > pendienteRedondeadoLog 
-                ? Number((pagadoRedondeado - pendienteRedondeadoLog).toFixed(2)) 
-                : 0;
-
-            console.log('Datos del pago:', {
-                ventaId: venta._id,
-                totalOriginal: totalRedondeadoLog,
-                yaPagado: yaPagadoRedondeadoLog,
-                pendiente: pendienteRedondeadoLog,
-                montoRecibido: pagadoRedondeado,
-                montoAPagar: montoAPagar,
-                cambio: cambioLog,
-                metodoPago,
-                observaciones,
-                trabajadorId
-            });
-
             const response = await fetch(`${API_BASE_URL}/ventas/${venta._id}/pago`, {
                 method: 'POST',
                 headers: {
@@ -118,7 +96,6 @@ export const PagoDeudaModal: React.FC<PagoDeudaModalProps> = ({
             }
 
             const responseData = await response.json();
-            console.log('Respuesta exitosa:', responseData);
 
             onPagoCompletado();
             onClose();

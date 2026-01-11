@@ -18,7 +18,6 @@ export const useAuthStore = create<AuthState>()(
             user: null,
             userRole: null,
             setAuth: (token: string, user: User) => {
-                console.log('Setting auth with user:', user); // Debug log
                 set({
                     token,
                     user,

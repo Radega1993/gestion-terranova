@@ -595,7 +595,6 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                     const formData = new FormData();
                     formData.append('file', file);
 
-                    console.log('Subiendo imagen para socio:', socio._id, socio.nombre.nombre);
                     const response = await fetch(`${API_BASE_URL}/uploads/image`, {
                         method: 'POST',
                         headers: {
@@ -609,7 +608,6 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                     }
 
                     const data = await response.json();
-                    console.log('Imagen subida exitosamente:', data.filename);
 
                     // Actualizar el socio con la nueva foto usando el endpoint específico
                     const updateResponse = await fetch(`${API_BASE_URL}/socios/${socio._id}/foto`, {
@@ -743,7 +741,6 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
             const formData = new FormData();
             formData.append('file', file);
 
-            console.log('Subiendo imagen para asociado:', asociado.codigo);
             const response = await fetch(`${API_BASE_URL}/uploads/image`, {
                 method: 'POST',
                 headers: {
@@ -757,7 +754,6 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
             }
 
             const data = await response.json();
-            console.log('Imagen subida exitosamente:', data.filename);
 
             // Obtener el socio actual desde los datos de React Query
             const socio = sociosDataData.find(s => s._id === socioId);
@@ -777,7 +773,6 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                 return a;
             }) || [];
 
-            console.log('Asociados a actualizar:', asociados);
 
             // Actualizar el socio con los asociados modificados
             const updateResponse = await fetch(`${API_BASE_URL}/socios/${socioId}/asociados`, {
