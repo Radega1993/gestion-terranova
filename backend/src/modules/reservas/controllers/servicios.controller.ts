@@ -18,7 +18,6 @@ export class ServiciosController {
     @Post('suplementos')
     @Roles(UserRole.ADMINISTRADOR)
     async createSuplemento(@Body() createSuplementoDto: CreateSuplementoDto) {
-        this.logger.debug('Recibida petición para crear suplemento');
         try {
             return await this.serviciosService.createSuplemento(createSuplementoDto);
         } catch (error) {
@@ -29,10 +28,8 @@ export class ServiciosController {
 
     @Get('suplementos')
     async findAllSuplementos() {
-        this.logger.debug('Recibida petición para obtener todos los suplementos');
         try {
             const suplementos = await this.serviciosService.findAllSuplementos();
-            this.logger.debug('Suplementos encontrados en el controlador:', JSON.stringify(suplementos, null, 2));
             return suplementos;
         } catch (error) {
             this.logger.error('Error al obtener suplementos:', error);
@@ -42,7 +39,6 @@ export class ServiciosController {
 
     @Get('suplementos/:id')
     async findOneSuplemento(@Param('id') id: string) {
-        this.logger.debug(`Recibida petición para obtener suplemento con ID: ${id}`);
         try {
             return await this.serviciosService.findOneSuplemento(id);
         } catch (error) {
@@ -54,7 +50,6 @@ export class ServiciosController {
     @Patch('suplementos/:id')
     @Roles(UserRole.ADMINISTRADOR)
     async updateSuplemento(@Param('id') id: string, @Body() updateSuplementoDto: UpdateSuplementoDto) {
-        this.logger.debug(`Recibida petición para actualizar suplemento con ID: ${id}`);
         try {
             return await this.serviciosService.updateSuplemento(id, updateSuplementoDto);
         } catch (error) {
@@ -66,7 +61,6 @@ export class ServiciosController {
     @Delete('suplementos/:id')
     @Roles(UserRole.ADMINISTRADOR)
     async removeSuplemento(@Param('id') id: string) {
-        this.logger.debug(`Recibida petición para eliminar suplemento con ID: ${id}`);
         try {
             await this.serviciosService.removeSuplemento(id);
             return { message: 'Suplemento eliminado exitosamente' };
@@ -80,7 +74,6 @@ export class ServiciosController {
     @Post()
     @Roles(UserRole.ADMINISTRADOR)
     async createServicio(@Body() createServicioDto: CreateServicioDto) {
-        this.logger.debug('Recibida petición para crear servicio');
         try {
             return await this.serviciosService.createServicio(createServicioDto);
         } catch (error) {
@@ -91,7 +84,6 @@ export class ServiciosController {
 
     @Get()
     async findAllServicios() {
-        this.logger.debug('Recibida petición para obtener todos los servicios');
         try {
             return await this.serviciosService.findAllServicios();
         } catch (error) {
@@ -102,7 +94,6 @@ export class ServiciosController {
 
     @Get(':id')
     async findOneServicio(@Param('id') id: string) {
-        this.logger.debug(`Recibida petición para obtener servicio con ID: ${id}`);
         try {
             return await this.serviciosService.findOneServicio(id);
         } catch (error) {
@@ -114,7 +105,6 @@ export class ServiciosController {
     @Patch(':id')
     @Roles(UserRole.ADMINISTRADOR)
     async updateServicio(@Param('id') id: string, @Body() updateServicioDto: UpdateServicioDto) {
-        this.logger.debug(`Recibida petición para actualizar servicio con ID: ${id}`);
         try {
             return await this.serviciosService.updateServicio(id, updateServicioDto);
         } catch (error) {
@@ -126,7 +116,6 @@ export class ServiciosController {
     @Delete(':id')
     @Roles(UserRole.ADMINISTRADOR)
     async removeServicio(@Param('id') id: string) {
-        this.logger.debug(`Recibida petición para eliminar servicio con ID: ${id}`);
         try {
             await this.serviciosService.removeServicio(id);
             return { message: 'Servicio eliminado exitosamente' };

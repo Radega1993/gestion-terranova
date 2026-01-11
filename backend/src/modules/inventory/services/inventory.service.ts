@@ -55,7 +55,6 @@ export class InventoryService {
             ...createProductDto,
             activo: true
         });
-        this.logger.log(`Creando producto: ${createProductDto.nombre}`);
         return createdProduct.save();
     }
 
@@ -68,7 +67,6 @@ export class InventoryService {
             throw new NotFoundException(`Producto con ID ${id} no encontrado`);
         }
 
-        this.logger.log(`Actualizando producto ID: ${id}`);
         return existingProduct;
     }
 
@@ -81,7 +79,6 @@ export class InventoryService {
             throw new NotFoundException(`Producto con ID ${id} no encontrado`);
         }
 
-        this.logger.log(`Eliminando producto ID: ${id}`);
         return deletedProduct;
     }
 
@@ -95,7 +92,6 @@ export class InventoryService {
     }
 
     async importFromExcel(file: Express.Multer.File): Promise<ImportResponse> {
-        this.logger.debug(`Procesando archivo: ${file?.originalname}`);
 
         if (!file?.buffer || !(file.buffer instanceof Buffer)) {
             this.logger.error('Error: Buffer del archivo no válido o no presente', {
@@ -120,7 +116,6 @@ export class InventoryService {
                 header: ['Nombre', 'Tipo', 'Unidad de Medida', 'Stock Actual', 'Precio Compra Unitario']
             }) as Record<string, any>[];
 
-            this.logger.debug(`Datos leídos del Excel: ${JSON.stringify(data)}`);
 
             const importResponse: ImportResponse = {
                 success: 0,
@@ -179,7 +174,6 @@ export class InventoryService {
                 }
             }
 
-            this.logger.debug(`Importación analizada: ${importResponse.success} productos válidos, ${importResponse.duplicates.length} duplicados, ${importResponse.invalidData.length} datos inválidos, ${importResponse.errors.length} errores`);
             return importResponse;
         } catch (error) {
             this.logger.error('Error procesando archivo Excel:', error);
@@ -298,19 +292,15 @@ export class InventoryService {
 
         const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
-        this.logger.log(`Exportación a Excel completada: ${products.length} productos exportados`);
         return buffer;
     }
 
     async getUniqueTypes(): Promise<string[]> {
-        this.logger.debug('Fetching unique product types');
         const types = await this.productModel.distinct('tipo');
-        this.logger.debug(`Found ${types.length} unique types`);
         return types;
     }
 
     async searchProducts(query: string, field: 'nombre' | 'tipo' = 'nombre'): Promise<ProductDocument[]> {
-        this.logger.debug(`Searching products with ${field}: ${query}`);
 
         if (!query) {
             return [];
@@ -325,7 +315,6 @@ export class InventoryService {
                 .sort({ [field]: 1 })
                 .exec();
 
-            this.logger.debug(`Found ${products.length} products matching "${query}" in field "${field}"`);
             return products;
         } catch (error) {
             this.logger.error(`Error searching products: ${error.message}`);

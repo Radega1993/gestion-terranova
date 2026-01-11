@@ -42,7 +42,6 @@ RGPD. Le informamos que los datos que nos ha facilitado y que se recogen en el p
                     ultimaActualizacion: new Date()
                 });
                 await normativa.save();
-                this.logger.log('Normativa por defecto creada');
             }
 
             return normativa.texto;
@@ -70,7 +69,6 @@ RGPD. Le informamos que los datos que nos ha facilitado y que se recogen en el p
             }
 
             const normativaActualizada = await normativa.save();
-            this.logger.log('Normativa actualizada correctamente');
             return normativaActualizada;
         } catch (error) {
             this.logger.error(`Error al actualizar normativa: ${error.message}`, error.stack);

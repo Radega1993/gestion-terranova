@@ -29,7 +29,6 @@ export class CambiosController {
     @Post()
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async create(@Body() createCambioDto: CreateCambioDto, @Request() req) {
-        this.logger.debug('Creando cambio de producto');
         return this.cambiosService.create(createCambioDto, req.user._id, req.user.role);
     }
 
@@ -37,14 +36,12 @@ export class CambiosController {
     @Get('ventas-del-dia')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async getVentasDelDia() {
-        this.logger.debug('Obteniendo ventas del día');
         return this.cambiosService.getVentasDelDia();
     }
 
     @Get()
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     async findAll(@Query() filtros: FiltrosCambiosDto) {
-        this.logger.debug('Obteniendo cambios');
         return this.cambiosService.findAll(filtros);
     }
 
@@ -55,14 +52,12 @@ export class CambiosController {
         @Body() procesarPagoDto: ProcesarPagoCambioDto,
         @Request() req
     ) {
-        this.logger.debug(`Procesando pago/devolución para cambio con ID: ${id}`);
         return this.cambiosService.procesarPagoCambio(id, procesarPagoDto, req.user._id, req.user.role);
     }
 
     @Get(':id')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async findOne(@Param('id') id: string) {
-        this.logger.debug(`Obteniendo cambio con ID: ${id}`);
         return this.cambiosService.findOne(id);
     }
 }

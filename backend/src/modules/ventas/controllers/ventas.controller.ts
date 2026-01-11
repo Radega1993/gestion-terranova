@@ -19,7 +19,6 @@ export class VentasController {
     @Get()
     @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA, UserRole.TIENDA)
     async findAll(@Query() filters: VentaFiltersDto) {
-        this.logger.debug('Obteniendo todas las ventas');
         return this.ventasService.findAll(filters);
     }
 
@@ -29,7 +28,6 @@ export class VentasController {
         @Param('codigo') codigo: string,
         @Query() filters: VentaFiltersDto
     ) {
-        this.logger.debug(`Obteniendo ventas del cliente ${codigo}`);
         return this.ventasService.findByCliente(codigo, filters);
     }
 
@@ -39,7 +37,6 @@ export class VentasController {
         @Request() req,
         @Query() filters: VentaFiltersDto
     ) {
-        this.logger.debug(`Obteniendo ventas del usuario ${req.user._id}`);
         return this.ventasService.findByUsuario(req.user._id, filters);
     }
 
@@ -62,7 +59,6 @@ export class VentasController {
     @Post()
     @Roles(UserRole.ADMINISTRADOR, UserRole.TRABAJADOR, UserRole.JUNTA, UserRole.TIENDA)
     async create(@Body() createVentaDto: CreateVentaDto, @Request() req) {
-        this.logger.debug('Creando nueva venta');
         return this.ventasService.create(createVentaDto, req.user._id, req.user.role);
     }
 
@@ -79,8 +75,6 @@ export class VentasController {
     @Get('recaudaciones')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async getRecaudaciones(@Query() filtros: RecaudacionesFiltrosDto) {
-        this.logger.debug('Obteniendo recaudaciones');
-        this.logger.debug('Filtros recibidos:', JSON.stringify(filtros, null, 2));
         return this.ventasService.getRecaudaciones(filtros);
     }
 } 

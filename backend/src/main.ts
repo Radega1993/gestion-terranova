@@ -14,7 +14,6 @@ import * as express from 'express';
 async function dropEmailIndex(connection: Connection) {
   const logger = new Logger('DropEmailIndex');
   try {
-    logger.log('Verificando si existe índice email_1 en la colección users...');
     const db = connection.db;
 
     if (!db) {
@@ -30,16 +29,12 @@ async function dropEmailIndex(connection: Connection) {
     const emailIndexes = indexes.filter(index => index.key && index.key.email);
 
     if (emailIndexes.length > 0) {
-      logger.log(`Encontrados ${emailIndexes.length} índices relacionados con email. Eliminando...`);
       for (const index of emailIndexes) {
         if (index.name) {
-          logger.log(`Eliminando índice ${index.name}...`);
           await collection.dropIndex(index.name);
-          logger.log(`Índice ${index.name} eliminado correctamente.`);
         }
       }
     } else {
-      logger.log('No se encontraron índices relacionados con el campo email.');
     }
   } catch (error) {
     logger.error(`Error al eliminar índice email: ${error.message}`);
@@ -86,7 +81,6 @@ async function bootstrap() {
 
   // Configurar archivos estáticos
   const uploadsPath = join(process.cwd(), 'uploads');
-  logger.log(`Configurando archivos estáticos en: ${uploadsPath}`);
 
   // Configurar archivos estáticos sin el prefijo /api
   app.use('/uploads', express.static(uploadsPath, {
@@ -106,6 +100,5 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3000;
   await app.listen(port);
-  logger.log(`Application is running on: http://localhost:${port}`);
 }
 bootstrap();

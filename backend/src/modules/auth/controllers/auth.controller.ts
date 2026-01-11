@@ -12,7 +12,6 @@ export class AuthController {
 
     @Post('login')
     async login(@Body() loginDto: LoginUserDto) {
-        this.logger.debug(`Attempting login for user: ${loginDto.username}`);
 
         const user = await this.authService.validateUser(loginDto.username, loginDto.password);
         if (!user) {
@@ -21,14 +20,12 @@ export class AuthController {
         }
 
         const result = await this.authService.login(user);
-        this.logger.debug(`Login successful for user: ${loginDto.username}`);
         return result;
     }
 
     @UseGuards(JwtAuthGuard)
     @Get('profile')
     getProfile(@Request() req) {
-        this.logger.debug(`Getting profile for user: ${req.user.username}`);
         return req.user;
     }
 } 

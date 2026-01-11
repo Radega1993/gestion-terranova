@@ -167,27 +167,11 @@ export class VentasService {
             query.estado = filters.estado;
         }
         
-        this.logger.debug(`Buscando ventas pendientes con query: ${JSON.stringify(query, null, 2)}`);
-        
         const ventas = await this.ventaModel.find(query)
             .populate('trabajador', 'nombre identificador')
             .populate('usuario', 'username nombre')
             .sort({ createdAt: -1 })
             .exec();
-        
-        this.logger.debug(`Encontradas ${ventas.length} ventas pendientes`);
-        if (ventas.length > 0) {
-            const primeraVenta = ventas[0] as any;
-            this.logger.debug(`Primera venta: ${JSON.stringify({
-                _id: primeraVenta._id,
-                codigoSocio: primeraVenta.codigoSocio,
-                nombreSocio: primeraVenta.nombreSocio,
-                total: primeraVenta.total,
-                pagado: primeraVenta.pagado,
-                estado: primeraVenta.estado,
-                createdAt: primeraVenta.createdAt
-            }, null, 2)}`);
-        }
         
         return ventas;
     }
@@ -306,7 +290,6 @@ export class VentasService {
             const venta = new this.ventaModel(ventaData);
 
             const savedVenta = await venta.save();
-            this.logger.log(`Venta creada con ID: ${savedVenta._id}`);
             return savedVenta;
         } catch (error) {
             this.logger.error(`Error al crear venta: ${error.message}`, error.stack);
@@ -315,9 +298,6 @@ export class VentasService {
     }
 
     async registrarPago(id: string, pagoVentaDto: PagoVentaDto, userId: string, userRole: string) {
-        this.logger.debug(`Iniciando registro de pago para venta ${id}`);
-        this.logger.debug('Datos del pago recibidos:', pagoVentaDto);
-        this.logger.debug(`Usuario: ${userId}, Rol: ${userRole}`);
 
         // Validar trabajador si el usuario es TIENDA
         let trabajadorId = null;
@@ -348,7 +328,6 @@ export class VentasService {
 
         const venta = await this.ventaModel.findById(id);
         if (!venta) {
-            this.logger.error(`Venta ${id} no encontrada`);
             throw new NotFoundException(`Venta ${id} no encontrada`);
         }
 
@@ -357,36 +336,22 @@ export class VentasService {
         const pagado = Number(venta.pagado.toFixed(2));
         const montoPago = Number(pagoVentaDto.pagado.toFixed(2));
 
-        this.logger.debug('Datos de la venta (redondeados):', {
-            total,
-            pagado,
-            estado: venta.estado
-        });
-
         const pendiente = Number((total - pagado).toFixed(2));
-        this.logger.debug(`Monto pendiente: ${pendiente}, Pago a registrar: ${montoPago}`);
 
         // Si el pago excede el pendiente, ajustar al pendiente (el cambio se maneja en el frontend)
         // Solo permitir esto para pagos en efectivo
         let montoPagoAjustado = montoPago;
         if (montoPago > pendiente) {
             if (pagoVentaDto.metodoPago !== 'EFECTIVO') {
-                this.logger.error(`El pago (${montoPago}) excede el monto pendiente (${pendiente}) y no es efectivo`);
                 throw new BadRequestException('El pago excede el monto pendiente. Solo se permite cambio en pagos en efectivo.');
             }
             // Ajustar el monto al pendiente (el cambio se maneja en el frontend)
             montoPagoAjustado = pendiente;
-            this.logger.debug(`Pago ajustado de ${montoPago} a ${montoPagoAjustado} (cambio: ${Number((montoPago - pendiente).toFixed(2))})`);
         }
 
         const nuevoPagado = Number((pagado + montoPagoAjustado).toFixed(2));
         // Usar comparación con tolerancia para evitar problemas de precisión de punto flotante
         const nuevoEstado = Math.abs(nuevoPagado - total) < 0.01 ? 'PAGADO' : 'PAGADO_PARCIAL';
-
-        this.logger.debug('Nuevos valores:', {
-            nuevoPagado,
-            nuevoEstado
-        });
 
         // Registrar el pago en el historial (redondeado a 2 decimales)
         const pago: any = {
@@ -399,11 +364,9 @@ export class VentasService {
         // Guardar el trabajador en el pago específico si el usuario es TIENDA
         if (trabajadorId) {
             pago.trabajador = new Types.ObjectId(trabajadorId);
-            this.logger.debug(`Guardando trabajador ${trabajadorId} en pago`);
         } else {
             // Si no es TIENDA, guardar el usuario que realizó el pago
             pago.usuario = new Types.ObjectId(userId);
-            this.logger.debug(`Guardando usuario ${userId} en pago (rol: ${userRole})`);
         }
 
         venta.pagos = venta.pagos || [];
@@ -432,13 +395,7 @@ export class VentasService {
             venta.trabajador = trabajadorId as any;
         }
 
-        this.logger.debug(`Guardando venta con ${venta.pagos.length} pagos. Último pago ANTES de guardar: ${JSON.stringify(pago, null, 2)}`);
         const ventaActualizada = await venta.save();
-        // Verificar que el último pago guardado tiene el campo usuario o trabajador
-        const ultimoPagoGuardado = ventaActualizada.pagos[ventaActualizada.pagos.length - 1];
-        const pagoGuardadoObj = (ultimoPagoGuardado as any).toObject ? (ultimoPagoGuardado as any).toObject() : ultimoPagoGuardado;
-        this.logger.debug(`Último pago guardado tiene usuario?: ${!!pagoGuardadoObj.usuario}, tiene trabajador?: ${!!pagoGuardadoObj.trabajador}`);
-        this.logger.debug(`Último pago guardado DESPUÉS de guardar: ${JSON.stringify(pagoGuardadoObj, null, 2)}`);
 
         return ventaActualizada;
     }
@@ -561,9 +518,6 @@ export class VentasService {
             }
         }
 
-        console.log('Filtro ventas:', JSON.stringify(filtroVentas, null, 2));
-        console.log('Filtro reservas:', JSON.stringify(filtroReservas, null, 2));
-
         // Obtener ventas SIN lean primero para verificar estructura
         const ventasSinLean = await this.ventaModel
             .find(filtroVentas)
@@ -571,14 +525,6 @@ export class VentasService {
             .populate('trabajador', 'nombre identificador')
             .exec();
         
-        // Log para verificar estructura antes de lean
-        if (ventasSinLean.length > 0 && ventasSinLean[0].pagos && ventasSinLean[0].pagos.length > 0) {
-            const primerPago = ventasSinLean[0].pagos[0];
-            this.logger.debug(`Primer pago ANTES de lean: ${JSON.stringify(primerPago, null, 2)}`);
-            this.logger.debug(`Primer pago tiene usuario?: ${!!(primerPago as any).usuario}`);
-            this.logger.debug(`Primer pago tiene trabajador?: ${!!(primerPago as any).trabajador}`);
-        }
-
         // Obtener ventas con lean para procesamiento
         const ventas = await this.ventaModel
             .find(filtroVentas)
@@ -586,14 +532,6 @@ export class VentasService {
             .populate('trabajador', 'nombre identificador')
             .lean()
             .exec() as unknown as PopulatedVenta[];
-
-        // Log para verificar estructura después de lean
-        if (ventas.length > 0 && ventas[0].pagos && ventas[0].pagos.length > 0) {
-            const primerPago = ventas[0].pagos[0];
-            this.logger.debug(`Primer pago DESPUÉS de lean: ${JSON.stringify(primerPago, null, 2)}`);
-            this.logger.debug(`Primer pago tiene usuario?: ${!!(primerPago as any).usuario}`);
-            this.logger.debug(`Primer pago tiene trabajador?: ${!!(primerPago as any).trabajador}`);
-        }
 
         // Recopilar todos los IDs de trabajadores y usuarios de los pagos para hacer populate en batch
         const trabajadorIdsSet = new Set<string>();
@@ -611,16 +549,11 @@ export class VentasService {
                         const usuarioId = (pago as any).usuario;
                         if (Types.ObjectId.isValid(usuarioId)) {
                             usuarioIdsSet.add(usuarioId.toString());
-                        } else {
-                            this.logger.warn(`Usuario ID no válido en pago: ${usuarioId}`);
                         }
-                    } else {
-                        this.logger.debug(`Pago sin campo usuario. Pago completo: ${JSON.stringify(pago)}`);
                     }
                 }
             }
         }
-        this.logger.debug(`Total trabajadores a popular: ${trabajadorIdsSet.size}, Total usuarios a popular: ${usuarioIdsSet.size}`);
 
         // Hacer populate en batch de todos los trabajadores
         const trabajadoresMap = new Map<string, any>();
@@ -641,7 +574,6 @@ export class VentasService {
         const usuariosMap = new Map<string, any>();
         if (usuarioIdsSet.size > 0) {
             const usuarioIdsArray = Array.from(usuarioIdsSet).map(id => new Types.ObjectId(id));
-            this.logger.debug(`Populando ${usuarioIdsArray.length} usuarios de pagos: ${usuarioIdsArray.map(id => id.toString()).join(', ')}`);
             const usuarios = await this.userModel
                 .find({ _id: { $in: usuarioIdsArray } })
                 .select('username')
@@ -672,21 +604,13 @@ export class VentasService {
                             const usuario = usuariosMap.get(usuarioId.toString());
                             if (usuario) {
                                 (pago as any).usuario = usuario;
-                            } else {
-                                this.logger.warn(`Usuario no encontrado en map para ID: ${usuarioId}`);
                             }
-                        } else {
-                            this.logger.warn(`Usuario ID no válido: ${usuarioId}`);
                         }
                     }
                 }
             }
         }
 
-        console.log('Ventas encontradas:', ventas.length);
-        if (ventas.length > 0) {
-            console.log('Primera venta:', JSON.stringify(ventas[0], null, 2));
-        }
 
         // Obtener reservas
         let reservas: PopulatedReserva[] = [];
@@ -724,15 +648,9 @@ export class VentasService {
                 .exec() as unknown as PopulatedReserva[];
         }
 
-        console.log('Reservas encontradas:', reservas.length);
-        if (reservas.length > 0) {
-            console.log('Primera reserva:', JSON.stringify(reservas[0], null, 2));
-        }
-
         // Transformar reservas al formato común
         // Similar a las ventas, si hay pagos individuales, crear una fila por cada pago
         const reservasTransformadas = reservas.flatMap(reserva => {
-            console.log('Transformando reserva:', JSON.stringify(reserva, null, 2));
             const nombreCompleto = reserva.socio?.nombre ?
                 `${reserva.socio.nombre.nombre} ${reserva.socio.nombre.primerApellido}${reserva.socio.nombre.segundoApellido ? ' ' + reserva.socio.nombre.segundoApellido : ''}` :
                 'Socio no encontrado';
@@ -875,10 +793,8 @@ export class VentasService {
                     // El pago tiene trabajador (hecho por TIENDA)
                     if (typeof trabajadorPago === 'object' && trabajadorPago.nombre) {
                         trabajadorFinal = trabajadorPago;
-                        this.logger.debug(`Pago tiene trabajador: ${trabajadorFinal.nombre}`);
                     } else if (Types.ObjectId.isValid(trabajadorPago)) {
                         // Es un ObjectId, debería estar populado pero no lo está
-                        this.logger.warn(`Trabajador del pago no está populado: ${trabajadorPago}`);
                         // Intentar usar el trabajador de la venta como fallback
                         trabajadorFinal = venta.trabajador;
                     }
@@ -886,10 +802,8 @@ export class VentasService {
                     // El pago tiene usuario (hecho por usuario no TIENDA)
                     if (typeof usuarioPago === 'object' && usuarioPago.username) {
                         usuarioFinal = usuarioPago;
-                        this.logger.debug(`Pago tiene usuario: ${usuarioFinal.username}`);
                     } else {
                         // Si es solo un ObjectId, usar el usuario de la venta (no debería pasar si el populate funcionó)
-                        this.logger.warn(`Usuario del pago no está populado, usando usuario de venta. Usuario ID: ${usuarioPago}`);
                         usuarioFinal = venta.usuario;
                     }
                 } else {
@@ -1197,7 +1111,6 @@ export class VentasService {
                 return sum + (typeof monto === 'number' ? monto : 0);
             }, 0);
             
-            this.logger.log(`[Recaudaciones] Filtro aplicado: ${totalAntesFiltro} → ${totalDespuesFiltro} recaudaciones | Total: ${totalRecaudado.toFixed(2)}€ | Por tipo: ${JSON.stringify(resumenPorTipo)}`);
         }
 
         // Aplicar filtro de método de pago si está presente

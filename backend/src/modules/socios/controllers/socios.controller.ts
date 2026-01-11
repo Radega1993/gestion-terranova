@@ -27,35 +27,30 @@ export class SociosController {
     @Post()
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     async create(@Body() createSocioDto: CreateSocioDto) {
-        this.logger.debug(`Creating new socio: ${JSON.stringify(createSocioDto)}`);
         return this.sociosService.create(createSocioDto);
     }
 
     @Get()
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async findAll() {
-        this.logger.debug('Fetching all socios');
         return this.sociosService.findAll();
     }
 
     @Get('simplified')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async getSimplifiedList() {
-        this.logger.debug('Fetching simplified list of socios and asociados');
         return this.sociosService.getSimplifiedList();
     }
 
     @Get('last-number')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async getLastNumber() {
-        this.logger.debug('Getting last socio number');
         return this.sociosService.getLastNumber();
     }
 
     @Get('validate-number/:number')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async validateNumber(@Param('number') number: string) {
-        this.logger.debug(`Validating socio number: ${number}`);
         return this.sociosService.validateNumber(number);
     }
 
@@ -63,7 +58,6 @@ export class SociosController {
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     @UseInterceptors(FileInterceptor('file'))
     async importSocios(@UploadedFile() file: Express.Multer.File) {
-        this.logger.debug('Iniciando proceso de importación de socios');
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(file.buffer);
         const worksheet = workbook.getWorksheet(1);
@@ -138,11 +132,9 @@ export class SociosController {
         // Convert worksheet to array for sequential processing
         const rows = worksheet.getRows(1, worksheet.rowCount);
         if (!rows) {
-            this.logger.debug('No se encontraron filas en el archivo Excel');
             return results;
         }
 
-        this.logger.debug(`Total de filas encontradas: ${rows.length}`);
 
         // Función para procesar email
         const processEmail = (value: any): string => {
@@ -163,11 +155,9 @@ export class SociosController {
             const codigo = sanitizeString(row.getCell(1).value);
             // Log de todos los valores de la fila para debug
             const filaValores = row.values ? (Array.isArray(row.values) ? row.values : Object.values(row.values)) : [];
-            this.logger.debug(`Fila ${i} valores: ${JSON.stringify(filaValores)}`);
 
             if (!codigo) {
                 emptyRowCount++;
-                this.logger.debug(`Fila ${i}: Sin código, saltando... (${emptyRowCount} vacías seguidas)`);
                 // Si hay más de 10 filas vacías seguidas, detenemos la importación
                 if (emptyRowCount > 10) {
                     this.logger.warn(`Se encontraron más de 10 filas seguidas vacías. Deteniendo la importación en la fila ${i}.`);
@@ -178,24 +168,19 @@ export class SociosController {
                 emptyRowCount = 0; // Reinicia el contador si hay datos
             }
 
-            this.logger.debug(`Procesando fila ${i} con código: ${codigo}`);
 
             // Check if this is a main socio or an asociado
             const isAsociado = codigo.includes('_');
-            this.logger.debug(`Es asociado: ${isAsociado}`);
 
             if (!isAsociado) {
                 // If we have a previous socio, save it with its asociados
                 if (currentSocio) {
-                    this.logger.debug(`Procesando socio anterior: ${currentSocio.socio}`);
                     try {
                         // Check if socio exists before trying to create it
                         const existingSocio = await this.sociosService.findBySocioCode(currentSocio.socio);
                         if (existingSocio) {
-                            this.logger.debug(`Socio ${currentSocio.socio} ya existe en la base de datos`);
                             // Actualizar los asociados del socio existente
                             if (asociados.length > 0) {
-                                this.logger.debug(`Actualizando asociados para socio ${currentSocio.socio}`);
                                 const existingAsociados = existingSocio.asociados || [];
                                 // Filtrar asociados duplicados por código
                                 const uniqueAsociados = asociados.filter(newAsociado =>
@@ -203,7 +188,6 @@ export class SociosController {
                                 );
                                 const updatedAsociados = [...existingAsociados, ...uniqueAsociados];
                                 await this.sociosService.updateAsociados(existingSocio._id, updatedAsociados);
-                                this.logger.debug(`Asociados actualizados para socio ${currentSocio.socio}`);
                             }
                             if (!results.errors.some(e => e.socio === currentSocio.socio)) {
                                 results.errors.push({
@@ -212,14 +196,12 @@ export class SociosController {
                                 });
                             }
                         } else {
-                            this.logger.debug(`Creando nuevo socio: ${currentSocio.socio}`);
                             const socioData = {
                                 ...currentSocio,
                                 asociados: asociados
                             };
                             await this.sociosService.create(socioData);
                             results.success.push(currentSocio.socio);
-                            this.logger.debug(`Socio ${currentSocio.socio} creado exitosamente`);
                         }
                     } catch (error) {
                         this.logger.error(`Error procesando socio ${currentSocio.socio}: ${error.message}`);
@@ -233,10 +215,8 @@ export class SociosController {
                 }
 
                 // Verificar si el nuevo socio ya existe antes de procesarlo
-                this.logger.debug(`Verificando si el socio ${codigo} ya existe`);
                 const existingSocio = await this.sociosService.findBySocioCode(codigo);
                 if (existingSocio) {
-                    this.logger.debug(`Socio ${codigo} ya existe, guardando ID para procesar asociados`);
                     existingSocioId = existingSocio._id;
                     if (!results.errors.some(e => e.socio === codigo)) {
                         results.errors.push({
@@ -248,7 +228,6 @@ export class SociosController {
                     existingSocioId = null;
                 }
 
-                this.logger.debug(`Iniciando procesamiento de nuevo socio: ${codigo}`);
                 const socioData: any = {
                     socio: codigo,
                     nombre: {
@@ -286,12 +265,10 @@ export class SociosController {
                     active: true,
                     rgpd: true
                 };
-                this.logger.debug(`Socio principal procesado: ${JSON.stringify(socioData)}`);
                 currentSocio = socioData;
                 asociados = [];
             } else {
                 // Procesar asociado
-                this.logger.debug(`Procesando asociado ${codigo}`);
                 const asociado: any = {
                     codigo: codigo,
                     nombre: sanitizeString(row.getCell(2).value) || '',
@@ -302,9 +279,7 @@ export class SociosController {
                     fechaNacimiento: parseToValidDate(row.getCell(25).value),
                     foto: ''
                 };
-                this.logger.debug(`Asociado procesado: ${JSON.stringify(asociado)}`);
                 if (existingSocioId) {
-                    this.logger.debug(`Añadiendo asociado ${codigo} a socio existente ${existingSocioId}`);
                     try {
                         const existingSocio = await this.sociosService.findOne(existingSocioId.toString());
                         const existingAsociados = existingSocio.asociados || [];
@@ -312,9 +287,7 @@ export class SociosController {
                         if (!existingAsociados.some(a => a.codigo === asociado.codigo)) {
                             const updatedAsociados = [...existingAsociados, asociado];
                             await this.sociosService.updateAsociados(existingSocioId.toString(), updatedAsociados);
-                            this.logger.debug(`Asociado ${codigo} añadido exitosamente a socio existente`);
                         } else {
-                            this.logger.debug(`Asociado ${codigo} ya existe, saltando...`);
                         }
                     } catch (error) {
                         this.logger.error(`Error añadiendo asociado ${codigo} a socio existente: ${error.message}`);
@@ -325,25 +298,20 @@ export class SociosController {
                     }
                 } else if (currentSocio) {
                     // Si no es un socio existente, añadir a la lista de asociados del socio actual
-                    this.logger.debug(`Añadiendo asociado ${codigo} a nuevo socio ${currentSocio.socio}`);
                     asociados.push(asociado);
                 } else {
-                    this.logger.debug(`Asociado ${codigo} ignorado porque no hay socio principal`);
                 }
             }
         }
 
         // Save the last socio
         if (currentSocio) {
-            this.logger.debug(`Procesando último socio: ${currentSocio.socio}`);
             try {
                 // Check if socio exists before trying to create it
                 const existingSocio = await this.sociosService.findBySocioCode(currentSocio.socio);
                 if (existingSocio) {
-                    this.logger.debug(`Último socio ${currentSocio.socio} ya existe en la base de datos`);
                     // Actualizar los asociados del socio existente
                     if (asociados.length > 0) {
-                        this.logger.debug(`Actualizando asociados para último socio ${currentSocio.socio}`);
                         const existingAsociados = existingSocio.asociados || [];
                         // Filtrar asociados duplicados por código
                         const uniqueAsociados = asociados.filter(newAsociado =>
@@ -351,7 +319,6 @@ export class SociosController {
                         );
                         const updatedAsociados = [...existingAsociados, ...uniqueAsociados];
                         await this.sociosService.updateAsociados(existingSocio._id, updatedAsociados);
-                        this.logger.debug(`Asociados actualizados para último socio ${currentSocio.socio}`);
                     }
                     if (!results.errors.some(e => e.socio === currentSocio.socio)) {
                         results.errors.push({
@@ -360,14 +327,12 @@ export class SociosController {
                         });
                     }
                 } else {
-                    this.logger.debug(`Creando último socio: ${currentSocio.socio}`);
                     const socioData = {
                         ...currentSocio,
                         asociados: asociados
                     };
                     await this.sociosService.create(socioData);
                     results.success.push(currentSocio.socio);
-                    this.logger.debug(`Último socio ${currentSocio.socio} creado exitosamente`);
                 }
             } catch (error) {
                 this.logger.error(`Error procesando último socio ${currentSocio.socio}: ${error.message}`);
@@ -380,7 +345,6 @@ export class SociosController {
             }
         }
 
-        this.logger.debug(`Proceso de importación finalizado. Éxitos: ${results.success.length}, Errores: ${results.errors.length}`);
         return results;
     }
 
@@ -492,7 +456,6 @@ export class SociosController {
     @Get(':id')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async findOne(@Param('id') id: string) {
-        this.logger.debug(`Fetching socio with ID: ${id}`);
         return this.sociosService.findOne(id);
     }
 
@@ -504,7 +467,6 @@ export class SociosController {
         @Body() updateSocioDto: UpdateSocioDto,
         @UploadedFile() file?: Express.Multer.File
     ) {
-        this.logger.debug(`Updating socio ${id} with data: ${JSON.stringify(updateSocioDto)}`);
 
         if (file) {
             const filename = await this.uploadsService.saveFile(file);
@@ -520,7 +482,6 @@ export class SociosController {
         @Param('id') id: string,
         @Body() body: { filename: string }
     ) {
-        this.logger.debug(`Updating foto for socio with ID: ${id}`);
         try {
             if (!body.filename) {
                 throw new BadRequestException('No se ha proporcionado el nombre del archivo');
@@ -537,14 +498,12 @@ export class SociosController {
     @Delete(':id')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     async remove(@Param('id') id: string) {
-        this.logger.debug(`Removing socio with ID: ${id}`);
         return this.sociosService.remove(id);
     }
 
     @Put(':id/toggle-active')
     @Roles(UserRole.ADMINISTRADOR)
     async toggleActive(@Param('id') id: string) {
-        this.logger.debug(`Toggling active status for socio with ID: ${id}`);
         return this.sociosService.toggleActive(id);
     }
 
@@ -570,9 +529,6 @@ export class SociosController {
         @Param('asociadoId') asociadoId: string,
         @Body() updateMiembroDto: UpdateAsociadoDto
     ) {
-        this.logger.debug('Controlador: Iniciando actualización de asociado');
-        this.logger.debug(`Controlador: Datos recibidos: ${JSON.stringify(updateMiembroDto)}`);
-        this.logger.debug(`Controlador: Tipo de fechaNacimiento: ${typeof updateMiembroDto.fechaNacimiento}`);
         return this.sociosService.updateAsociado(id, asociadoId, updateMiembroDto);
     }
 
@@ -583,8 +539,6 @@ export class SociosController {
         @Param('asociadoIndex') asociadoIndex: string,
         @Body() updateMiembroDto: UpdateAsociadoDto & { codigo?: string }
     ) {
-        this.logger.debug('Controlador: Iniciando actualización de asociado por índice');
-        this.logger.debug(`Controlador: Datos recibidos: ${JSON.stringify(updateMiembroDto)}`);
         return this.sociosService.updateAsociadoByIndex(id, parseInt(asociadoIndex, 10), updateMiembroDto);
     }
 
@@ -610,7 +564,6 @@ export class SociosController {
     @Get(':id/productos-consumidos')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async getProductosConsumidos(@Param('id') id: string) {
-        this.logger.debug(`Fetching productos consumidos for socio with ID: ${id}`);
         return this.sociosService.getProductosConsumidos(id);
     }
 

@@ -10,13 +10,13 @@ import { Request } from 'express';
 
 @Controller('devoluciones')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
 export class DevolucionesController {
     private readonly logger = new Logger(DevolucionesController.name);
 
     constructor(private readonly devolucionesService: DevolucionesService) { }
 
     @Post()
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     async create(@Body() createDevolucionDto: CreateDevolucionDto, @Req() req) {
         try {
             return this.devolucionesService.create(createDevolucionDto, req.user._id, req.user.role);
@@ -27,6 +27,7 @@ export class DevolucionesController {
     }
 
     @Get()
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     async findAll(
         @Query('fechaInicio') fechaInicio?: string,
         @Query('fechaFin') fechaFin?: string,
@@ -52,6 +53,7 @@ export class DevolucionesController {
     }
 
     @Get(':id')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     async findOne(@Param('id') id: string) {
         return this.devolucionesService.findOne(id);
     }

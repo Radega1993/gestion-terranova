@@ -124,9 +124,7 @@ export class ServiciosService {
 
     async findAllSuplementos(): Promise<Suplemento[]> {
         try {
-            console.log('Iniciando búsqueda de suplementos en la base de datos...');
             const suplementos = await this.suplementoModel.find().exec();
-            console.log('Suplementos encontrados en la base de datos:', JSON.stringify(suplementos, null, 2));
             return suplementos;
         } catch (error) {
             console.error('Error al buscar suplementos en la base de datos:', error);

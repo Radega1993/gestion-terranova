@@ -20,7 +20,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     async validate(payload: any) {
-        this.logger.debug(`Validating JWT payload: ${JSON.stringify(payload)}`);
 
         const user = await this.usersService.findOne(payload.sub);
         if (!user) {

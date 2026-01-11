@@ -39,7 +39,6 @@ export class UploadsService {
             const filepath = join(this.uploadsDir, filename);
             await fs.unlink(filepath);
         } catch (error) {
-            this.logger.debug(`Archivo no encontrado, omitiendo eliminación: ${filename}`);
         }
     }
 

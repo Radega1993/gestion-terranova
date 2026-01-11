@@ -15,10 +15,8 @@ export class RolesGuard implements CanActivate {
             context.getClass(),
         ]);
 
-        this.logger.debug(`Required roles: ${JSON.stringify(requiredRoles)}`);
 
         if (!requiredRoles) {
-            this.logger.debug('No roles required, access granted');
             return true;
         }
 
@@ -34,12 +32,6 @@ export class RolesGuard implements CanActivate {
             const token = authHeader.split(' ')[1];
             const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as any;
 
-            this.logger.debug(`Token decoded: ${JSON.stringify({
-                sub: decoded.sub,
-                username: decoded.username,
-                role: decoded.role
-            })}`);
-
             if (!decoded || !decoded.role) {
                 this.logger.warn('Invalid token: no role found');
                 throw new UnauthorizedException('Token inválido o sin rol');
@@ -48,7 +40,6 @@ export class RolesGuard implements CanActivate {
             const userRole = decoded.role as UserRole;
             const hasRequiredRole = requiredRoles.includes(userRole);
 
-            this.logger.debug(`User role: ${userRole}, Has required role: ${hasRequiredRole}`);
 
             if (!hasRequiredRole) {
                 this.logger.warn(`Access denied - User role ${userRole} does not have required roles: ${requiredRoles.join(', ')}`);

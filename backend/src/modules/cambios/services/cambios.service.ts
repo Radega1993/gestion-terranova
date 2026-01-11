@@ -104,17 +104,11 @@ export class CambiosService {
         if (productoOriginalEnInventario) {
             productoOriginalEnInventario.stock_actual += createCambioDto.productoOriginal.cantidad;
             await productoOriginalEnInventario.save();
-            this.logger.log(
-                `Stock actualizado para ${createCambioDto.productoOriginal.nombre}: +${createCambioDto.productoOriginal.cantidad}`
-            );
         }
 
         // 2. Quitar producto nuevo del stock
         productoNuevoEnInventario.stock_actual -= createCambioDto.productoNuevo.cantidad;
         await productoNuevoEnInventario.save();
-        this.logger.log(
-            `Stock actualizado para ${createCambioDto.productoNuevo.nombre}: -${createCambioDto.productoNuevo.cantidad}`
-        );
 
         // Actualizar la venta original
         // Crear una copia del array de productos para modificarlo
@@ -219,10 +213,6 @@ export class CambiosService {
 
         const cambio = new this.cambioModel(cambioData);
         const saved = await cambio.save();
-
-        this.logger.log(
-            `Cambio registrado: ${createCambioDto.productoOriginal.nombre} -> ${createCambioDto.productoNuevo.nombre}, diferencia: ${diferenciaPrecio}€`
-        );
 
         return this.cambioModel.findById(saved._id)
             .populate('venta', 'codigoSocio nombreSocio total')
@@ -423,10 +413,6 @@ export class CambiosService {
 
         await venta.save();
         await cambio.save();
-
-        this.logger.log(
-            `Pago/devolución procesado para cambio ${id}. Diferencia: ${diferenciaPrecio}€, Estado: ${cambioDoc.estadoPago}`
-        );
 
         return this.cambioModel.findById(id)
             .populate('venta', 'codigoSocio nombreSocio total')

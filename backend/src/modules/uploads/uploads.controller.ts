@@ -36,22 +36,16 @@ export class UploadsController {
         },
     }))
     async uploadImage(@UploadedFile() file: Express.Multer.File) {
-        this.logger.debug(`Iniciando carga de imagen: ${file?.originalname}`);
-        this.logger.debug(`Tamaño de la imagen: ${file?.size} bytes`);
-        this.logger.debug(`Tipo MIME: ${file?.mimetype}`);
 
         const filename = await this.uploadsService.saveFile(file);
-        this.logger.debug(`Imagen guardada con nombre: ${filename}`);
 
         return { filename };
     }
 
     @Get(':filename')
     async getImage(@Param('filename') filename: string, @Res() res: Response) {
-        this.logger.debug(`Solicitud de imagen: ${filename}`);
         try {
             const filePath = await this.uploadsService.getFilePath(filename);
-            this.logger.debug(`Sirviendo imagen desde: ${filePath}`);
 
             // Determinar el tipo MIME basado en la extensión del archivo
             const ext = extname(filename).toLowerCase();
@@ -80,7 +74,6 @@ export class UploadsController {
             });
 
             fileStream.pipe(res);
-            this.logger.debug(`Imagen enviada exitosamente: ${filename}`);
         } catch (error) {
             this.logger.error(`Error al servir la imagen: ${error.message}`);
             res.status(404).send('Image not found');

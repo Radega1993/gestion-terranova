@@ -23,9 +23,6 @@ export class SociosService {
     private sanitizeData(data: any): any {
         if (!data) return data;
 
-        this.logger.debug(`Sanitizing data: ${JSON.stringify(data)}`);
-        this.logger.debug(`Input fechaNacimiento type: ${typeof data.fechaNacimiento}`);
-        this.logger.debug(`Input fechaNacimiento value: ${data.fechaNacimiento}`);
 
         const sanitizedData = { ...data };
 
@@ -34,22 +31,18 @@ export class SociosService {
             try {
                 // Si es un string ISO, convertirlo a Date
                 if (typeof sanitizedData.fechaNacimiento === 'string') {
-                    this.logger.debug(`Converting string fechaNacimiento in sanitizeData: ${sanitizedData.fechaNacimiento}`);
                     const date = new Date(sanitizedData.fechaNacimiento);
                     if (!isNaN(date.getTime())) {
                         sanitizedData.fechaNacimiento = date;
-                        this.logger.debug(`Successfully converted to Date in sanitizeData: ${date}`);
                     } else {
                         this.logger.warn(`Invalid date string for fechaNacimiento in sanitizeData: ${sanitizedData.fechaNacimiento}`);
                         delete sanitizedData.fechaNacimiento;
                     }
                 } else if (sanitizedData.fechaNacimiento instanceof Date) {
-                    this.logger.debug(`Processing Date object in sanitizeData: ${sanitizedData.fechaNacimiento}`);
                     if (isNaN(sanitizedData.fechaNacimiento.getTime())) {
                         this.logger.warn('Invalid Date object for fechaNacimiento in sanitizeData');
                         delete sanitizedData.fechaNacimiento;
                     } else {
-                        this.logger.debug(`Valid Date object in sanitizeData: ${sanitizedData.fechaNacimiento}`);
                     }
                 } else {
                     this.logger.warn(`Unexpected type for fechaNacimiento in sanitizeData: ${typeof sanitizedData.fechaNacimiento}`);
@@ -61,8 +54,6 @@ export class SociosService {
             }
         }
 
-        this.logger.debug(`After fechaNacimiento processing - type: ${typeof sanitizedData.fechaNacimiento}`);
-        this.logger.debug(`After fechaNacimiento processing - value: ${sanitizedData.fechaNacimiento}`);
 
         // No sanitizar objetos complejos como fechaNacimiento
         const sanitizeString = (value: any): string => {
@@ -107,8 +98,6 @@ export class SociosService {
         };
 
         const result = sanitizeObject(sanitizedData);
-        this.logger.debug(`Final sanitized data - fechaNacimiento type: ${typeof result.fechaNacimiento}`);
-        this.logger.debug(`Final sanitized data - fechaNacimiento value: ${result.fechaNacimiento}`);
         return result;
     }
 
@@ -132,7 +121,6 @@ export class SociosService {
                 }
             }
 
-            this.logger.debug(`Creating socio with data: ${JSON.stringify(sanitizedData)}`);
             const createdSocio = new this.socioModel(sanitizedData);
             return createdSocio.save();
         } catch (error) {
@@ -165,7 +153,6 @@ export class SociosService {
 
     async update(id: string, updateSocioDto: UpdateSocioDto): Promise<Socio> {
         try {
-            this.logger.debug(`Service received update data: ${JSON.stringify(updateSocioDto)}`);
 
             // Validar que los datos no estén vacíos
             if (!updateSocioDto || Object.keys(updateSocioDto).length === 0) {
@@ -178,7 +165,6 @@ export class SociosService {
                     const date = new Date(updateSocioDto.fechaNacimiento);
                     if (!isNaN(date.getTime())) {
                         updateSocioDto.fechaNacimiento = date;
-                        this.logger.debug(`Pre-sanitize fechaNacimiento processed: ${date}`);
                     } else {
                         this.logger.warn(`Invalid fechaNacimiento before sanitize: ${updateSocioDto.fechaNacimiento}`);
                         delete updateSocioDto.fechaNacimiento;
@@ -193,11 +179,9 @@ export class SociosService {
             const { _id, __v, createdAt, updatedAt, ...dataToUpdate } = updateSocioDto;
 
             const sanitizedData = this.sanitizeData(dataToUpdate);
-            this.logger.debug(`After sanitizeData: ${JSON.stringify(sanitizedData)}`);
 
             // Verificar que la fecha de nacimiento se mantiene después de la sanitización
             if (sanitizedData.fechaNacimiento) {
-                this.logger.debug(`fechaNacimiento after sanitize: ${sanitizedData.fechaNacimiento}`);
             }
 
             const updatedSocio = await this.socioModel.findByIdAndUpdate(
@@ -210,7 +194,6 @@ export class SociosService {
                 throw new NotFoundException(`Socio with ID ${id} not found`);
             }
 
-            this.logger.debug(`Updated socio: ${JSON.stringify(updatedSocio)}`);
             return updatedSocio;
         } catch (error) {
             this.logger.error(`Error updating socio: ${error.message}`);
@@ -220,7 +203,6 @@ export class SociosService {
 
     async updateFoto(id: string, filename: string): Promise<Socio> {
         try {
-            this.logger.debug(`Updating foto for socio ${id} with filename: ${filename}`);
 
             const updatedSocio = await this.socioModel.findByIdAndUpdate(
                 id,
@@ -232,7 +214,6 @@ export class SociosService {
                 throw new NotFoundException(`Socio with ID ${id} not found`);
             }
 
-            this.logger.debug(`Foto updated successfully for socio: ${id}`);
             return updatedSocio;
         } catch (error) {
             this.logger.error(`Error updating foto for socio ${id}: ${error.message}`);
@@ -313,8 +294,6 @@ export class SociosService {
     }
 
     async updateAsociado(socioId: string, asociadoId: string, updateMiembroDto: UpdateAsociadoDto) {
-        this.logger.debug('Iniciando actualización de asociado');
-        this.logger.debug(`Datos recibidos: ${JSON.stringify(updateMiembroDto)}`);
 
         const socio = await this.socioModel.findById(socioId);
         if (!socio) {
@@ -339,19 +318,15 @@ export class SociosService {
             fechaNacimiento: updateMiembroDto.fechaNacimiento ? new Date(updateMiembroDto.fechaNacimiento) : socio.asociados[asociadoIndex].fechaNacimiento
         };
 
-        this.logger.debug(`Datos a actualizar: ${JSON.stringify(asociadoActualizado)}`);
 
         // Actualizar el asociado
         socio.asociados[asociadoIndex] = asociadoActualizado;
         await socio.save();
 
-        this.logger.debug('Asociado actualizado correctamente');
         return socio.asociados[asociadoIndex];
     }
 
     async updateAsociadoByIndex(socioId: string, asociadoIndex: number, updateMiembroDto: UpdateAsociadoDto & { codigo?: string }) {
-        this.logger.debug('Iniciando actualización de asociado por índice');
-        this.logger.debug(`Datos recibidos: ${JSON.stringify(updateMiembroDto)}`);
 
         const socio = await this.socioModel.findById(socioId);
         if (!socio) {
@@ -371,13 +346,11 @@ export class SociosService {
             fechaNacimiento: updateMiembroDto.fechaNacimiento ? new Date(updateMiembroDto.fechaNacimiento) : socio.asociados[asociadoIndex].fechaNacimiento
         };
 
-        this.logger.debug(`Datos a actualizar: ${JSON.stringify(asociadoActualizado)}`);
 
         // Actualizar el asociado
         socio.asociados[asociadoIndex] = asociadoActualizado;
         await socio.save();
 
-        this.logger.debug('Asociado actualizado correctamente');
         return socio.asociados[asociadoIndex];
     }
 
@@ -419,7 +392,6 @@ export class SociosService {
 
     async getLastNumber(): Promise<string> {
         try {
-            this.logger.debug('Iniciando búsqueda del último número de socio');
 
             // Buscar el último socio ordenado por número descendente
             const lastSocio = await this.socioModel
@@ -427,25 +399,20 @@ export class SociosService {
                 .sort({ socio: -1 })
                 .exec();
 
-            this.logger.debug(`Último socio encontrado: ${JSON.stringify(lastSocio)}`);
 
             if (!lastSocio || !lastSocio.socio) {
-                this.logger.debug('No se encontró ningún socio, devolviendo AET000');
                 return JSON.stringify({ number: 'AET000' });
             }
 
             // Extraer el número del último socio
             const lastNumber = parseInt(lastSocio.socio.replace('AET', ''));
-            this.logger.debug(`Número extraído del último socio: ${lastNumber}`);
 
             if (isNaN(lastNumber)) {
-                this.logger.debug('El número extraído no es válido, devolviendo AET000');
                 return JSON.stringify({ number: 'AET000' });
             }
 
             const nextNumber = (lastNumber + 1).toString().padStart(3, '0');
             const result = `AET${nextNumber}`;
-            this.logger.debug(`Siguiente número calculado: ${result}`);
 
             return JSON.stringify({ number: result });
         } catch (error) {
@@ -481,8 +448,6 @@ export class SociosService {
 
     async updateAsociados(id: string, asociados: Asociado[]): Promise<Socio> {
         try {
-            this.logger.debug('Iniciando actualización de asociados');
-            this.logger.debug(`Datos recibidos: ${JSON.stringify(asociados)}`);
 
             // Obtener el socio actual
             const socio = await this.socioModel.findById(id);
@@ -510,7 +475,6 @@ export class SociosService {
                 return asociadoExistente;
             }) || [];
 
-            this.logger.debug(`Asociados procesados: ${JSON.stringify(asociadosProcesados)}`);
 
             // Actualizar el socio con los asociados procesados
             const updatedSocio = await this.socioModel.findByIdAndUpdate(
@@ -523,7 +487,6 @@ export class SociosService {
                 throw new NotFoundException('Error al actualizar los asociados');
             }
 
-            this.logger.debug('Asociados actualizados correctamente');
             return updatedSocio;
         } catch (error) {
             this.logger.error(`Error updating asociados: ${error.message}`);
@@ -561,7 +524,6 @@ export class SociosService {
 
     async getAsociadosInvalidos(): Promise<Array<{ socioId: string; socioCodigo: string; socioNombre: string; asociado: any; motivo: string[] }>> {
         try {
-            this.logger.debug('Obteniendo lista de asociados inválidos');
             
             const socios = await this.socioModel.find({}).exec();
             const asociadosInvalidos: Array<{ socioId: string; socioCodigo: string; socioNombre: string; asociado: any; motivo: string[] }> = [];
@@ -602,7 +564,6 @@ export class SociosService {
                 });
             }
 
-            this.logger.debug(`Encontrados ${asociadosInvalidos.length} asociados inválidos`);
             return asociadosInvalidos;
         } catch (error) {
             this.logger.error(`Error obteniendo asociados inválidos: ${error.message}`);
@@ -612,7 +573,6 @@ export class SociosService {
 
     async limpiarAsociadosInvalidos(idsToDelete?: Array<{ socioId: string; asociadoId?: string; asociadoCodigo?: string }>): Promise<{ sociosActualizados: number; asociadosEliminados: number }> {
         try {
-            this.logger.debug('Iniciando limpieza de asociados inválidos');
             
             const socios = await this.socioModel.find({}).exec();
             let sociosActualizados = 0;
@@ -675,11 +635,9 @@ export class SociosService {
                     
                     sociosActualizados++;
                     asociadosEliminados += asociadosEliminadosEnEsteSocio;
-                    this.logger.debug(`Socio ${socio.socio}: eliminados ${asociadosEliminadosEnEsteSocio} asociados inválidos`);
                 }
             }
 
-            this.logger.debug(`Limpieza completada: ${sociosActualizados} socios actualizados, ${asociadosEliminados} asociados eliminados`);
             return { sociosActualizados, asociadosEliminados };
         } catch (error) {
             this.logger.error(`Error limpiando asociados inválidos: ${error.message}`);

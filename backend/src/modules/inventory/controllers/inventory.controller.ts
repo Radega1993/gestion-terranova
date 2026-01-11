@@ -50,21 +50,18 @@ export class InventoryController {
         @Query('query') query: string,
         @Query('field') field: 'nombre' | 'tipo' = 'nombre'
     ) {
-        this.logger.debug(`Searching products with ${field}: ${query}`);
         return this.inventoryService.searchProducts(query, field);
     }
 
     @Get('types')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async getTypes() {
-        this.logger.debug('Fetching product types');
         return this.inventoryService.getUniqueTypes();
     }
 
     @Get('export')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async exportProducts(@Res() res: Response) {
-        this.logger.debug('Exporting products to Excel');
         try {
             const products = await this.inventoryService.findAll();
             const workbook = new ExcelJS.Workbook();
@@ -111,7 +108,6 @@ export class InventoryController {
     @Get()
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async findAll() {
-        this.logger.debug('Fetching all products');
         return this.inventoryService.findAll();
     }
 
@@ -159,7 +155,6 @@ export class InventoryController {
     async updateDuplicateProduct(
         @Body() updateData: { rowIndex: number; productId: string; newData: CreateProductDto }
     ): Promise<ProductDocument> {
-        this.logger.debug(`Updating duplicate product with ID: ${updateData.productId}`);
         return this.inventoryService.update(updateData.productId, updateData.newData);
     }
 
@@ -168,7 +163,6 @@ export class InventoryController {
     async fixInvalidData(
         @Body() fixData: { rowIndex: number; field: string; value: any }
     ): Promise<{ success: boolean }> {
-        this.logger.debug(`Fixing invalid data for row ${fixData.rowIndex}, field: ${fixData.field}`);
         // Aquí podrías implementar la lógica para corregir datos inválidos
         // Por ahora solo devolvemos success
         return { success: true };
@@ -182,7 +176,6 @@ export class InventoryController {
         @Body() createDto: CreateProductoRetiradoDto,
         @Request() req
     ) {
-        this.logger.debug('Registrando producto retirado');
         return this.productosRetiradosService.create(createDto, req.user._id);
     }
 
@@ -191,7 +184,6 @@ export class InventoryController {
     async obtenerResumenProductosRetirados(
         @Query() filtros: FiltrosProductosRetiradosDto
     ) {
-        this.logger.debug('Obteniendo resumen de productos retirados');
         return this.productosRetiradosService.getResumen(filtros);
     }
 
@@ -200,49 +192,42 @@ export class InventoryController {
     async obtenerProductosRetirados(
         @Query() filtros: FiltrosProductosRetiradosDto
     ) {
-        this.logger.debug('Obteniendo productos retirados');
         return this.productosRetiradosService.findAll(filtros);
     }
 
     @Get('productos-retirados/:id')
     @Roles(UserRole.ADMINISTRADOR)
     async obtenerProductoRetirado(@Param('id') id: string) {
-        this.logger.debug(`Obteniendo producto retirado con ID: ${id}`);
         return this.productosRetiradosService.findOne(id);
     }
 
     @Get(':id')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async findOne(@Param('id') id: string) {
-        this.logger.debug(`Fetching product with ID: ${id}`);
         return this.inventoryService.findOne(id);
     }
 
     @Post()
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async create(@Body() createInventoryDto: any) {
-        this.logger.debug('Creating new product');
         return this.inventoryService.create(createInventoryDto);
     }
 
     @Put(':id')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     async update(@Param('id') id: string, @Body() updateInventoryDto: any) {
-        this.logger.debug(`Updating product with ID: ${id}`);
         return this.inventoryService.update(id, updateInventoryDto);
     }
 
     @Delete(':id')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     async remove(@Param('id') id: string) {
-        this.logger.debug(`Removing product with ID: ${id}`);
         return this.inventoryService.remove(id);
     }
 
     @Put(':id/toggle-active')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
     async toggleActive(@Param('id') id: string) {
-        this.logger.debug(`Toggling active status for product with ID: ${id}`);
         return this.inventoryService.toggleActive(id);
     }
 

@@ -19,3 +19,4 @@ export class ProcesarPagoCambioDto {
     trabajadorId?: string;  // Solo si el usuario es TIENDA
 }
 
+

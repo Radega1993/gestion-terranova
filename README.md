@@ -1,6 +1,8 @@
-# Gestión Terranova
+# Gestión Terranova v1.0
 
-Sistema de gestión para asociaciones, desarrollado con NestJS y React.
+**Versión 1.0 - Finalizada** ✅
+
+Sistema de gestión integral para asociaciones de vecinos, desarrollado con NestJS y React. Plataforma SaaS completa para la administración de socios, inventario, ventas, reservas, invitaciones, recaudaciones y más.
 
 ## 🚀 Tecnologías
 
@@ -70,23 +72,71 @@ npm run start:prod
 - **TRABAJADOR**: Acceso a inventario, TPV y reservas
 - **TIENDA**: Acceso a ventas, reservas y gestión de trabajadores asociados
 
-## 🆕 Funcionalidades Recientes
+### Tabla de Permisos por Módulo
 
-### Gestión de Normativa de Reservas
-- ✅ Sistema de gestión de normativa editable para reservas
-- ✅ Normativa incluida automáticamente en PDFs de reserva
-- ✅ Edición de normativa disponible para ADMINISTRADOR y JUNTA
-- ✅ Normativa en página separada del PDF para facilitar firma
-- ✅ Editor de texto con formato (negrita, cursiva, subrayado)
+| Módulo | ADMINISTRADOR | JUNTA | TRABAJADOR | TIENDA |
+|--------|---------------|-------|------------|--------|
+| Autenticación | ✅ | ✅ | ✅ | ✅ |
+| Usuarios | ✅ | ✅ | ❌ | ❌ |
+| Socios | ✅ | ✅ | ❌ | ✅ (solo lectura) |
+| Inventario | ✅ | ❌ | ✅ | ✅ |
+| Ventas (TPV) | ✅ | ❌ | ✅ | ✅ |
+| Cambios | ✅ | ✅ | ✅ | ✅ |
+| Devoluciones | ✅ | ✅ | ❌ | ❌ |
+| Deudas | ✅ | ✅ | ✅ | ✅ |
+| Recaudaciones | ✅ | ✅ | ✅ | ✅ |
+| Reservas | ✅ | ✅ | ✅ | ✅ |
+| Invitaciones | ✅ | ✅ | ✅ | ✅ |
+| Trabajadores | ✅ | ❌ | ❌ | ✅ (solo sus trabajadores) |
+| Tiendas | ✅ | ❌ | ❌ | ❌ |
+| Configuración | ✅ | ✅ | ❌ | ❌ |
+| Productos Retirados | ✅ | ❌ | ❌ | ❌ |
 
-### Gestión de Productos Retirados
-- ✅ Registro de productos retirados del inventario (solo ADMINISTRADOR)
+## 📦 Módulos Implementados (v1.0)
+
+### 1. Autenticación y Autorización
+- ✅ Sistema de login/registro con JWT
+- ✅ Control de acceso por roles (ADMINISTRADOR, JUNTA, TRABAJADOR, TIENDA)
+- ✅ Guards y decorators para protección de rutas
+- ✅ Persistencia de sesión
+- ✅ Logout automático cuando el token expira
+- ✅ Redirección automática al login en caso de token inválido
+
+### 2. Gestión de Usuarios
+- ✅ CRUD completo de usuarios
+- ✅ Gestión de roles y permisos
+- ✅ Control de estado activo/inactivo
+- ✅ Script de creación de administrador inicial
+
+### 3. Gestión de Socios
+- ✅ CRUD completo de socios
+- ✅ Gestión de asociados (miembros familiares)
+- ✅ Información completa: datos personales, dirección, contacto, banco
+- ✅ Control de estado activo/inactivo
+- ✅ Fotos de socios
+- ✅ Importación masiva desde Excel
+- ✅ Historial de actividad
+
+### 4. Inventario
+- ✅ Gestión completa de productos
+- ✅ Control de stock en tiempo real
+- ✅ Importación/exportación Excel
+- ✅ Categorización de productos
+- ✅ Precios de compra y venta
+- ✅ Registro de productos retirados (solo ADMINISTRADOR)
 - ✅ Motivos de retiro: Caducado, Dañado, Defectuoso, Roto, Contaminado, Otro
-- ✅ Historial completo de productos retirados
-- ✅ Resúmenes por motivo y por producto
-- ✅ Generación de informes en PDF
+- ✅ Informes de productos retirados con resúmenes por motivo y producto
 
-### Módulo de Cambios de Productos
+### 5. Ventas (TPV)
+- ✅ Crear ventas con múltiples productos
+- ✅ Selección de socio o asociado
+- ✅ Pagos parciales y múltiples pagos
+- ✅ Métodos de pago: Efectivo y Tarjeta
+- ✅ Cálculo automático de cambio
+- ✅ Trazabilidad de trabajador/usuario que realiza la venta
+- ✅ Historial completo de ventas
+
+### 6. Cambios de Productos
 - ✅ Cambio de productos en ventas del día actual
 - ✅ Gestión de diferencias de precio (cobrar más o devolver)
 - ✅ Procesamiento de pagos/devoluciones con selección de método y trabajador
@@ -95,7 +145,23 @@ npm run start:prod
 - ✅ Historial completo de cambios por venta
 - ✅ Integración con recaudaciones para reflejar movimientos de caja
 
-### Mejoras en Recaudaciones
+### 7. Devoluciones
+- ✅ Registro de devoluciones a socios (solo ADMINISTRADOR y JUNTA)
+- ✅ Selección de venta y productos a devolver
+- ✅ Métodos de devolución: Efectivo y Tarjeta
+- ✅ Estados: PENDIENTE, PROCESADA, CANCELADA
+- ✅ Procesamiento de devoluciones (actualiza inventario)
+- ✅ Historial completo de devoluciones
+
+### 8. Deudas
+- ✅ Visualización de deudas pendientes por socio
+- ✅ Pagos parciales y acumulados
+- ✅ Selección de trabajador al pagar deudas (rol TIENDA)
+- ✅ Manejo correcto de pagos múltiples con múltiples trabajadores
+- ✅ Cálculo automático de cambio cuando se paga más de lo debido
+- ✅ Generación de PDFs de deudas
+
+### 9. Recaudaciones
 - ✅ Resumen de Socios: Información detallada de pagos por socio con productos y días de consumo
 - ✅ Resumen de Productos: Productos vendidos con acumulado y desglose por trabajador
 - ✅ Resumen Detallado: Desglose diario con ventas, reservas y cambios
@@ -107,25 +173,82 @@ npm run start:prod
 - ✅ Cambios PENDIENTE no se cuentan en el total hasta ser procesados
 - ✅ Redondeo automático a 2 decimales en todos los montos
 - ✅ Sincronización correcta entre tabla y PDFs (mismo cálculo de totales)
+- ✅ Generación de múltiples tipos de PDFs (Detallado, General, Socios)
 
-### Mejoras en Invitaciones
+### 10. Reservas
+- ✅ Crear, modificar y cancelar reservas
+- ✅ Gestión de servicios y suplementos
+- ✅ Visualización de disponibilidad en calendario
+- ✅ Pagos parciales y liquidación de reservas
+- ✅ Gestión de normativa editable para reservas
+- ✅ Normativa incluida automáticamente en PDFs de reserva
+- ✅ Editor de texto con formato (negrita, cursiva, subrayado)
+- ✅ Generación de PDFs de reserva con normativa
+
+### 11. Invitaciones
+- ✅ Cada socio dispone de 12 invitaciones por año
+- ✅ Registro de uso de invitaciones
 - ✅ Registro del usuario que crea cada invitación
 - ✅ Selector de trabajador para usuarios TIENDA
 - ✅ Visualización del usuario registrador en la lista de invitaciones
+- ✅ Historial completo de invitaciones y modificaciones
+- ✅ Generación de PDFs de invitaciones
 
-### Mejoras en Deudas
-- ✅ Selección de trabajador al pagar deudas (rol TIENDA)
-- ✅ Manejo correcto de pagos parciales con múltiples trabajadores
-- ✅ Cálculo automático de cambio cuando se paga más de lo debido
+### 12. Trabajadores
+- ✅ Gestión de trabajadores asociados a tiendas
+- ✅ Control de estado activo/inactivo
+- ✅ Asignación de trabajadores a usuarios TIENDA
+- ✅ Trazabilidad de acciones realizadas por trabajadores
 
-### Seguridad y Sesión
-- ✅ Logout automático cuando el token JWT expira
-- ✅ Redirección automática al login en caso de token inválido
-- ✅ Manejo mejorado de errores de autenticación
+### 13. Tiendas
+- ✅ Gestión de tiendas (solo ADMINISTRADOR)
+- ✅ Asignación de usuarios TIENDA a tiendas
+- ✅ Gestión de trabajadores por tienda
+
+### 14. Configuración
+- ✅ Gestión de normativa de reservas
+- ✅ Editor de texto con formato
+- ✅ Persistencia de configuración
+
+## 🎯 Características Principales
+
+- ✅ **Interfaz moderna y responsive** con Material-UI
+- ✅ **Autenticación segura** con JWT
+- ✅ **Control de acceso granular** por roles
+- ✅ **Gestión completa de inventario** con control de stock
+- ✅ **Sistema TPV completo** para ventas
+- ✅ **Gestión de reservas** con calendario y disponibilidad
+- ✅ **Sistema de invitaciones** con límite anual por socio
+- ✅ **Recaudaciones avanzadas** con múltiples filtros y reportes
+- ✅ **Generación de PDFs** para múltiples módulos
+- ✅ **Importación/exportación Excel** para inventario y socios
+- ✅ **Trazabilidad completa** de todas las operaciones
+
+## 📊 Estado del Proyecto
+
+**Versión 1.0 - Finalizada** ✅
+
+Esta versión incluye todas las funcionalidades principales del sistema de gestión para asociaciones de vecinos. El sistema está completamente funcional y listo para uso en producción.
+
+### Próximas Versiones
+
+Las mejoras y nuevas funcionalidades se implementarán en futuras versiones según las necesidades del proyecto.
 
 ## 📝 Licencia
 
 Este proyecto está bajo la Licencia MIT.
+
+## 📅 Historial de Versiones
+
+### v1.0 (Finalizada)
+- ✅ Implementación completa de todos los módulos principales
+- ✅ Sistema de autenticación y autorización
+- ✅ Gestión completa de socios, inventario, ventas, reservas e invitaciones
+- ✅ Módulos de cambios y devoluciones
+- ✅ Sistema avanzado de recaudaciones con múltiples filtros y reportes
+- ✅ Generación de PDFs para múltiples módulos
+- ✅ Trazabilidad completa de operaciones
+- ✅ Optimización y limpieza de código
 
 ## Requisitos del Sistema
 

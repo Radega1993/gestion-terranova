@@ -28,23 +28,9 @@ export class DevolucionesService {
             throw new NotFoundException(`Venta con ID ${createDevolucionDto.venta} no encontrada`);
         }
 
-        // Validar que el usuario tiene permiso para devolver esta venta
+        // Solo ADMINISTRADOR y JUNTA pueden crear devoluciones
         if (userRole !== 'ADMINISTRADOR' && userRole !== 'JUNTA') {
-            if (venta.usuario.toString() !== userId) {
-                // Si es TIENDA, verificar que el trabajador pertenece a su tienda
-                if (userRole === 'TIENDA') {
-                    const user = await this.usersService.findOne(userId);
-                    if (!user.tienda) {
-                        throw new BadRequestException('No tiene una tienda asignada');
-                    }
-                    if (createDevolucionDto.trabajador) {
-                        // Validar que el trabajador pertenece a la tienda
-                        // Esta validación se puede hacer en el controller
-                    }
-                } else {
-                    throw new BadRequestException('No tiene permiso para devolver esta venta');
-                }
-            }
+            throw new BadRequestException('No tiene permiso para crear devoluciones');
         }
 
         // Validar productos a devolver
@@ -170,7 +156,6 @@ export class DevolucionesService {
             if (product) {
                 product.stock_actual += productoDev.cantidad;
                 await product.save();
-                this.logger.log(`Stock actualizado para ${productoDev.nombre}: +${productoDev.cantidad}`);
             } else {
                 this.logger.warn(`Producto "${productoDev.nombre}" no encontrado en inventario, no se actualiza stock`);
             }

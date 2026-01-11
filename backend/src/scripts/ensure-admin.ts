@@ -19,7 +19,6 @@ export class EnsureAdminService {
             const existingAdmin = await this.userModel.findOne({ username: 'admin' });
 
             if (existingAdmin) {
-                this.logger.log('Usuario admin ya existe');
                 return;
             }
 
@@ -35,7 +34,6 @@ export class EnsureAdminService {
             });
 
             await adminUser.save();
-            this.logger.log('Usuario admin creado correctamente');
         } catch (error) {
             this.logger.error('Error al crear usuario admin:', error);
         }

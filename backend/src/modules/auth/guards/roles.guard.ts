@@ -15,15 +15,12 @@ export class RolesGuard implements CanActivate {
             context.getClass(),
         ]);
 
-        this.logger.debug(`Required roles: ${requiredRoles}`);
 
         if (!requiredRoles) {
-            this.logger.debug('No roles required, access granted');
             return true;
         }
 
         const { user } = context.switchToHttp().getRequest();
-        this.logger.debug(`User from request: ${JSON.stringify(user)}`);
 
         if (!user || !user.role) {
             this.logger.warn(`No role found for user: ${JSON.stringify(user)}`);
@@ -31,7 +28,6 @@ export class RolesGuard implements CanActivate {
         }
 
         const hasRole = requiredRoles.includes(user.role);
-        this.logger.debug(`User role: ${user.role}, Has required role: ${hasRole}`);
 
         return hasRole;
     }

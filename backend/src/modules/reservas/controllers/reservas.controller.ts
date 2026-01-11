@@ -25,7 +25,6 @@ export class ReservasController {
     @Post()
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     create(@Body() createReservaDto: CreateReservaDto, @Request() req) {
-        this.logger.debug('Recibida petición para crear reserva');
         try {
             return this.reservasService.create(createReservaDto, req.user._id, req.user.role);
         } catch (error) {
@@ -39,7 +38,6 @@ export class ReservasController {
     async findAll() {
         try {
             const reservas = await this.reservasService.findAll();
-            this.logger.debug(`Encontradas ${reservas.length} reservas`);
             return reservas;
         } catch (error) {
             this.logger.error('Error al obtener reservas:', error);
@@ -52,7 +50,6 @@ export class ReservasController {
     async findByUsuario(@Param('usuarioId') usuarioId: string) {
         try {
             const reservas = await this.reservasService.findByUsuario(usuarioId);
-            this.logger.debug(`Encontradas ${reservas.length} reservas`);
             return reservas;
         } catch (error) {
             this.logger.error('Error al buscar reservas por usuario:', error);
@@ -71,7 +68,6 @@ export class ReservasController {
             }
 
             const reservas = await this.reservasService.findByFecha(fecha);
-            this.logger.debug(`Encontradas ${reservas.length} reservas`);
             return reservas;
         } catch (error) {
             this.logger.error('Error al buscar reservas por fecha:', error);

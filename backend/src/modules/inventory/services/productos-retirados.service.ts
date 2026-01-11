@@ -44,7 +44,6 @@ export class ProductosRetiradosService {
         await producto.save();
 
         const saved = await productoRetirado.save();
-        this.logger.log(`Producto retirado registrado: ${producto.nombre} - Cantidad: ${createDto.cantidad}`);
 
         return this.productoRetiradoModel.findById(saved._id)
             .populate('producto', 'nombre tipo unidad_medida precio_compra_unitario')

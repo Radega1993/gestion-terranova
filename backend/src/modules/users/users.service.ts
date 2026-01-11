@@ -24,7 +24,6 @@ export class UsersService {
     }
 
     async create(createUserDto: CreateUserDto): Promise<User> {
-        this.logger.debug(`Creando usuario: ${createUserDto.username}`);
 
         // Verificar si el usuario ya existe
         const existingUser = await this.userModel.findOne({

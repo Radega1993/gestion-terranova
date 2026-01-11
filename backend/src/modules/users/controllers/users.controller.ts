@@ -40,7 +40,6 @@ export class UsersController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async findAll() {
-        this.logger.debug('Fetching all users');
         const users = await this.usersService.findAll();
         return users.map(user => ({
             _id: user._id,

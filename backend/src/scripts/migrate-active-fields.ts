@@ -39,8 +39,6 @@ async function migrateActiveFields() {
             ]
         );
 
-        console.log(`Documentos actualizados: ${result.modifiedCount}`);
-        console.log('Migración completada exitosamente');
     } catch (error) {
         console.error('Error durante la migración:', error);
     } finally {

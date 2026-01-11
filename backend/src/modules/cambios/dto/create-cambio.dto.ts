@@ -51,3 +51,4 @@ export class CreateCambioDto {
     trabajadorId?: string;  // Solo si el usuario es TIENDA
 }
 
+

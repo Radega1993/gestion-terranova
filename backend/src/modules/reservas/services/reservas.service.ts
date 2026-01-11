@@ -124,13 +124,11 @@ export class ReservasService {
 
     async findAll(): Promise<Reserva[]> {
         try {
-            this.logger.debug('Iniciando búsqueda de todas las reservas');
             const reservas = await this.reservaModel.find()
                 .populate('socio', 'nombre')
                 .populate('trabajador', 'nombre identificador')
                 .populate('usuarioCreacion', 'username nombre')
                 .exec();
-            this.logger.debug(`Encontradas ${reservas.length} reservas`);
             return reservas;
         } catch (error) {
             this.logger.error('Error al obtener reservas:', error);
@@ -347,7 +345,6 @@ export class ReservasService {
                 .populate('suplementos.suplemento', 'nombre')
                 .exec();
 
-            this.logger.log(`Reserva ${id} cancelada. Importe pendiente: ${importePendiente}€, Monto devuelto: ${montoDevuelto}€`);
 
             return reservaCancelada;
         } catch (error) {
@@ -382,7 +379,6 @@ export class ReservasService {
             const finDia = new Date(fecha);
             finDia.setHours(23, 59, 59, 999);
 
-            this.logger.debug(`Buscando reservas entre ${inicioDia.toISOString()} y ${finDia.toISOString()}`);
 
             const reservas = await this.reservaModel.find({
                 fecha: {
@@ -395,7 +391,6 @@ export class ReservasService {
                 .populate('usuarioCreacion', 'username nombre')
                 .exec();
 
-            this.logger.debug(`Encontradas ${reservas.length} reservas para la fecha ${fecha.toISOString()}`);
             return reservas;
         } catch (error) {
             this.logger.error(`Error al buscar reservas para la fecha ${fecha}:`, error);
