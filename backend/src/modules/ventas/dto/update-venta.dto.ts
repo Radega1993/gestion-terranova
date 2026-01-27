@@ -78,3 +78,5 @@ export class UpdateVentaDto {
     trabajadorId?: string;  // Trabajador asignado
 }
 
+
+

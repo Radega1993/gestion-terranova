@@ -400,3 +400,5 @@ const GestionVentasList: React.FC = () => {
 
 export default GestionVentasList;
 
+
+
