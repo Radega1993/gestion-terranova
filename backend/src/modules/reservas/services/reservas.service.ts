@@ -275,6 +275,13 @@ export class ReservasService {
                     estado: EstadoReserva.COMPLETADA,
                     montoAbonado: montoTotalAbonado,
                     metodoPago: liquidarReservaDto.pagos[liquidarReservaDto.pagos.length - 1].metodoPago,
+                    // Guardar el desglose de pagos para recaudaciones (evita doble conteo
+                    // y permite atribuir cada cobro a su fecha de pago).
+                    pagos: liquidarReservaDto.pagos.map((pago) => ({
+                        monto: Number(pago.monto.toFixed(2)),
+                        metodoPago: pago.metodoPago,
+                        fecha: new Date(pago.fecha),
+                    })),
                     observaciones: liquidarReservaDto.observaciones,
                     suplementos: liquidarReservaDto.suplementos,
                     fianza: liquidarReservaDto.fianza || 0
