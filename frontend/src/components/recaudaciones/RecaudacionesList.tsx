@@ -387,7 +387,7 @@ const RecaudacionesList: React.FC = () => {
                                 }}
                                 disabled={ventas.length === 0}
                             >
-                                Resumen de Productos
+                                Resumen general
                             </Button>
                             <Button
                                 variant="outlined"
@@ -676,7 +676,7 @@ const RecaudacionesList: React.FC = () => {
                 }}
             >
                 <DialogTitle>
-                    Resumen de Productos
+                    Resumen general
                     <IconButton
                         onClick={() => setShowResumenProductos(false)}
                         sx={{ position: 'absolute', right: 8, top: 8 }}

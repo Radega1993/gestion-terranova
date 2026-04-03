@@ -225,10 +225,14 @@ export const ReservaPDF: React.FC<ReservaPDFProps> = ({ reserva, socio, servicio
     }
 
     // Función para renderizar contenido de reserva (retorna JSX directamente, no un componente React)
-    const renderizarContenidoReserva = () => (
+    // `ejemplarTexto` se usa para distinguir la copia "Terranova" vs la copia "socio".
+    const renderizarContenidoReserva = (ejemplarTexto: string) => (
         <View>
             <View style={styles.header}>
                 <Text style={styles.title}>Reserva de Instalación</Text>
+                <Text style={{ fontSize: 12, marginBottom: 15, fontWeight: 'bold' }}>
+                    {ejemplarTexto}
+                </Text>
                 <Text style={styles.subtitle}>Comunidad de Vecinos Terranova</Text>
             </View>
 
@@ -431,7 +435,7 @@ export const ReservaPDF: React.FC<ReservaPDFProps> = ({ reserva, socio, servicio
                     <View style={styles.contenedorPagina}>
                         {/* Primera mitad - Reserva */}
                         <View style={styles.mitadPagina}>
-                            {renderizarContenidoReserva()}
+                            {renderizarContenidoReserva('Ejemplar para Terranova')}
                         </View>
                         
                         {/* Línea divisoria en el centro */}
@@ -439,7 +443,7 @@ export const ReservaPDF: React.FC<ReservaPDFProps> = ({ reserva, socio, servicio
                         
                         {/* Segunda mitad - Reserva duplicada */}
                         <View style={styles.mitadPagina}>
-                            {renderizarContenidoReserva()}
+                            {renderizarContenidoReserva('Ejemplar para el socio')}
                         </View>
                     </View>
                 </Page>

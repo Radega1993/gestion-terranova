@@ -35,6 +35,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import AddIcon from '@mui/icons-material/Add';
 import { InvitacionesPDF } from './InvitacionesPDF';
+import { InvitacionesPeriodoPDF } from './InvitacionesPeriodoPDF';
 import CloseIcon from '@mui/icons-material/Close';
 import { TrabajadorSelector } from '../trabajadores/TrabajadorSelector';
 import { UserRole } from '../../types/user';
@@ -89,6 +90,11 @@ const InvitacionesList: React.FC = () => {
     const [showPDF, setShowPDF] = useState(false);
     const [pdfData, setPdfData] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
+    const [fechaInicioResumen, setFechaInicioResumen] = useState<Date | null>(new Date());
+    const [fechaFinResumen, setFechaFinResumen] = useState<Date | null>(new Date());
+    const [downloadingResumen, setDownloadingResumen] = useState(false);
+    const [showPeriodoPDF, setShowPeriodoPDF] = useState(false);
+    const [periodoPDFData, setPeriodoPDFData] = useState<any>(null);
 
     const isAdminOrJunta = user?.role === 'ADMINISTRADOR' || user?.role === 'JUNTA';
 
@@ -354,6 +360,71 @@ const InvitacionesList: React.FC = () => {
         }
     };
 
+    const handleDownloadResumenPeriodo = async () => {
+        if (!fechaInicioResumen || !fechaFinResumen) {
+            setError('Selecciona fecha de inicio y fecha fin para descargar el resumen.');
+            return;
+        }
+
+        try {
+            setDownloadingResumen(true);
+            setError(null);
+
+            const inicio = new Date(fechaInicioResumen);
+            inicio.setHours(0, 0, 0, 0);
+            const fin = new Date(fechaFinResumen);
+            fin.setHours(23, 59, 59, 999);
+
+            if (inicio > fin) {
+                setError('La fecha de inicio no puede ser mayor que la fecha fin.');
+                return;
+            }
+
+            const query = new URLSearchParams({
+                fechaInicio: inicio.toISOString(),
+                fechaFin: fin.toISOString(),
+            });
+
+            const response = await fetch(`${API_BASE_URL}/invitaciones?${query.toString()}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Error al descargar el resumen de invitaciones');
+            }
+
+            const data = await response.json();
+            const invitacionesPeriodo = Array.isArray(data) ? data : [];
+            const invitacionesFormateadas = invitacionesPeriodo.map((inv: any) => ({
+                fechaUso: inv?.fechaUso,
+                socioCodigo: inv?.socio?.socio || inv?.socio?.codigo || '',
+                socioNombre: inv?.socio?.nombre
+                    ? `${inv.socio.nombre.nombre || ''} ${inv.socio.nombre.primerApellido || ''} ${inv.socio.nombre.segundoApellido || ''}`.trim()
+                    : '',
+                nombreInvitado: inv?.nombreInvitado || '',
+                registradoPor: inv?.trabajador
+                    ? `${inv.trabajador.nombre || ''} (${inv.trabajador.identificador || ''})`.trim()
+                    : (inv?.usuarioRegistro?.username || ''),
+                observaciones: inv?.observaciones || '',
+            }));
+
+            setPeriodoPDFData({
+                fechaInicio: inicio,
+                fechaFin: fin,
+                invitaciones: invitacionesFormateadas,
+            });
+            setShowPeriodoPDF(true);
+        } catch (err: any) {
+            setError(err?.message || 'No se pudo descargar el resumen de invitaciones.');
+        } finally {
+            setDownloadingResumen(false);
+        }
+    };
+
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
             <Typography variant="h4" component="h1" gutterBottom>
@@ -388,6 +459,44 @@ const InvitacionesList: React.FC = () => {
                                 {isLoadingDisponibles ? 'Cargando...' : 'Imprimir Resumen'}
                             </Button>
                         </Box>
+                    </Grid>
+                </Grid>
+            </Paper>
+
+            <Paper sx={{ p: 3, mb: 3 }}>
+                <Typography variant="h6" gutterBottom>
+                    Descargar resumen por periodo
+                </Typography>
+                <Grid container spacing={2} alignItems="center">
+                    <Grid item xs={12} md={4}>
+                        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+                            <DatePicker
+                                label="Fecha inicio"
+                                value={fechaInicioResumen}
+                                onChange={(date) => setFechaInicioResumen(date)}
+                                slotProps={{ textField: { fullWidth: true } }}
+                            />
+                        </LocalizationProvider>
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+                            <DatePicker
+                                label="Fecha fin"
+                                value={fechaFinResumen}
+                                onChange={(date) => setFechaFinResumen(date)}
+                                slotProps={{ textField: { fullWidth: true } }}
+                            />
+                        </LocalizationProvider>
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                        <Button
+                            variant="contained"
+                            onClick={handleDownloadResumenPeriodo}
+                            disabled={!fechaInicioResumen || !fechaFinResumen || downloadingResumen}
+                            fullWidth
+                        >
+                            {downloadingResumen ? 'Generando PDF...' : 'Descargar resumen PDF'}
+                        </Button>
                     </Grid>
                 </Grid>
             </Paper>
@@ -628,6 +737,41 @@ const InvitacionesList: React.FC = () => {
                     {pdfData && (
                         <Box sx={{ height: '100%', width: '100%' }}>
                             <InvitacionesPDF {...pdfData} />
+                        </Box>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal del PDF de período */}
+            <Dialog
+                open={showPeriodoPDF}
+                onClose={() => setShowPeriodoPDF(false)}
+                maxWidth="lg"
+                fullWidth
+                PaperProps={{
+                    style: {
+                        height: '90vh',
+                        maxHeight: '90vh',
+                    },
+                }}
+            >
+                <DialogTitle>
+                    Resumen de invitaciones por período
+                    <IconButton
+                        onClick={() => setShowPeriodoPDF(false)}
+                        sx={{ position: 'absolute', right: 8, top: 8 }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent>
+                    {periodoPDFData && (
+                        <Box sx={{ height: '100%', width: '100%' }}>
+                            <InvitacionesPeriodoPDF
+                                fechaInicio={periodoPDFData.fechaInicio}
+                                fechaFin={periodoPDFData.fechaFin}
+                                invitaciones={periodoPDFData.invitaciones}
+                            />
                         </Box>
                     )}
                 </DialogContent>

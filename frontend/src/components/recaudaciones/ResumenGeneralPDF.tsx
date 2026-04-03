@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Document, Page, Text, View, StyleSheet, PDFViewer } from '@react-pdf/renderer';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { API_BASE_URL } from '../../config';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -104,7 +103,7 @@ const styles = StyleSheet.create({
 interface ResumenGeneralPDFProps {
     ventas: Array<{
         _id: string;
-        tipo: 'VENTA' | 'RESERVA';
+        tipo: 'VENTA' | 'RESERVA' | 'CAMBIO';
         fecha: string;
         socio: {
             codigo: string;
@@ -121,6 +120,7 @@ interface ResumenGeneralPDFProps {
         };
         total: number;
         pagado: number;
+        pagadoRecaudacion?: number; // Para cambios/devoluciones: positivo si PAGADO, negativo si DEVUELTO
         metodoPago?: string;
         estado: string;
         detalles: Array<{
@@ -176,8 +176,9 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
             };
         }
 
-        // Usar un Set para rastrear ventas ya procesadas para productos (evitar duplicados por múltiples pagos)
+        // Usar Sets para evitar duplicados de cantidad cuando hay múltiples pagos
         const ventasProcesadas = new Set<string>();
+        const ventasProcesadasPorSocio = new Set<string>();
         
         const ventasPorTrabajadorResult = ventas.reduce((acc: any, venta) => {
             // Determinar la clave: trabajador si existe, sino usuario
@@ -232,8 +233,10 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
             const ventaKey = `${venta._id}-${venta.tipo}`;
             const esVentaNueva = !ventasProcesadas.has(ventaKey);
             
-            // Agregar productos del socio (solo una vez por venta)
-            if (esVentaNueva) {
+            // Agregar productos del socio (solo una vez por venta) para ventas normales.
+            // En reservas con pagos parciales, el importe del producto/reserva se reparte por pago
+            // y la cantidad se cuenta solo una vez.
+            if (esVentaNueva && venta.tipo !== 'RESERVA') {
                 socioData.cantidad += 1;
                 venta.detalles.forEach((producto) => {
                     const productoKey = producto.nombre;
@@ -247,19 +250,33 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
             }
             
             if (venta.tipo === 'RESERVA') {
-                // Para reservas, distribuir el pagado proporcionalmente
+                // Reservas con pagos parciales:
+                // - el importe se suma en cada pago al cobrador correspondiente
+                // - la cantidad de la reserva se cuenta una sola vez
+                acc[key].categorias.reservas = Number((acc[key].categorias.reservas + pagadoRedondeado).toFixed(2));
+
+                const productoKey = `Reserva - ${venta.detalles[0]?.nombre || 'Reserva'}`;
+                if (!acc[key].productos.has(productoKey)) {
+                    acc[key].productos.set(productoKey, { cantidad: 0, total: 0 });
+                }
+                const productoData = acc[key].productos.get(productoKey);
+                productoData.total = Number((productoData.total + pagadoRedondeado).toFixed(2));
                 if (esVentaNueva) {
-                    // Usar el pagado de esta transacción para las categorías
-                    acc[key].categorias.reservas = Number((acc[key].categorias.reservas + pagadoRedondeado).toFixed(2));
-                    // Agregar reserva como producto
-                    const productoKey = `Reserva - ${venta.detalles[0]?.nombre || 'Reserva'}`;
-                    if (!acc[key].productos.has(productoKey)) {
-                        acc[key].productos.set(productoKey, { cantidad: 0, total: 0 });
-                    }
-                    const productoData = acc[key].productos.get(productoKey);
                     productoData.cantidad += 1;
-                    productoData.total = Number((productoData.total + pagadoRedondeado).toFixed(2));
                     ventasProcesadas.add(ventaKey);
+                }
+
+                // También reflejar en el bloque por socio de este trabajador.
+                if (!socioData.productos.has(productoKey)) {
+                    socioData.productos.set(productoKey, { cantidad: 0, total: 0 });
+                }
+                const socioProductoData = socioData.productos.get(productoKey);
+                socioProductoData.total = Number((socioProductoData.total + pagadoRedondeado).toFixed(2));
+                const socioVentaKey = `${ventaKey}-${socioKey}`;
+                if (!ventasProcesadasPorSocio.has(socioVentaKey)) {
+                    socioData.cantidad += 1;
+                    socioProductoData.cantidad += 1;
+                    ventasProcesadasPorSocio.add(socioVentaKey);
                 }
             } else {
                 // Para ventas, distribuir el pagado proporcionalmente entre productos
@@ -380,22 +397,31 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                     efectivo: Number((trabajador.metodoPago?.efectivo || 0).toFixed(2)),
                     tarjeta: Number((trabajador.metodoPago?.tarjeta || 0).toFixed(2))
                 },
-                productos: Array.from(trabajador.productos.entries()).map(([nombre, datos]: [string, any]) => ({
-                    nombre,
-                    cantidad: datos.cantidad || 0,
-                    total: Number((datos.total || 0).toFixed(2))
-                })),
-                ventasPorSocio: Array.from(trabajador.ventasPorSocio.entries()).map(([codigo, datos]: [string, any]) => ({
-                    codigo,
-                    nombre: datos.nombre,
-                    total: Number((datos.total || 0).toFixed(2)),
-                    cantidad: datos.cantidad || 0,
-                    productos: Array.from(datos.productos.entries()).map(([nombre, prodDatos]: [string, any]) => ({
+                productos: Array.from(trabajador.productos.entries()).map((entry: any) => {
+                    const [nombre, datos] = entry;
+                    return {
                         nombre,
-                        cantidad: prodDatos.cantidad || 0,
-                        total: Number((prodDatos.total || 0).toFixed(2))
-                    }))
-                }))
+                        cantidad: datos?.cantidad || 0,
+                        total: Number((datos?.total || 0).toFixed(2))
+                    };
+                }),
+                ventasPorSocio: Array.from(trabajador.ventasPorSocio.entries()).map((entry: any) => {
+                    const [codigo, datos] = entry;
+                    return {
+                        codigo,
+                        nombre: datos?.nombre,
+                        total: Number((datos?.total || 0).toFixed(2)),
+                        cantidad: datos?.cantidad || 0,
+                        productos: Array.from(datos?.productos.entries()).map((prodEntry: any) => {
+                            const [nombre, prodDatos] = prodEntry;
+                            return {
+                                nombre,
+                                cantidad: prodDatos?.cantidad || 0,
+                                total: Number((prodDatos?.total || 0).toFixed(2))
+                            };
+                        })
+                    };
+                })
             };
         });
 
@@ -444,64 +470,14 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
     return (
         <PDFViewer key={`pdf-${categorias.length}-${ventas.length}`} style={{ width: '100%', height: '100%', border: 'none' }}>
             <Document>
-                {/* Primera página: Productos Acumulados */}
+                {/* Primera página: Resumen General (totales) */}
                 <Page size="A4" style={styles.page}>
                     <View style={styles.header}>
-                        <Text style={styles.title}>Resumen de Productos</Text>
+                        <Text style={styles.title}>Resumen general</Text>
                         <Text style={styles.subtitle}>Comunidad de Vecinos Terranova</Text>
                         <Text>Período: {format(fechaInicio, 'dd/MM/yyyy')} - {format(fechaFin, 'dd/MM/yyyy')}</Text>
                     </View>
 
-                    {/* Tabla de Productos Acumulados */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Productos Consumidos (Acumulado Total)</Text>
-                        {productosAcumulados && productosAcumulados.length > 0 && (
-                            <View style={styles.table}>
-                                <View style={[styles.tableRow, styles.tableHeader]}>
-                                    <View style={styles.tableCol}>
-                                        <Text style={styles.tableCell}>Producto</Text>
-                                    </View>
-                                    <View style={styles.tableCol}>
-                                        <Text style={styles.tableCell}>Cantidad</Text>
-                                    </View>
-                                    <View style={styles.tableCol}>
-                                        <Text style={styles.tableCell}>Total</Text>
-                                    </View>
-                                </View>
-                                {productosAcumulados.map((producto: any, index: number) => (
-                                    <View key={index} style={styles.tableRow}>
-                                        <View style={styles.tableCol}>
-                                            <Text style={styles.tableCell}>{producto.nombre}</Text>
-                                        </View>
-                                        <View style={styles.tableCol}>
-                                            <Text style={styles.tableCell}>{producto.cantidad}</Text>
-                                        </View>
-                                        <View style={styles.tableCol}>
-                                            <Text style={styles.tableCell}>{producto.total.toFixed(2)}€</Text>
-                                        </View>
-                                    </View>
-                                ))}
-                                {/* Fila de totales */}
-                                <View style={[styles.tableRow, { backgroundColor: '#f0f0f0', fontWeight: 'bold' }]}>
-                                    <View style={styles.tableCol}>
-                                        <Text style={styles.tableCell}>TOTAL</Text>
-                                    </View>
-                                    <View style={styles.tableCol}>
-                                        <Text style={styles.tableCell}>
-                                            {productosAcumulados.reduce((sum, p) => sum + p.cantidad, 0)}
-                                        </Text>
-                                    </View>
-                                    <View style={styles.tableCol}>
-                                        <Text style={styles.tableCell}>
-                                            {productosAcumulados.reduce((sum, p) => sum + p.total, 0).toFixed(2)}€
-                                        </Text>
-                                    </View>
-                                </View>
-                            </View>
-                        )}
-                    </View>
-
-                    {/* Totales Generales */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Totales Generales</Text>
                         {Object.entries(totalesGenerales.categorias)
@@ -535,89 +511,61 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                         </View>
                     </View>
 
+                    {/* Tabla resumen de productos vendidos en el período */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Resumen de productos vendidos</Text>
+                        {productosAcumulados && productosAcumulados.length > 0 ? (
+                            <View style={styles.table}>
+                                <View style={[styles.tableRow, styles.tableHeader]}>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>Producto</Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>Cantidad</Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>Total</Text>
+                                    </View>
+                                </View>
+                                {productosAcumulados.map((producto: any, index: number) => (
+                                    <View key={index} style={styles.tableRow}>
+                                        <View style={styles.tableCol}>
+                                            <Text style={styles.tableCell}>{producto.nombre}</Text>
+                                        </View>
+                                        <View style={styles.tableCol}>
+                                            <Text style={styles.tableCell}>{producto.cantidad}</Text>
+                                        </View>
+                                        <View style={styles.tableCol}>
+                                            <Text style={styles.tableCell}>{producto.total.toFixed(2)}€</Text>
+                                        </View>
+                                    </View>
+                                ))}
+                                <View style={[styles.tableRow, { backgroundColor: '#f0f0f0', fontWeight: 'bold' }]}>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>TOTAL</Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>
+                                            {productosAcumulados.reduce((sum, p) => sum + p.cantidad, 0)}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>
+                                            {productosAcumulados.reduce((sum, p) => sum + p.total, 0).toFixed(2)}€
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+                        ) : (
+                            <Text style={{ fontSize: 10 }}>No hay productos vendidos en el período seleccionado.</Text>
+                        )}
+                    </View>
+
                     <View style={styles.footer}>
                         <Text>Documento generado el {format(new Date(), 'dd/MM/yyyy HH:mm')}</Text>
                     </View>
                 </Page>
 
-                {/* Páginas siguientes: Resumen por Trabajador */}
-                {Object.entries(ventasPorTrabajador).map(([trabajador, datos]: [string, any]) => (
-                    <Page key={trabajador} size="A4" style={styles.page}>
-                        <View style={styles.header}>
-                            <Text style={styles.title}>Resumen de Productos</Text>
-                            <Text style={styles.subtitle}>Comunidad de Vecinos Terranova</Text>
-                            <Text>Período: {format(fechaInicio, 'dd/MM/yyyy')} - {format(fechaFin, 'dd/MM/yyyy')}</Text>
-                        </View>
-
-                        <View key={trabajador} style={styles.section}>
-                            <Text style={styles.sectionTitle}>Trabajador: {trabajador}</Text>
-
-                            {/* Totales por Categoría */}
-                            <Text style={{ fontSize: 11, fontWeight: 'bold', marginTop: 5, marginBottom: 3 }}>Totales por Categoría:</Text>
-                            {Object.entries(datos.categorias)
-                                .filter(([_, total]) => total > 0)
-                                .map(([categoria, total]) => (
-                                    <View key={categoria} style={styles.row}>
-                                        <Text style={styles.label}>{categoria.charAt(0).toUpperCase() + categoria.slice(1)}:</Text>
-                                        <Text style={styles.value}>{(total as number).toFixed(2)}€</Text>
-                                    </View>
-                                ))}
-
-                            {/* Método de Pago */}
-                            <Text style={{ fontSize: 11, fontWeight: 'bold', marginTop: 8, marginBottom: 3 }}>Método de Pago:</Text>
-                            <View style={styles.row}>
-                                <Text style={styles.label}>Efectivo:</Text>
-                                <Text style={styles.value}>{datos.metodoPago.efectivo.toFixed(2)}€</Text>
-                            </View>
-                            <View style={styles.row}>
-                                <Text style={styles.label}>Tarjeta:</Text>
-                                <Text style={styles.value}>{datos.metodoPago.tarjeta.toFixed(2)}€</Text>
-                            </View>
-
-                            {/* Productos Vendidos */}
-                            {datos.productos && datos.productos.length > 0 && (
-                                <>
-                                    <Text style={{ fontSize: 11, fontWeight: 'bold', marginTop: 8, marginBottom: 3 }}>Productos Vendidos:</Text>
-                                    <View style={styles.table}>
-                                        <View style={[styles.tableRow, styles.tableHeader]}>
-                                            <View style={styles.tableCol}>
-                                                <Text style={styles.tableCell}>Producto</Text>
-                                            </View>
-                                            <View style={styles.tableCol}>
-                                                <Text style={styles.tableCell}>Cantidad</Text>
-                                            </View>
-                                            <View style={styles.tableCol}>
-                                                <Text style={styles.tableCell}>Total</Text>
-                                            </View>
-                                        </View>
-                                        {datos.productos.map((producto: any, index: number) => (
-                                            <View key={index} style={styles.tableRow}>
-                                                <View style={styles.tableCol}>
-                                                    <Text style={styles.tableCell}>{producto.nombre}</Text>
-                                                </View>
-                                                <View style={styles.tableCol}>
-                                                    <Text style={styles.tableCell}>{producto.cantidad}</Text>
-                                                </View>
-                                                <View style={styles.tableCol}>
-                                                    <Text style={styles.tableCell}>{producto.total.toFixed(2)}€</Text>
-                                                </View>
-                                            </View>
-                                        ))}
-                                    </View>
-                                </>
-                            )}
-
-                            <View style={styles.totalRow}>
-                                <Text style={styles.label}>Total Trabajador:</Text>
-                                <Text style={styles.value}>{datos.total.toFixed(2)}€</Text>
-                            </View>
-                        </View>
-
-                        <View style={styles.footer}>
-                            <Text>Documento generado el {format(new Date(), 'dd/MM/yyyy HH:mm')}</Text>
-                        </View>
-                    </Page>
-                ))}
             </Document>
         </PDFViewer>
     );

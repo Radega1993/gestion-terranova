@@ -374,12 +374,27 @@ export const ReservasList: React.FC<ReservasListProps> = () => {
                 return;
             }
 
-            // Verificar si ya existe una reserva para el mismo servicio y fecha
-            const reservaExistenteEncontrada = reservas.find(r =>
-                r.tipoInstalacion.toLowerCase() === servicioSeleccionado.nombre.toLowerCase() &&
-                isSameDay(new Date(r.fecha), fecha) &&
-                r.estado !== 'CANCELADA'
-            );
+            // Verificar si ya existe una reserva para el mismo servicio y fecha.
+            // Requerimiento: en edición NO debe aparecer el Swal "Reserva existente" si el usuario
+            // no cambia la fecha/servicio (solo editar datos de pago/observaciones).
+            const selectedReservaId = selectedReserva?._id ? selectedReserva._id.toString() : null;
+            const fechaOriginal = selectedReserva?.fecha ? new Date(selectedReserva.fecha) : null;
+            const servicioOriginalNombre = selectedReserva?.tipoInstalacion ? selectedReserva.tipoInstalacion.toLowerCase() : null;
+            const fechaCambio = fechaOriginal ? !isSameDay(fechaOriginal, fecha) : false;
+            const servicioCambio = servicioOriginalNombre
+                ? servicioOriginalNombre !== servicioSeleccionado.nombre.toLowerCase()
+                : false;
+            const shouldCheckConflicts = !selectedReserva || fechaCambio || servicioCambio;
+
+            const reservaExistenteEncontrada = shouldCheckConflicts
+                ? reservas.find(r =>
+                    r.tipoInstalacion.toLowerCase() === servicioSeleccionado.nombre.toLowerCase() &&
+                    isSameDay(new Date(r.fecha), fecha) &&
+                    r.estado !== 'CANCELADA' &&
+                    // En edición, no debemos contar la reserva actual como "conflicto".
+                    (!selectedReservaId || r._id?.toString() !== selectedReservaId)
+                )
+                : undefined;
 
             if (reservaExistenteEncontrada) {
                 const result = await Swal.fire({
