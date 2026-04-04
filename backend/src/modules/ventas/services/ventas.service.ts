@@ -17,6 +17,7 @@ import { Tienda } from '../../tiendas/schemas/tienda.schema';
 import { UsersService } from '../../users/users.service';
 import { CambiosService } from '../../cambios/services/cambios.service';
 import { UserRole } from '../../users/types/user-roles.enum';
+import { roundMoney, ventaEstadoFromPagado, isVentaFullyPaid } from '../../../common/money';
 
 interface PopulatedReserva extends Omit<Reserva, 'socio' | 'usuarioCreacion' | 'usuarioActualizacion' | 'confirmadoPor' | 'trabajador'> {
     _id: Types.ObjectId;
@@ -182,27 +183,7 @@ export class VentasService {
 
     async create(createVentaDto: CreateVentaDto, userId: string, userRole: string): Promise<Venta> {
         try {
-            // Redondear precio y pagado a 2 decimales primero
-            const precioRedondeado = Number(createVentaDto.total.toFixed(2));
-            let pagadoRedondeado = Number(createVentaDto.pagado.toFixed(2));
-
-            // Validar que haya observaciones si el pago es parcial
-            if (pagadoRedondeado < precioRedondeado && !createVentaDto.observaciones) {
-                throw new BadRequestException('Las observaciones son obligatorias cuando el pago es parcial');
-            }
-
-            // Ajustar el monto pagado si excede el total
-            if (pagadoRedondeado > precioRedondeado) {
-                pagadoRedondeado = precioRedondeado;
-            }
-
-            // Calcular el estado basado en el pago (usando comparación con tolerancia)
-            let estado = 'PENDIENTE';
-            if (Math.abs(pagadoRedondeado - precioRedondeado) < 0.01) {
-                estado = 'PAGADO';
-            } else if (pagadoRedondeado > 0) {
-                estado = 'PAGADO_PARCIAL';
-            }
+            let pagadoRedondeado = roundMoney(createVentaDto.pagado);
 
             // NUEVO: Si el usuario es TIENDA, trabajadorId es OBLIGATORIO
             let trabajadorId = null;
@@ -250,11 +231,30 @@ export class VentasService {
                         nombre: producto.nombre,
                         categoria: productoEncontrado.tipo,
                         unidades: producto.unidades,
-                        precioUnitario: producto.precioUnitario,
-                        precioTotal: producto.precioTotal
+                        precioUnitario: roundMoney(producto.precioUnitario),
+                        precioTotal: roundMoney(producto.precioTotal)
                     };
                 })
             );
+
+            const totalFromLines = roundMoney(
+                productosConCategoria.reduce((sum, p) => sum + p.precioTotal, 0)
+            );
+            const dtoTotal = roundMoney(createVentaDto.total);
+            if (Math.abs(totalFromLines - dtoTotal) > 0.01) {
+                throw new BadRequestException(
+                    `El total enviado (${dtoTotal}) no coincide con la suma de líneas (${totalFromLines})`
+                );
+            }
+            const precioRedondeado = totalFromLines;
+
+            if (pagadoRedondeado < precioRedondeado && !createVentaDto.observaciones) {
+                throw new BadRequestException('Las observaciones son obligatorias cuando el pago es parcial');
+            }
+            if (pagadoRedondeado > precioRedondeado) {
+                pagadoRedondeado = precioRedondeado;
+            }
+            const estado = ventaEstadoFromPagado(precioRedondeado, pagadoRedondeado);
 
             const ventaData: any = {
                 ...createVentaDto,
@@ -335,12 +335,11 @@ export class VentasService {
             throw new NotFoundException(`Venta ${id} no encontrada`);
         }
 
-        // Redondear todos los valores a 2 decimales
-        const total = Number(venta.total.toFixed(2));
-        const pagado = Number(venta.pagado.toFixed(2));
-        const montoPago = Number(pagoVentaDto.pagado.toFixed(2));
+        const total = roundMoney(venta.total);
+        const pagado = roundMoney(venta.pagado);
+        const montoPago = roundMoney(pagoVentaDto.pagado);
 
-        const pendiente = Number((total - pagado).toFixed(2));
+        const pendiente = roundMoney(total - pagado);
 
         // Si el pago excede el pendiente, ajustar al pendiente (el cambio se maneja en el frontend)
         // Solo permitir esto para pagos en efectivo
@@ -353,9 +352,8 @@ export class VentasService {
             montoPagoAjustado = pendiente;
         }
 
-        const nuevoPagado = Number((pagado + montoPagoAjustado).toFixed(2));
-        // Usar comparación con tolerancia para evitar problemas de precisión de punto flotante
-        const nuevoEstado = Math.abs(nuevoPagado - total) < 0.01 ? 'PAGADO' : 'PAGADO_PARCIAL';
+        const nuevoPagado = roundMoney(pagado + montoPagoAjustado);
+        const nuevoEstado = isVentaFullyPaid(total, nuevoPagado) ? 'PAGADO' : 'PAGADO_PARCIAL';
 
         // Registrar el pago en el historial (redondeado a 2 decimales)
         const pago: any = {
@@ -373,11 +371,12 @@ export class VentasService {
             pago.usuario = new Types.ObjectId(userId);
         }
 
+        venta.total = total;
         venta.pagos = venta.pagos || [];
         // Crear un nuevo objeto pago para asegurar que se guarde correctamente
         const nuevoPago = {
             fecha: pago.fecha,
-            monto: pago.monto,
+            monto: roundMoney(pago.monto),
             metodoPago: pago.metodoPago,
             observaciones: pago.observaciones,
             ...(pago.trabajador && { trabajador: pago.trabajador }),
@@ -388,8 +387,8 @@ export class VentasService {
         // Marcar el array de pagos como modificado para que Mongoose lo guarde correctamente
         venta.markModified('pagos');
 
-        // Actualizar la venta
-        venta.pagado = nuevoPagado;
+        // Actualizar la venta (al cerrar en céntimos, igualar pagado al total)
+        venta.pagado = nuevoEstado === 'PAGADO' ? total : nuevoPagado;
         venta.estado = nuevoEstado;
         
         // Solo asignar el trabajador a la venta si NO tiene trabajador asignado
@@ -468,8 +467,8 @@ export class VentasService {
                         nombre: producto.nombre,
                         categoria: productoEncontrado.tipo,
                         unidades: producto.unidades,
-                        precioUnitario: producto.precioUnitario,
-                        precioTotal: producto.precioTotal
+                        precioUnitario: roundMoney(producto.precioUnitario),
+                        precioTotal: roundMoney(producto.precioTotal)
                     };
                 })
             );
@@ -488,10 +487,10 @@ export class VentasService {
             venta.esSocio = updateVentaDto.esSocio;
         }
         if (updateVentaDto.total !== undefined) {
-            venta.total = Number(updateVentaDto.total.toFixed(2));
+            venta.total = roundMoney(updateVentaDto.total);
         }
         if (updateVentaDto.pagado !== undefined) {
-            venta.pagado = Number(updateVentaDto.pagado.toFixed(2));
+            venta.pagado = roundMoney(updateVentaDto.pagado);
         }
         if (updateVentaDto.metodoPago !== undefined) {
             venta.metodoPago = updateVentaDto.metodoPago;
@@ -549,15 +548,9 @@ export class VentasService {
 
         // Recalcular estado basado en pagado y total
         if (updateVentaDto.pagado !== undefined || updateVentaDto.total !== undefined) {
-            const total = venta.total;
-            const pagado = venta.pagado;
-            if (Math.abs(pagado - total) < 0.01) {
-                venta.estado = 'PAGADO';
-            } else if (pagado > 0) {
-                venta.estado = 'PAGADO_PARCIAL';
-            } else {
-                venta.estado = 'PENDIENTE';
-            }
+            venta.total = roundMoney(venta.total);
+            venta.pagado = roundMoney(venta.pagado);
+            venta.estado = ventaEstadoFromPagado(venta.total, venta.pagado);
         } else if (updateVentaDto.estado !== undefined) {
             venta.estado = updateVentaDto.estado;
         }
