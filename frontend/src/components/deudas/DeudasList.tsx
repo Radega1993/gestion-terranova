@@ -4,7 +4,6 @@ import {
     Paper,
     Typography,
     Grid,
-    TextField,
     Box,
     Table,
     TableBody,
@@ -39,7 +38,7 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import UndoIcon from '@mui/icons-material/Undo';
 import { SocioSelector } from '../ventas/components/SocioSelector';
 import { Cliente } from '../ventas/types';
-import { formatCurrency } from '../../utils/formatters';
+import { roundMoney } from '../../utils/formatters';
 
 export const DeudasList: React.FC = () => {
     const { token } = useAuthStore();
@@ -346,10 +345,10 @@ export const DeudasList: React.FC = () => {
                                 <TableCell>
                                     {venta.nombreSocio} ({venta.codigoSocio})
                                 </TableCell>
-                                <TableCell>{venta.total.toFixed(2)}€</TableCell>
-                                <TableCell>{venta.pagado.toFixed(2)}€</TableCell>
+                                <TableCell>{roundMoney(venta.total).toFixed(2)}€</TableCell>
+                                <TableCell>{roundMoney(venta.pagado).toFixed(2)}€</TableCell>
                                 <TableCell>
-                                    {(venta.total - venta.pagado).toFixed(2)}€
+                                    {roundMoney(roundMoney(venta.total) - roundMoney(venta.pagado)).toFixed(2)}€
                                 </TableCell>
                                 <TableCell>
                                     {getEstadoChip(venta.estado)}

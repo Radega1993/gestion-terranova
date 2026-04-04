@@ -18,6 +18,9 @@ export const formatCurrency = (value: number | string | undefined | null, decima
     });
 };
 
+/** Redondeo a 2 decimales (céntimos), alineado con el backend. */
+export const roundMoney = (n: number): number => Math.round(Number(n) * 100) / 100;
+
 /**
  * Normaliza un valor decimal aceptando tanto punto como coma
  * @param value - Valor con punto o coma como separador decimal
