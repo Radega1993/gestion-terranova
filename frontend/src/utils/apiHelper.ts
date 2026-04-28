@@ -30,6 +30,24 @@ export const authenticatedFetch = async (
 
     // Si recibimos un 401, manejar el cierre de sesión
     if (response.status === 401) {
+        // Si el backend responde 401 por permisos (en lugar de token inválido), no cerrar sesión.
+        // Dejamos que el consumidor maneje el error como "acceso denegado".
+        let esErrorPermisos = false;
+        try {
+            const errorBody = await response.clone().json();
+            const rawMessage = Array.isArray(errorBody?.message)
+                ? errorBody.message.join(' ')
+                : errorBody?.message;
+            const message = typeof rawMessage === 'string' ? rawMessage.toLowerCase() : '';
+            esErrorPermisos = message.includes('permiso') || message.includes('acceso denegado');
+        } catch {
+            // Ignorar parse errors y continuar con la lógica estándar
+        }
+
+        if (esErrorPermisos) {
+            return response;
+        }
+
         // Endpoints que pueden devolver 401 por razones de negocio (no por token inválido)
         const urlObj = new URL(url, window.location.origin);
         const endpointsIgnorados = [

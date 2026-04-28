@@ -136,7 +136,7 @@ function App() {
                 <Route
                   path="/devoluciones"
                   element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA]}>
+                    <ProtectedRoute allowedRoles={[UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]}>
                       <DevolucionesList />
                     </ProtectedRoute>
                   }

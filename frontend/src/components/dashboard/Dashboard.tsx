@@ -67,7 +67,7 @@ const Dashboard: React.FC = () => {
             title: 'Devoluciones',
             path: '/devoluciones',
             description: 'Gestión de devoluciones de productos',
-            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA]
+            roles: [UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR]
         },
         {
             title: 'Cambios',

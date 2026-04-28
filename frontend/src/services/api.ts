@@ -21,13 +21,17 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
     (response) => response,
     (error: AxiosError) => {
-        // Si recibimos un 401 (No autorizado), el token ha expirado o es inválido
+        // Si recibimos un 401 (No autorizado), normalmente token expirado/ inválido.
         if (error.response?.status === 401) {
             // Verificar si el error es específicamente de token expirado
             const errorData = error.response?.data as any;
-            const isTokenExpired = errorData?.code === 'TOKEN_EXPIRED' || 
-                                  errorData?.message?.toLowerCase().includes('expirado') ||
-                                  errorData?.message?.toLowerCase().includes('expired');
+            const errorMessage = Array.isArray(errorData?.message)
+                ? errorData.message.join(' ').toLowerCase()
+                : (errorData?.message || '').toLowerCase();
+            const isTokenExpired = errorData?.code === 'TOKEN_EXPIRED' ||
+                                  errorMessage.includes('expirado') ||
+                                  errorMessage.includes('expired');
+            const isPermissionError = errorMessage.includes('permiso') || errorMessage.includes('acceso denegado');
             
             // Endpoints que pueden devolver 401 por razones de negocio (no por token inválido)
             // Estos no deben cerrar la sesión automáticamente
@@ -39,7 +43,7 @@ api.interceptors.response.use(
             
             const debeIgnorar = endpointsIgnorados.some(endpoint => url.includes(endpoint));
             
-            if (!debeIgnorar) {
+            if (!debeIgnorar && !isPermissionError) {
                 const authStore = useAuthStore.getState();
                 
                 // Limpiar el token y el usuario del store

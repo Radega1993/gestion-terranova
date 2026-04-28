@@ -190,7 +190,20 @@ export const DevolucionesList: React.FC = () => {
     const buscarVentas = async () => {
         try {
             setLoadingVentas(true);
-            let url = `${API_BASE_URL}/ventas?`;
+            const now = new Date();
+            const inicioHoy = new Date(now);
+            inicioHoy.setHours(0, 0, 0, 0);
+            const finHoy = new Date(now);
+            finHoy.setHours(23, 59, 59, 999);
+
+            // TRABAJADOR: solo ventas del propio usuario y del día actual
+            // Resto de roles: ventas del día actual (mantiene selección acotada para devoluciones)
+            let url = user?.role === UserRole.TRABAJADOR
+                ? `${API_BASE_URL}/ventas/usuario?`
+                : `${API_BASE_URL}/ventas?`;
+
+            url += `fechaInicio=${encodeURIComponent(inicioHoy.toISOString())}&`;
+            url += `fechaFin=${encodeURIComponent(finHoy.toISOString())}&`;
 
             if (busquedaVenta.trim()) {
                 url += `codigoSocio=${encodeURIComponent(busquedaVenta.trim())}&`;
@@ -233,7 +246,7 @@ export const DevolucionesList: React.FC = () => {
         <Container>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h4">Devoluciones</Typography>
-                {(user?.role === UserRole.ADMINISTRADOR || user?.role === UserRole.JUNTA) && (
+                {(user?.role === UserRole.ADMINISTRADOR || user?.role === UserRole.JUNTA || user?.role === UserRole.TRABAJADOR) && (
                     <Button
                         variant="contained"
                         color="primary"
@@ -360,7 +373,7 @@ export const DevolucionesList: React.FC = () => {
                                         >
                                             <VisibilityIcon />
                                         </IconButton>
-                                        {devolucion.estado === 'PENDIENTE' && (user?.role === UserRole.ADMINISTRADOR || user?.role === UserRole.JUNTA) && (
+                                        {devolucion.estado === 'PENDIENTE' && (user?.role === UserRole.ADMINISTRADOR || user?.role === UserRole.JUNTA || user?.role === UserRole.TRABAJADOR) && (
                                             <>
                                                 <IconButton
                                                     size="small"

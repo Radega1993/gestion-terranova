@@ -257,6 +257,9 @@ export const Navbar: React.FC = () => {
                     <MenuItem onClick={() => { navigate('/invitaciones'); handleMobileMenuClose(); }}>
                         <ConfirmationNumberIcon sx={{ mr: 1 }} /> Invitaciones
                     </MenuItem>
+                    <MenuItem onClick={() => { navigate('/devoluciones'); handleMobileMenuClose(); }}>
+                        <UndoIcon sx={{ mr: 1 }} /> Devoluciones
+                    </MenuItem>
                 </>
             )}
             <MenuItem onClick={handleLogout}>
@@ -379,6 +382,7 @@ export const Navbar: React.FC = () => {
                                     {renderNavButton('/inventory', 'Inventario', <InventoryIcon />, isTablet)}
                                     {renderNavButton('/recaudaciones', 'Recaudaciones', <AttachMoneyIcon />, isTablet)}
                                     {renderNavButton('/invitaciones', 'Invitaciones', <ConfirmationNumberIcon />, isTablet)}
+                                    {renderNavButton('/devoluciones', 'Devoluciones', <UndoIcon />, isTablet)}
                                 </>
                             )}
                             {user.role === 'TIENDA' && (
