@@ -1,4 +1,11 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, Logger } from '@nestjs/common';
+import {
+    Injectable,
+    CanActivate,
+    ExecutionContext,
+    UnauthorizedException,
+    ForbiddenException,
+    Logger
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '../types/user-roles.enum';
 import * as jwt from 'jsonwebtoken';
@@ -42,12 +49,17 @@ export class RolesGuard implements CanActivate {
 
 
             if (!hasRequiredRole) {
-                this.logger.warn(`Access denied - User role ${userRole} does not have required roles: ${requiredRoles.join(', ')}`);
-                throw new UnauthorizedException('No tiene los permisos necesarios');
+                this.logger.warn(
+                    `Access denied - ${request.method} ${request.url} - User role ${userRole} does not have required roles: ${requiredRoles.join(', ')}`
+                );
+                throw new ForbiddenException('No tiene los permisos necesarios');
             }
 
             return true;
         } catch (error) {
+            if (error instanceof UnauthorizedException || error instanceof ForbiddenException) {
+                throw error;
+            }
             this.logger.error(`Error verifying token: ${error.message}`);
             throw new UnauthorizedException('Token inválido o expirado');
         }

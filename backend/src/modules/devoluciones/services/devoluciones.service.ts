@@ -22,20 +22,53 @@ export class DevolucionesService {
     ) { }
 
     async create(createDevolucionDto: CreateDevolucionDto, userId: string, userRole: string): Promise<DevolucionDocument> {
+        const normalizedRole = String(userRole || '').trim().toUpperCase();
+
         // Validar que la venta existe
         const venta = await this.ventaModel.findById(createDevolucionDto.venta).exec();
         if (!venta) {
             throw new NotFoundException(`Venta con ID ${createDevolucionDto.venta} no encontrada`);
         }
 
-        // Solo ADMINISTRADOR y JUNTA pueden crear devoluciones
-        if (userRole !== 'ADMINISTRADOR' && userRole !== 'JUNTA') {
-            throw new BadRequestException('No tiene permiso para crear devoluciones');
+        // ADMINISTRADOR, JUNTA y TRABAJADOR pueden crear devoluciones
+        if (!['ADMINISTRADOR', 'JUNTA', 'TRABAJADOR'].includes(normalizedRole)) {
+            throw new BadRequestException(`No tiene permiso para crear devoluciones (rol: ${normalizedRole || 'desconocido'})`);
+        }
+
+        // Para TRABAJADOR, solo permitir devoluciones de ventas realizadas por él
+        if (normalizedRole === 'TRABAJADOR' && venta.usuario?.toString() !== String(userId)) {
+            throw new BadRequestException('Solo puede crear devoluciones de ventas realizadas por su usuario');
+        }
+
+        // Las devoluciones solo se permiten para ventas del día actual
+        const fechaVenta = new Date((venta as any).createdAt);
+        const inicioHoy = new Date();
+        inicioHoy.setHours(0, 0, 0, 0);
+        const finHoy = new Date();
+        finHoy.setHours(23, 59, 59, 999);
+        if (fechaVenta < inicioHoy || fechaVenta > finHoy) {
+            throw new BadRequestException('Solo se permiten devoluciones de ventas realizadas en el día actual');
         }
 
         // Validar productos a devolver
         const productosVenta = venta.productos;
         const productosDevolucion = createDevolucionDto.productos;
+
+        // Evitar devoluciones duplicadas/infinitas:
+        // no permitir devolver más cantidad de la vendida sumando devoluciones previas (excepto canceladas).
+        const devolucionesPrevias = await this.devolucionModel.find({
+            venta: venta._id,
+            estado: { $ne: EstadoDevolucion.CANCELADA }
+        }).exec();
+        const devueltoPorProducto = new Map<string, number>();
+        for (const devolucionPrevia of devolucionesPrevias) {
+            for (const producto of devolucionPrevia.productos) {
+                devueltoPorProducto.set(
+                    producto.nombre,
+                    (devueltoPorProducto.get(producto.nombre) || 0) + producto.cantidad
+                );
+            }
+        }
 
         for (const productoDev of productosDevolucion) {
             const productoVenta = productosVenta.find(p => p.nombre === productoDev.nombre);
@@ -47,6 +80,14 @@ export class DevolucionesService {
             if (productoDev.cantidad > productoVenta.unidades) {
                 throw new BadRequestException(
                     `La cantidad a devolver (${productoDev.cantidad}) excede la cantidad vendida (${productoVenta.unidades}) para el producto "${productoDev.nombre}"`
+                );
+            }
+
+            const yaDevuelto = devueltoPorProducto.get(productoDev.nombre) || 0;
+            const cantidadTotalDevuelta = yaDevuelto + productoDev.cantidad;
+            if (cantidadTotalDevuelta > productoVenta.unidades) {
+                throw new BadRequestException(
+                    `El producto "${productoDev.nombre}" ya tiene devoluciones registradas (${yaDevuelto}). No puede superar las ${productoVenta.unidades} unidades vendidas`
                 );
             }
         }

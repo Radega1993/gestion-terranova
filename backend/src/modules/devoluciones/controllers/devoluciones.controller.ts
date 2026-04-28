@@ -16,7 +16,7 @@ export class DevolucionesController {
     constructor(private readonly devolucionesService: DevolucionesService) { }
 
     @Post()
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async create(@Body() createDevolucionDto: CreateDevolucionDto, @Req() req) {
         try {
             return this.devolucionesService.create(createDevolucionDto, req.user._id, req.user.role);
@@ -27,7 +27,7 @@ export class DevolucionesController {
     }
 
     @Get()
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async findAll(
         @Query('fechaInicio') fechaInicio?: string,
         @Query('fechaFin') fechaFin?: string,
@@ -35,7 +35,7 @@ export class DevolucionesController {
         @Query('usuarioId') usuarioId?: string
     ) {
         const filters: any = {};
-        
+
         if (fechaInicio) {
             filters.fechaInicio = new Date(fechaInicio);
         }
@@ -53,13 +53,13 @@ export class DevolucionesController {
     }
 
     @Get(':id')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async findOne(@Param('id') id: string) {
         return this.devolucionesService.findOne(id);
     }
 
     @Put(':id')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async update(@Param('id') id: string, @Body() updateDevolucionDto: UpdateDevolucionDto) {
         try {
             return this.devolucionesService.update(id, updateDevolucionDto);
@@ -70,7 +70,7 @@ export class DevolucionesController {
     }
 
     @Post(':id/procesar')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async procesar(@Param('id') id: string, @Req() req) {
         try {
             return this.devolucionesService.procesar(id, req.user._id);
@@ -81,7 +81,7 @@ export class DevolucionesController {
     }
 
     @Post(':id/cancelar')
-    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
     async cancelar(@Param('id') id: string) {
         try {
             return this.devolucionesService.cancelar(id);
