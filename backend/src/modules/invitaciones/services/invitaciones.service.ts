@@ -48,14 +48,52 @@ export class InvitacionesService {
         return socioInvitaciones;
     }
 
-    async create(createInvitacionDto: CreateInvitacionDto, userId: string, userRole: string): Promise<InvitacionDocument> {
-        const socio = await this.socioModel.findOne({ socio: createInvitacionDto.codigoSocio });
-        if (!socio) {
-            throw new NotFoundException(`Socio no encontrado: ${createInvitacionDto.codigoSocio}`);
+    private async resolveSocioPrincipal(socio: Socio): Promise<Socio> {
+        if (!socio.socioPrincipal) {
+            return socio;
         }
 
+        let principalId: Types.ObjectId;
+
+        if (socio.socioPrincipal instanceof Types.ObjectId) {
+            principalId = socio.socioPrincipal;
+        } else if (typeof socio.socioPrincipal === 'string') {
+            principalId = new Types.ObjectId(socio.socioPrincipal);
+        } else if ((socio.socioPrincipal as any)?._id) {
+            principalId = (socio.socioPrincipal as any)._id;
+        } else {
+            return socio;
+        }
+
+        const socioPrincipal = await this.socioModel.findById(principalId).exec();
+        return socioPrincipal || socio;
+    }
+
+    private async resolveSocioPrincipalByCode(codigoSocio: string): Promise<{ socio: Socio; principal: Socio }> {
+        const socio = await this.socioModel.findOne({ socio: codigoSocio }).exec();
+        if (!socio) {
+            throw new NotFoundException(`Socio no encontrado: ${codigoSocio}`);
+        }
+
+        const principal = await this.resolveSocioPrincipal(socio);
+        return { socio, principal };
+    }
+
+    private async getSocioIdsForFilter(socio: Socio): Promise<Types.ObjectId[]> {
+        if (socio.socioPrincipal) {
+            const principal = await this.resolveSocioPrincipal(socio);
+            return [socio._id, principal._id];
+        }
+
+        const asociados = await this.socioModel.find({ socioPrincipal: socio._id }, { _id: 1 }).exec();
+        return [socio._id, ...asociados.map(asociado => asociado._id)];
+    }
+
+    async create(createInvitacionDto: CreateInvitacionDto, userId: string, userRole: string): Promise<InvitacionDocument> {
+        const { socio, principal } = await this.resolveSocioPrincipalByCode(createInvitacionDto.codigoSocio);
+
         const ejercicio = this.getEjercicioActual();
-        const socioInvitaciones = await this.getInvitacionesSocio(socio._id.toString(), ejercicio);
+        const socioInvitaciones = await this.getInvitacionesSocio(principal._id.toString(), ejercicio);
 
         if (socioInvitaciones.invitacionesDisponibles <= 0) {
             throw new BadRequestException('No quedan invitaciones disponibles para este socio');
@@ -88,7 +126,8 @@ export class InvitacionesService {
             trabajadorId = createInvitacionDto.trabajadorId;
         }
 
-        // Crear la invitación
+        // Crear la invitación. Si el socio es un miembro de familia, la invitación queda registrada
+        // con ese socio, pero el descuento de cupo se aplica sobre el socio principal.
         const invitacionData: any = {
             socio: socio._id,
             fechaUso: new Date(createInvitacionDto.fechaUso),
@@ -151,13 +190,10 @@ export class InvitacionesService {
         updateInvitacionesDto: UpdateInvitacionesDto,
         userId: string
     ): Promise<SocioInvitacionesDocument> {
-        const socio = await this.socioModel.findOne({ socio: codigoSocio });
-        if (!socio) {
-            throw new NotFoundException(`Socio no encontrado: ${codigoSocio}`);
-        }
+        const { socio, principal } = await this.resolveSocioPrincipalByCode(codigoSocio);
 
         const ejercicio = this.getEjercicioActual();
-        const socioInvitaciones = await this.getInvitacionesSocio(socio._id.toString(), ejercicio);
+        const socioInvitaciones = await this.getInvitacionesSocio(principal._id.toString(), ejercicio);
 
         socioInvitaciones.invitacionesDisponibles = updateInvitacionesDto.invitacionesDisponibles;
         socioInvitaciones.observaciones = updateInvitacionesDto.observaciones;
@@ -167,15 +203,12 @@ export class InvitacionesService {
     }
 
     async getInvitacionesDisponibles(codigoSocio: string): Promise<any> {
-        const socio = await this.socioModel.findOne({ socio: codigoSocio });
-        if (!socio) {
-            throw new NotFoundException(`Socio no encontrado: ${codigoSocio}`);
-        }
+        const { socio, principal } = await this.resolveSocioPrincipalByCode(codigoSocio);
 
         const ejercicio = this.getEjercicioActual();
-        const socioInvitaciones = await this.getInvitacionesSocio(socio._id.toString(), ejercicio);
+        const socioInvitaciones = await this.getInvitacionesSocio(principal._id.toString(), ejercicio);
 
-        const socioDoc = socio.toObject();
+        const socioDoc = principal.toObject();
         return {
             socio: {
                 codigo: socioDoc.socio,

@@ -471,12 +471,11 @@ export class SociosService {
 
     async validateNumber(number: string): Promise<{ available: boolean }> {
         try {
-            // Validar formato
-            if (!/^AET\d{3}$/.test(number)) {
-                throw new BadRequestException('El número de socio debe tener el formato AET000');
+            if (!number || typeof number !== 'string' || number.trim().length === 0) {
+                throw new BadRequestException('El número de socio es obligatorio');
             }
 
-            // Buscar si el número ya existe
+            // Buscar si el número ya existe: permitimos cualquier formato, pero no duplicados.
             const existingSocio = await this.socioModel.findOne({ socio: number }).exec();
             return { available: !existingSocio };
         } catch (error) {
