@@ -22,6 +22,8 @@ import { InventoryService } from '../services/inventory.service';
 import { ProductosRetiradosService } from '../services/productos-retirados.service';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { UpdateProductDto } from '../dto/update-product.dto';
+import { CreateStockAdditionDto } from '../dto/create-stock-addition.dto';
+import { FiltrosStockAdditionsDto } from '../dto/filtros-stock-additions.dto';
 import { CreateProductoRetiradoDto } from '../dto/create-producto-retirado.dto';
 import { FiltrosProductosRetiradosDto } from '../dto/filtros-productos-retirados.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -201,6 +203,23 @@ export class InventoryController {
         return this.productosRetiradosService.findOne(id);
     }
 
+    @Get('stock-additions')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    async getStockAdditions(
+        @Query() filtros: FiltrosStockAdditionsDto
+    ) {
+        return this.inventoryService.getStockAdditions(filtros);
+    }
+
+    @Post('stock-additions')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR)
+    async addStock(
+        @Body() createStockAdditionDto: CreateStockAdditionDto,
+        @Request() req
+    ) {
+        return this.inventoryService.addStock(createStockAdditionDto, req.user._id);
+    }
+
     @Get(':id')
     @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
     async findOne(@Param('id') id: string) {
@@ -231,84 +250,4 @@ export class InventoryController {
         return this.inventoryService.toggleActive(id);
     }
 
-    @Post('import')
-    @Roles(UserRole.ADMINISTRADOR)
-    @UseInterceptors(FileInterceptor('file'))
-    async importProducts(@UploadedFile() file: Express.Multer.File) {
-        const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.load(file.buffer);
-        const worksheet = workbook.getWorksheet(1);
-
-        const results = {
-            success: [],
-            errors: []
-        };
-
-        // Función para sanitizar strings y evitar errores de UTF-8
-        function sanitizeString(value: any): string {
-            if (!value) return '';
-            try {
-                return String(value)
-                    .replace(/[^\x20-\x7EáéíóúÁÉÍÓÚñÑüÜçÇ]/g, '') // Solo caracteres imprimibles y acentuados comunes
-                    .trim();
-            } catch {
-                return '';
-            }
-        }
-
-        // Procesar productos
-        for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
-            const row = worksheet.getRow(rowNumber);
-
-            // Verificar si la fila tiene datos
-            if (!row.getCell(1).value) continue;
-
-            const productData = {
-                nombre: sanitizeString(row.getCell(1).value),
-                tipo: sanitizeString(row.getCell(2).value),
-                unidad_medida: sanitizeString(row.getCell(3).value),
-                stock_actual: Number(row.getCell(4).value) || 0,
-                precio_compra_unitario: Number(row.getCell(5).value) || 0,
-                activo: row.getCell(6).value?.toString()?.toLowerCase() === 'sí'
-            };
-
-            try {
-                // Validar datos requeridos
-                if (!productData.nombre) {
-                    throw new Error('El nombre es obligatorio');
-                }
-
-                if (!productData.tipo) {
-                    throw new Error('El tipo es obligatorio');
-                }
-
-                if (!productData.unidad_medida) {
-                    throw new Error('La unidad de medida es obligatoria');
-                }
-
-                // Buscar si existe un producto con el mismo nombre
-                const existingProduct = await this.inventoryService.findByName(productData.nombre);
-                if (existingProduct) {
-                    // Actualizar producto existente
-                    await this.inventoryService.update(existingProduct._id.toString(), productData);
-                    results.success.push(productData.nombre);
-                } else {
-                    // Crear nuevo producto
-                    await this.inventoryService.create(productData);
-                    results.success.push(productData.nombre);
-                }
-            } catch (error) {
-                results.errors.push({
-                    producto: productData.nombre || `Fila ${rowNumber}`,
-                    error: error.message
-                });
-            }
-        }
-
-        return {
-            message: `Importación ${results.success.length > 0 ? 'parcialmente ' : ''}exitosa`,
-            success: results.success,
-            errors: results.errors
-        };
-    }
-} 
+}

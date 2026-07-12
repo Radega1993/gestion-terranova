@@ -1,9 +1,12 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Product, ProductDocument } from '../schemas/product.schema';
+import { StockAddition, StockAdditionDocument } from '../schemas/stock-addition.schema';
 import { CreateProductDto } from '../dto/create-product.dto';
+import { CreateStockAdditionDto } from '../dto/create-stock-addition.dto';
 import { UpdateProductDto } from '../dto/update-product.dto';
+import { FiltrosStockAdditionsDto } from '../dto/filtros-stock-additions.dto';
 import { ImportResults } from '../types/import-results.interface';
 import * as XLSX from 'xlsx';
 
@@ -36,6 +39,7 @@ export class InventoryService {
 
     constructor(
         @InjectModel(Product.name) private productModel: Model<ProductDocument>,
+        @InjectModel(StockAddition.name) private stockAdditionModel: Model<StockAdditionDocument>,
     ) { }
 
     async findAll(): Promise<ProductDocument[]> {
@@ -68,6 +72,62 @@ export class InventoryService {
         }
 
         return existingProduct;
+    }
+
+    async addStock(createStockAdditionDto: CreateStockAdditionDto, userId: string): Promise<StockAdditionDocument> {
+        const product = await this.productModel.findById(createStockAdditionDto.productoId).exec();
+        if (!product) {
+            throw new NotFoundException(`Producto con ID ${createStockAdditionDto.productoId} no encontrado`);
+        }
+
+        product.stock_actual += createStockAdditionDto.cantidad;
+        await product.save();
+
+        const stockAddition = new this.stockAdditionModel({
+            producto: new Types.ObjectId(createStockAdditionDto.productoId),
+            cantidad: createStockAdditionDto.cantidad,
+            usuarioRegistro: new Types.ObjectId(userId),
+            fechaRegistro: new Date(),
+            observaciones: createStockAdditionDto.observaciones
+        });
+
+        const saved = await stockAddition.save();
+
+        return this.stockAdditionModel.findById(saved._id)
+            .populate('producto', 'nombre tipo unidad_medida precio_compra_unitario')
+            .populate('usuarioRegistro', 'username')
+            .exec();
+    }
+
+    async getStockAdditions(filtros: FiltrosStockAdditionsDto): Promise<StockAdditionDocument[]> {
+        const query: any = {};
+
+        if (filtros.productoId) {
+            query.producto = new Types.ObjectId(filtros.productoId);
+        }
+
+        if (filtros.usuarioRegistroId) {
+            query.usuarioRegistro = new Types.ObjectId(filtros.usuarioRegistroId);
+        }
+
+        if (filtros.fechaInicio || filtros.fechaFin) {
+            query.fechaRegistro = {};
+
+            if (filtros.fechaInicio) {
+                query.fechaRegistro.$gte = new Date(filtros.fechaInicio);
+            }
+            if (filtros.fechaFin) {
+                const fechaFin = new Date(filtros.fechaFin);
+                fechaFin.setHours(23, 59, 59, 999);
+                query.fechaRegistro.$lte = fechaFin;
+            }
+        }
+
+        return this.stockAdditionModel.find(query)
+            .populate('producto', 'nombre tipo unidad_medida precio_compra_unitario')
+            .populate('usuarioRegistro', 'username')
+            .sort({ fechaRegistro: -1 })
+            .exec();
     }
 
     async remove(id: string): Promise<ProductDocument> {

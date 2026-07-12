@@ -10,6 +10,53 @@ import { CreateAsociadoDto } from '../dto/create-asociado.dto';
 import { UpdateAsociadoDto } from '../dto/update-asociado.dto';
 import { Venta } from '../../ventas/schemas/venta.schema';
 
+export function normalizeSocioUpdatePayload(data: any): any {
+    if (!data || typeof data !== 'object') {
+        return data;
+    }
+
+    const normalized = { ...data };
+
+    if (normalized.contacto && typeof normalized.contacto === 'object') {
+        const contacto = normalized.contacto;
+        const emails = Array.isArray(contacto.emails)
+            ? contacto.emails.filter((email: any) => typeof email === 'string' && email.trim() !== '')
+            : [];
+
+        if (contacto.email) {
+            const legacyEmails = Array.isArray(contacto.email)
+                ? contacto.email.filter((email: any) => typeof email === 'string' && email.trim() !== '')
+                : typeof contacto.email === 'string' && contacto.email.trim() !== ''
+                    ? [contacto.email]
+                    : [];
+
+            if (emails.length === 0 && legacyEmails.length > 0) {
+                contacto.emails = legacyEmails;
+            }
+        }
+
+        if (emails.length > 0) {
+            contacto.emails = emails;
+        } else if (!contacto.emails) {
+            contacto.emails = [];
+        }
+
+        if (Array.isArray(contacto.telefonos)) {
+            contacto.telefonos = contacto.telefonos.filter((telefono: any) => typeof telefono === 'string' && telefono.trim() !== '');
+        }
+
+        delete contacto.email;
+    }
+
+    if (normalized.asociados && Array.isArray(normalized.asociados)) {
+        normalized.asociados = normalized.asociados
+            .filter((asociado: any) => asociado && typeof asociado === 'object' && typeof asociado.nombre === 'string' && asociado.nombre.trim() !== '')
+            .map((asociado: any) => ({ ...asociado, nombre: asociado.nombre.trim() }));
+    }
+
+    return normalized;
+}
+
 @Injectable()
 export class SociosService {
     private readonly logger = new Logger(SociosService.name);
@@ -178,7 +225,8 @@ export class SociosService {
             // Eliminar campos que no deben actualizarse
             const { _id, __v, createdAt, updatedAt, ...dataToUpdate } = updateSocioDto;
 
-            const sanitizedData = this.sanitizeData(dataToUpdate);
+            const normalizedData = normalizeSocioUpdatePayload(dataToUpdate);
+            const sanitizedData = this.sanitizeData(normalizedData);
 
             // Verificar que la fecha de nacimiento se mantiene después de la sanitización
             if (sanitizedData.fechaNacimiento) {

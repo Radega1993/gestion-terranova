@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Product, ProductSchema } from './schemas/product.schema';
+import { StockAddition, StockAdditionSchema } from './schemas/stock-addition.schema';
 import { ProductoRetirado, ProductoRetiradoSchema } from './schemas/producto-retirado.schema';
 import { InventoryController } from './controllers/inventory.controller';
 import { InventoryService } from './services/inventory.service';
@@ -12,6 +13,7 @@ import { memoryStorage } from 'multer';
     imports: [
         MongooseModule.forFeature([
             { name: Product.name, schema: ProductSchema },
+            { name: StockAddition.name, schema: StockAdditionSchema },
             { name: ProductoRetirado.name, schema: ProductoRetiradoSchema }
         ]),
         MulterModule.register({
