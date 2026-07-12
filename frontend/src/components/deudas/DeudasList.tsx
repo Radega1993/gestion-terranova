@@ -57,6 +57,7 @@ export const DeudasList: React.FC = () => {
     const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
     const [showPDF, setShowPDF] = useState(false);
     const [ventasSeleccionadas, setVentasSeleccionadas] = useState<Set<string>>(new Set());
+    const [familiaSeleccionada, setFamiliaSeleccionada] = useState<string | null>(null);
     const [modalPagoAcumuladoOpen, setModalPagoAcumuladoOpen] = useState(false);
 
     const fetchVentas = async () => {
@@ -107,6 +108,7 @@ export const DeudasList: React.FC = () => {
     const handleClienteSeleccionado = (cliente: Cliente | null) => {
         setClienteSeleccionado(cliente);
         handleFiltroChange('codigoCliente', cliente?.codigo || '');
+        setFamiliaSeleccionada(cliente?.codigo.split('_')[0] || null);
     };
 
     const handleBuscar = () => {
@@ -142,23 +144,97 @@ export const DeudasList: React.FC = () => {
         fetchVentas();
     };
 
-    const handleToggleVenta = (ventaId: string) => {
+    const isFiltradoPorSocio = Boolean(filtros.codigoCliente?.trim());
+
+    type VentaGroup = Venta & {
+        originalIds?: string[];
+        productos?: Venta['productos'];
+        subVentas?: Venta[];
+    };
+
+    const agruparProductos = (productos: Venta['productos'][]) => {
+        const map = new Map<string, { nombre: string; tipo: string; unidades: number; precioUnitario: number; precioTotal: number; }>();
+        productos.forEach((producto) => {
+            const clave = `${producto.nombre}-${producto.precioUnitario}`;
+            const existente = map.get(clave);
+            if (existente) {
+                existente.unidades += producto.unidades;
+                existente.precioTotal = Number((existente.precioTotal + producto.precioTotal).toFixed(2));
+            } else {
+                map.set(clave, { ...producto });
+            }
+        });
+        return Array.from(map.values());
+    };
+
+    const ventasAgrupadas: VentaGroup[] = React.useMemo(() => {
+        if (!isFiltradoPorSocio) return ventas;
+
+        const grupos = new Map<string, VentaGroup>();
+        ventas.forEach((venta) => {
+            const codigoBase = venta.codigoSocio.split('_')[0];
+            const grupoExistente = grupos.get(codigoBase);
+            const productosCombinados = grupoExistente ? [...grupoExistente.productos || [], ...venta.productos] : [...venta.productos];
+            const productosAgrupados = agruparProductos(productosCombinados);
+            const total = (grupoExistente?.total || 0) + venta.total;
+            const pagado = (grupoExistente?.pagado || 0) + venta.pagado;
+            const observaciones = grupoExistente?.observaciones ? `${grupoExistente.observaciones}; ${venta.observaciones || ''}` : (venta.observaciones || '');
+            const estado = grupoExistente?.estado === 'PAGADO_PARCIAL' || venta.estado === 'PAGADO_PARCIAL' ? 'PAGADO_PARCIAL' : 'PENDIENTE';
+            const createdAt = grupoExistente?.createdAt || venta.createdAt;
+            const nombreSocio = venta.nombreSocio;
+            const codigoSocio = codigoBase;
+
+            grupos.set(codigoBase, {
+                ...venta,
+                _id: codigoBase,
+                codigoSocio,
+                total,
+                pagado,
+                estado: estado as 'PENDIENTE' | 'PAGADO_PARCIAL',
+                observaciones,
+                productos: productosAgrupados,
+                originalIds: [...(grupoExistente?.originalIds || []), venta._id],
+                subVentas: [...(grupoExistente?.subVentas || []), venta]
+            });
+        });
+
+        return Array.from(grupos.values());
+    }, [ventas, isFiltradoPorSocio]);
+
+    const getVentaIds = (venta: VentaGroup) => venta.originalIds || [venta._id];
+
+    const handleToggleVenta = (venta: VentaGroup) => {
+        const baseCodigo = venta.codigoSocio.split('_')[0];
+        const familyIds = ventas
+            .filter(v => v.codigoSocio.startsWith(baseCodigo))
+            .map(v => v._id);
+
         setVentasSeleccionadas(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(ventaId)) {
-                newSet.delete(ventaId);
-            } else {
-                newSet.add(ventaId);
-            }
+            const marcado = familyIds.every(id => newSet.has(id));
+            familyIds.forEach(id => {
+                if (marcado) {
+                    newSet.delete(id);
+                } else {
+                    newSet.add(id);
+                }
+            });
             return newSet;
         });
     };
 
+    const allVentaIds = ventasAgrupadas.flatMap(getVentaIds);
+    const allFamiliaVentaIds = familiaSeleccionada
+        ? ventas.filter(v => v.codigoSocio.startsWith(familiaSeleccionada)).map(v => v._id)
+        : allVentaIds;
+
     const handleSelectAll = () => {
-        if (ventasSeleccionadas.size === ventas.length) {
+        const targetIds = familiaSeleccionada ? allFamiliaVentaIds : allVentaIds;
+        const allSelected = targetIds.length > 0 && targetIds.every(id => ventasSeleccionadas.has(id));
+        if (allSelected) {
             setVentasSeleccionadas(new Set());
         } else {
-            setVentasSeleccionadas(new Set(ventas.map(v => v._id)));
+            setVentasSeleccionadas(new Set(targetIds));
         }
     };
 
@@ -167,6 +243,15 @@ export const DeudasList: React.FC = () => {
             setError('Debe seleccionar al menos una deuda para pagar');
             return;
         }
+        setModalPagoAcumuladoOpen(true);
+    };
+
+    const handlePagarAcumuladoGroup = (venta: VentaGroup) => {
+        const baseCodigo = venta.codigoSocio.split('_')[0];
+        const familiaIds = ventas
+            .filter(v => v.codigoSocio.startsWith(baseCodigo))
+            .map(v => v._id);
+        setVentasSeleccionadas(new Set(familiaIds));
         setModalPagoAcumuladoOpen(true);
     };
 
@@ -307,15 +392,16 @@ export const DeudasList: React.FC = () => {
                 <Table>
                     <TableHead>
                         <TableRow>
-                            <TableCell padding="checkbox">
+                                            <TableCell padding="checkbox">
                                 <Checkbox
-                                    indeterminate={ventasSeleccionadas.size > 0 && ventasSeleccionadas.size < ventas.length}
-                                    checked={ventas.length > 0 && ventasSeleccionadas.size === ventas.length}
+                                    indeterminate={ventasSeleccionadas.size > 0 && ventasSeleccionadas.size < allFamiliaVentaIds.length}
+                                    checked={allFamiliaVentaIds.length > 0 && ventasSeleccionadas.size === allFamiliaVentaIds.length}
                                     onChange={handleSelectAll}
                                 />
                             </TableCell>
-                            <TableCell>Fecha</TableCell>
+                                    <TableCell>Fecha</TableCell>
                             <TableCell>Cliente</TableCell>
+                            <TableCell>Productos</TableCell>
                             <TableCell>Total</TableCell>
                             <TableCell>Pagado</TableCell>
                             <TableCell>Pendiente</TableCell>
@@ -325,15 +411,19 @@ export const DeudasList: React.FC = () => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {ventas.map((venta) => (
-                            <TableRow key={venta._id}>
-                                <TableCell padding="checkbox">
-                                    <Checkbox
-                                        checked={ventasSeleccionadas.has(venta._id)}
-                                        onChange={() => handleToggleVenta(venta._id)}
-                                    />
-                                </TableCell>
-                                <TableCell>
+                        {ventasAgrupadas.map((venta) => {
+                            const esVentaSeleccionable = !familiaSeleccionada || venta.codigoSocio.startsWith(familiaSeleccionada);
+                            return (
+                                <TableRow key={venta._id}>
+                                    <TableCell padding="checkbox">
+                                        {esVentaSeleccionable ? (
+                                            <Checkbox
+                                                checked={getVentaIds(venta).every(id => ventasSeleccionadas.has(id))}
+                                                onChange={() => handleToggleVenta(venta)}
+                                            />
+                                        ) : null}
+                                    </TableCell>
+                                    <TableCell>
                                     {new Date(venta.createdAt).toLocaleString('es-ES', {
                                         year: 'numeric',
                                         month: '2-digit',
@@ -344,6 +434,13 @@ export const DeudasList: React.FC = () => {
                                 </TableCell>
                                 <TableCell>
                                     {venta.nombreSocio} ({venta.codigoSocio})
+                                </TableCell>
+                                <TableCell>
+                                    {venta.productos?.map((producto, index) => (
+                                        <Typography key={`${producto.nombre}-${index}`} variant="body2">
+                                            {producto.nombre} x{producto.unidades} - {roundMoney(producto.precioTotal).toFixed(2)}€
+                                        </Typography>
+                                    ))}
                                 </TableCell>
                                 <TableCell>{roundMoney(venta.total).toFixed(2)}€</TableCell>
                                 <TableCell>{roundMoney(venta.pagado).toFixed(2)}€</TableCell>
@@ -358,27 +455,40 @@ export const DeudasList: React.FC = () => {
                                 </TableCell>
                                 <TableCell>
                                     <Box sx={{ display: 'flex', gap: 1 }}>
-                                        <IconButton
-                                            color="primary"
-                                            onClick={() => handlePagarDeuda(venta)}
-                                            title="Pagar deuda"
-                                        >
-                                            <PaymentIcon />
-                                        </IconButton>
-                                        <IconButton
-                                            color="secondary"
-                                            onClick={() => handleDevolverVenta(venta)}
-                                            title="Devolver productos"
-                                        >
-                                            <UndoIcon />
-                                        </IconButton>
+                                        {isFiltradoPorSocio ? (
+                                            <Button
+                                                variant="contained"
+                                                size="small"
+                                                onClick={() => handlePagarAcumuladoGroup(venta)}
+                                            >
+                                                Pagar acumulado
+                                            </Button>
+                                        ) : (
+                                            <>
+                                                <IconButton
+                                                    color="primary"
+                                                    onClick={() => handlePagarDeuda(venta)}
+                                                    title="Pagar deuda"
+                                                >
+                                                    <PaymentIcon />
+                                                </IconButton>
+                                                <IconButton
+                                                    color="secondary"
+                                                    onClick={() => handleDevolverVenta(venta)}
+                                                    title="Devolver productos"
+                                                >
+                                                    <UndoIcon />
+                                                </IconButton>
+                                            </>
+                                        )}
                                     </Box>
                                 </TableCell>
                             </TableRow>
-                        ))}
-                        {ventas.length === 0 && !loading && (
+                            );
+                        })}
+                        {ventasAgrupadas.length === 0 && !loading && (
                             <TableRow>
-                                <TableCell colSpan={9} align="center">
+                                <TableCell colSpan={10} align="center">
                                     {error ? `Error: ${error}` : 'No hay deudas pendientes'}
                                 </TableCell>
                             </TableRow>

@@ -51,17 +51,20 @@ export const PagoAcumuladoModal: React.FC<PagoAcumuladoModalProps> = ({
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
+    const totalPendiente = ventas.reduce((sum, v) => {
+        const totalRedondeado = Number(v.total.toFixed(2));
+        const pagadoRedondeado = Number(v.pagado.toFixed(2));
+        return sum + Number((totalRedondeado - pagadoRedondeado).toFixed(2));
+    }, 0);
+    const totalPendienteRedondeado = Number(totalPendiente.toFixed(2));
+    const montoTotalRedondeado = Number(montoTotal.toFixed(2));
+    const cambio = metodoPago === 'EFECTIVO' && montoTotalRedondeado > totalPendienteRedondeado ? Number((montoTotalRedondeado - totalPendienteRedondeado).toFixed(2)) : 0;
+
     useEffect(() => {
         if (open && ventas.length > 0) {
-            // Redondear todos los valores a 2 decimales
-            const totalPendiente = ventas.reduce((sum, v) => {
-                const totalRedondeado = Number(v.total.toFixed(2));
-                const pagadoRedondeado = Number(v.pagado.toFixed(2));
-                return sum + Number((totalRedondeado - pagadoRedondeado).toFixed(2));
-            }, 0);
-            setMontoTotal(Number(totalPendiente.toFixed(2)));
+            setMontoTotal(totalPendienteRedondeado);
         }
-    }, [open, ventas]);
+    }, [open, ventas, totalPendienteRedondeado]);
 
     const handleSubmit = async () => {
         if (ventas.length === 0) return;
@@ -75,15 +78,6 @@ export const PagoAcumuladoModal: React.FC<PagoAcumuladoModalProps> = ({
         try {
             setLoading(true);
             setError(null);
-
-            // Redondear todos los valores a 2 decimales
-            const totalPendiente = ventas.reduce((sum, v) => {
-                const totalRedondeado = Number(v.total.toFixed(2));
-                const pagadoRedondeado = Number(v.pagado.toFixed(2));
-                return sum + Number((totalRedondeado - pagadoRedondeado).toFixed(2));
-            }, 0);
-            const totalPendienteRedondeado = Number(totalPendiente.toFixed(2));
-            const montoTotalRedondeado = Number(montoTotal.toFixed(2));
 
             if (montoTotalRedondeado <= 0) {
                 setError('El monto debe ser mayor a 0');
@@ -196,9 +190,6 @@ export const PagoAcumuladoModal: React.FC<PagoAcumuladoModalProps> = ({
 
     if (ventas.length === 0) return null;
 
-    const totalPendiente = ventas.reduce((sum, v) => sum + (v.total - v.pagado), 0);
-    const cambio = metodoPago === 'EFECTIVO' && montoTotal > totalPendiente ? montoTotal - totalPendiente : 0;
-
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
             <DialogTitle>Pago Acumulado de Deudas</DialogTitle>
@@ -237,7 +228,7 @@ export const PagoAcumuladoModal: React.FC<PagoAcumuladoModalProps> = ({
                                         </TableRow>
                                     );
                                 })}
-                                <TableRow>
+                                            <TableRow>
                                     <TableCell colSpan={3}><strong>TOTAL PENDIENTE</strong></TableCell>
                                     <TableCell align="right">
                                         <strong>{formatCurrency(totalPendienteRedondeado)}</strong>
