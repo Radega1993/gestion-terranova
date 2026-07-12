@@ -441,6 +441,15 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
     // Manejo de cambios en el número de socio
     const handleSocioNumberChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value.toUpperCase();
+
+        if (editMode) {
+            setFormData(prev => ({
+                ...prev,
+                socio: value
+            } as CreateSocioInput));
+            return;
+        }
+
         if (!/^AET\d{0,3}$/.test(value)) {
             return;
         }
@@ -450,7 +459,7 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
             socio: value
         } as CreateSocioInput));
 
-        // Validar si el número está completo
+        // Validar si el número está completo en modo creación
         if (value.length === 6) {
             const isValid = await validateSocioNumber(value);
             if (!isValid) {
@@ -659,8 +668,12 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
                 setFormError('Por favor completa los campos obligatorios de nombre.');
                 return;
             }
-            // Validar el número de socio
-            if (!formData.socio || !/^AET\d{3}$/.test(formData.socio)) {
+            if (!formData.socio) {
+                setFormError('El identificador de socio es obligatorio.');
+                return;
+            }
+            // Validar el número de socio sólo en modo creación
+            if (!editMode && !/^AET\d{3}$/.test(formData.socio)) {
                 setFormError('El número de socio debe tener el formato AET000');
                 return;
             }
@@ -772,8 +785,8 @@ const CreateSocioForm: React.FC<CreateSocioFormProps> = ({
                                     value={formData.socio}
                                     onChange={handleSocioNumberChange}
                                     error={!!formError}
-                                    helperText={formError || "Formato: AET000"}
-                                    inputProps={{
+                                    helperText={formError || (!editMode ? "Formato: AET000" : "")}
+                                    inputProps={editMode ? { maxLength: 50 } : {
                                         maxLength: 6,
                                         pattern: "^AET\\d{3}$"
                                     }}

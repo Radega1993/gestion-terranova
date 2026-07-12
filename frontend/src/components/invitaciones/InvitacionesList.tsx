@@ -534,8 +534,14 @@ const InvitacionesList: React.FC = () => {
                         ) : invitacionesDisponibles ? (
                             <>
                                 <Typography variant="body1">
-                                    Socio: {socioSeleccionado.nombreCompleto} ({socioSeleccionado.codigo})
+                                    Socio principal: {invitacionesDisponibles.socio.nombreCompleto || `${invitacionesDisponibles.socio.codigo}`}{' '}
+                                    ({invitacionesDisponibles.socio.codigo})
                                 </Typography>
+                                {invitacionesDisponibles.socio.codigo !== socioSeleccionado.codigo && (
+                                    <Typography variant="body2" color="text.secondary">
+                                        Seleccionado: {socioSeleccionado.nombreCompleto} ({socioSeleccionado.codigo})
+                                    </Typography>
+                                )}
                                 <Typography variant="body1">
                                     Invitaciones disponibles: {invitacionesDisponibles.invitacionesDisponibles}
                                 </Typography>
