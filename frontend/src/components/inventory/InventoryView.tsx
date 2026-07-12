@@ -47,6 +47,8 @@ import { API_BASE_URL } from '../../config';
 import { useAuthStore } from '../../stores/authStore';
 import { RegistrarProductoRetiradoModal } from './RegistrarProductoRetiradoModal';
 import { ProductosRetiradosList } from './ProductosRetiradosList';
+import { AddStockModal } from './AddStockModal';
+import { StockAdditionList } from './StockAdditionList';
 
 const STOCK_BAJO = 10;
 
@@ -85,6 +87,10 @@ export const InventoryView: React.FC = () => {
     const [isNewType, setIsNewType] = useState(false);
     const [showProductosRetirados, setShowProductosRetirados] = useState(false);
     const [showRegistrarRetirado, setShowRegistrarRetirado] = useState(false);
+    const [showStockAdditions, setShowStockAdditions] = useState(false);
+    const [openAddStockDialog, setOpenAddStockDialog] = useState(false);
+    const [selectedStockProduct, setSelectedStockProduct] = useState<Product | null>(null);
+    const [stockError, setStockError] = useState<string | null>(null);
 
     const { token, user } = useAuthStore();
     const userRole = user?.role;
@@ -200,6 +206,37 @@ export const InventoryView: React.FC = () => {
         }
     });
 
+    const addStockMutation = useMutation({
+        mutationFn: async ({ productId, cantidad, observaciones }: { productId: string; cantidad: number; observaciones?: string }) => {
+            const response = await fetch(`${API_BASE_URL}/inventory/stock-additions`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    productoId: productId,
+                    cantidad,
+                    observaciones
+                })
+            });
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => ({ message: 'Error al añadir stock' }));
+                throw new Error(errorBody.message || 'Error al añadir stock');
+            }
+            return response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['products'] });
+            queryClient.invalidateQueries({ queryKey: ['stock-additions'] });
+            handleCloseAddStockDialog();
+            fetchProducts();
+        },
+        onError: (error: Error) => {
+            setStockError(error.message);
+        }
+    });
+
     const fetchProducts = async () => {
         try {
             setLoading(true);
@@ -299,6 +336,18 @@ export const InventoryView: React.FC = () => {
         setOpenDialog(true);
     };
 
+    const handleOpenAddStockDialog = (product: Product) => {
+        setSelectedStockProduct(product);
+        setStockError(null);
+        setOpenAddStockDialog(true);
+    };
+
+    const handleCloseAddStockDialog = () => {
+        setSelectedStockProduct(null);
+        setStockError(null);
+        setOpenAddStockDialog(false);
+    };
+
     const handleCloseDialog = () => {
         setOpenDialog(false);
         setSelectedProduct(null);
@@ -389,9 +438,18 @@ export const InventoryView: React.FC = () => {
         {
             field: 'actions',
             headerName: 'Acciones',
-            width: 200,
+            width: 260,
             renderCell: (params) => (
                 <Stack direction="row" spacing={1}>
+                    {(userRole === UserRole.ADMINISTRADOR || userRole === UserRole.JUNTA || userRole === UserRole.TRABAJADOR) && (
+                        <IconButton
+                            size="small"
+                            onClick={() => handleOpenAddStockDialog(params.row)}
+                            color="primary"
+                        >
+                            <AddIcon />
+                        </IconButton>
+                    )}
                     {(userRole === UserRole.ADMINISTRADOR || userRole === UserRole.JUNTA) && (
                         <>
                             <IconButton
@@ -508,6 +566,19 @@ export const InventoryView: React.FC = () => {
                                             </Button>
                                         </Box>
                                     </>
+                                )}
+                                {(userRole === UserRole.ADMINISTRADOR || userRole === UserRole.JUNTA) && (
+                                    <Box sx={{ flex: { sm: 1, md: 2 } }}>
+                                        <Button
+                                            fullWidth
+                                            variant="outlined"
+                                            color="secondary"
+                                            startIcon={<AddIcon />}
+                                            onClick={() => setShowStockAdditions(true)}
+                                        >
+                                            Movimientos de stock
+                                        </Button>
+                                    </Box>
                                 )}
                                 <Box sx={{ flex: { sm: 1, md: 2 } }}>
                                     <Button
@@ -704,6 +775,42 @@ export const InventoryView: React.FC = () => {
                             </Dialog>
                         )}
                     </>
+                )}
+
+                <AddStockModal
+                    open={openAddStockDialog}
+                    product={selectedStockProduct}
+                    loading={addStockMutation.isLoading}
+                    error={stockError ?? undefined}
+                    onClose={handleCloseAddStockDialog}
+                    onSubmit={(cantidad, observaciones) => {
+                        if (!selectedStockProduct) {
+                            return;
+                        }
+                        setStockError(null);
+                        addStockMutation.mutate({
+                            productId: selectedStockProduct._id,
+                            cantidad,
+                            observaciones
+                        });
+                    }}
+                />
+
+                {showStockAdditions && (
+                    <Dialog
+                        open={showStockAdditions}
+                        onClose={() => setShowStockAdditions(false)}
+                        maxWidth="lg"
+                        fullWidth
+                    >
+                        <DialogTitle>Movimientos de stock</DialogTitle>
+                        <DialogContent>
+                            <StockAdditionList />
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={() => setShowStockAdditions(false)}>Cerrar</Button>
+                        </DialogActions>
+                    </Dialog>
                 )}
             </Paper>
         </Box>

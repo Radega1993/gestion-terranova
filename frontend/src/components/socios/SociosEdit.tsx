@@ -71,7 +71,22 @@ const SociosEdit: React.FC = () => {
     });
 
     const handleSubmit = (data: Partial<Socio>) => {
-        updateMutation.mutate(data);
+        const normalizedData = {
+            ...data,
+            contacto: data.contacto ? {
+                ...data.contacto,
+                emails: (data.contacto?.email || [])
+                    .filter((email): email is string => typeof email === 'string' && email.trim() !== '')
+                    .map((email) => email.trim()),
+                telefonos: (data.contacto?.telefonos || [])
+                    .filter((telefono): telefono is string => typeof telefono === 'string' && telefono.trim() !== '')
+                    .map((telefono) => telefono.trim())
+            } : undefined
+        };
+
+        delete (normalizedData as Partial<Socio> & { contacto?: { email?: string[]; emails?: string[]; telefonos?: string[] } }).contacto?.email;
+
+        updateMutation.mutate(normalizedData);
     };
 
     if (isLoading) {
