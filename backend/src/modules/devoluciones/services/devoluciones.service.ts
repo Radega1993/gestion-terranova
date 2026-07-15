@@ -8,6 +8,7 @@ import { Venta } from '../../ventas/schemas/venta.schema';
 import { Product } from '../../inventory/schemas/product.schema';
 import { UsersService } from '../../users/users.service';
 import { TiendasService } from '../../tiendas/services/tiendas.service';
+import { roundMoney } from '../../../common/money';
 
 @Injectable()
 export class DevolucionesService {
@@ -186,6 +187,34 @@ export class DevolucionesService {
         if (devolucion.estado === EstadoDevolucion.CANCELADA) {
             throw new BadRequestException('No se puede procesar una devolución cancelada');
         }
+
+        const venta = await this.ventaModel.findById(devolucion.venta).exec();
+        if (!venta) {
+            throw new NotFoundException(`Venta asociada a la devolución no encontrada`);
+        }
+
+        const devolucionesProcesadas = await this.devolucionModel.find({
+            venta: venta._id,
+            estado: EstadoDevolucion.PROCESADA,
+        }).exec();
+
+        const totalYaDevuelto = devolucionesProcesadas.reduce(
+            (sum, d) => sum + roundMoney(d.totalDevolucion),
+            0,
+        );
+        const totalDevueltoAcumulado = roundMoney(totalYaDevuelto + devolucion.totalDevolucion);
+        const ventaTotal = roundMoney(venta.total);
+
+        const nuevoEstadoVenta =
+            totalDevueltoAcumulado >= ventaTotal - 0.01
+                ? 'DEVUELTA'
+                : 'PARCIALMENTE_DEVUELTA';
+
+        await this.ventaModel.findByIdAndUpdate(
+            venta._id,
+            { $set: { estado: nuevoEstadoVenta } },
+            { new: true },
+        ).exec();
 
         // Actualizar stock de productos
         for (const productoDev of devolucion.productos) {

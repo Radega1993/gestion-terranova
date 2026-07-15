@@ -1,4 +1,4 @@
-import { roundMoney, isVentaFullyPaid, ventaEstadoFromPagado } from './money';
+import { roundMoney, isVentaFullyPaid, ventaEstadoFromPagado, montoRecaudacion } from './money';
 
 describe('money', () => {
   describe('roundMoney', () => {
@@ -35,6 +35,28 @@ describe('money', () => {
 
     it('PENDIENTE sin abono', () => {
       expect(ventaEstadoFromPagado(10, 0)).toBe('PENDIENTE');
+    });
+  });
+
+  describe('montoRecaudacion', () => {
+    it('VENTA normal devuelve pagado positivo', () => {
+      expect(montoRecaudacion({ tipo: 'VENTA', pagado: 10 })).toBe(10);
+    });
+
+    it('CAMBIO con pagadoRecaudacion negativo devuelve valor negativo', () => {
+      expect(montoRecaudacion({ tipo: 'CAMBIO', pagado: 3, pagadoRecaudacion: -3 })).toBe(-3);
+    });
+
+    it('DEVOLUCION con pagadoRecaudacion negativo devuelve valor negativo', () => {
+      expect(montoRecaudacion({ tipo: 'DEVOLUCION', pagado: 10, pagadoRecaudacion: -10 })).toBe(-10);
+    });
+
+    it('CAMBIO sin pagadoRecaudacion hace fallback a pagado', () => {
+      expect(montoRecaudacion({ tipo: 'CAMBIO', pagado: 5 })).toBe(5);
+    });
+
+    it('pagado no numérico devuelve 0', () => {
+      expect(montoRecaudacion({ tipo: 'VENTA', pagado: undefined as unknown as number })).toBe(0);
     });
   });
 });

@@ -16,8 +16,9 @@ import { Trabajador } from '../../users/schemas/trabajador.schema';
 import { Tienda } from '../../tiendas/schemas/tienda.schema';
 import { UsersService } from '../../users/users.service';
 import { CambiosService } from '../../cambios/services/cambios.service';
+import { Devolucion, EstadoDevolucion } from '../../devoluciones/schemas/devolucion.schema';
 import { UserRole } from '../../users/types/user-roles.enum';
-import { roundMoney, ventaEstadoFromPagado, isVentaFullyPaid } from '../../../common/money';
+import { roundMoney, ventaEstadoFromPagado, isVentaFullyPaid, montoRecaudacion } from '../../../common/money';
 
 interface PopulatedReserva extends Omit<Reserva, 'socio' | 'usuarioCreacion' | 'usuarioActualizacion' | 'confirmadoPor' | 'trabajador'> {
     _id: Types.ObjectId;
@@ -77,6 +78,7 @@ export class VentasService {
         @InjectModel(Trabajador.name) private trabajadorModel: Model<Trabajador>,
         @InjectModel(User.name) private userModel: Model<User>,
         @InjectModel(Tienda.name) private tiendaModel: Model<Tienda>,
+        @InjectModel(Devolucion.name) private devolucionModel: Model<Devolucion>,
         private usersService: UsersService
     ) { }
 
@@ -1174,8 +1176,80 @@ export class VentasService {
             };
         });
 
-        // Combinar reservas, ventas y cambios
-        let recaudaciones = [...reservasTransformadas, ...ventasTransformadas, ...cambiosTransformados];
+        // Obtener devoluciones procesadas (contabilizadas por fecha de procesamiento)
+        const filtroDevoluciones: any = {
+            estado: EstadoDevolucion.PROCESADA,
+        };
+        if (filtros.fechaInicio && filtros.fechaFin) {
+            const fechaInicio = new Date(filtros.fechaInicio);
+            const fechaFin = new Date(filtros.fechaFin);
+            fechaFin.setHours(23, 59, 59, 999);
+            filtroDevoluciones.fechaProcesamiento = {
+                $gte: fechaInicio,
+                $lte: fechaFin,
+            };
+        }
+
+        let devoluciones = await this.devolucionModel
+            .find(filtroDevoluciones)
+            .populate('venta', 'codigoSocio nombreSocio total')
+            .populate('usuario', 'username')
+            .populate('trabajador', 'nombre identificador')
+            .populate('procesadoPor', 'username')
+            .lean()
+            .exec();
+
+        if (filtros.codigoSocio) {
+            devoluciones = devoluciones.filter((devolucion: any) => {
+                const venta = devolucion.venta;
+                return venta && venta.codigoSocio === filtros.codigoSocio;
+            });
+        }
+
+        const devolucionesTransformadas = devoluciones.map((devolucion: any) => {
+            const venta = devolucion.venta;
+            const usuario = devolucion.usuario;
+            const trabajador = devolucion.trabajador;
+            const totalDevolucion = Number(roundMoney(devolucion.totalDevolucion).toFixed(2));
+
+            return {
+                _id: devolucion._id,
+                tipo: 'DEVOLUCION',
+                fecha: devolucion.fechaProcesamiento,
+                ventaId: venta?._id,
+                socio: {
+                    codigo: venta?.codigoSocio || '',
+                    nombre: venta?.nombreSocio || '',
+                },
+                usuario: usuario ? {
+                    _id: usuario._id,
+                    username: usuario.username,
+                } : undefined,
+                trabajador: trabajador ? {
+                    _id: trabajador._id,
+                    nombre: trabajador.nombre,
+                    identificador: trabajador.identificador,
+                } : undefined,
+                total: totalDevolucion,
+                pagado: totalDevolucion,
+                pagadoRecaudacion: -totalDevolucion,
+                metodoPago: devolucion.metodoDevolucion,
+                estado: 'PROCESADA',
+                motivo: devolucion.motivo,
+                observaciones: devolucion.observaciones,
+                detalles: (devolucion.productos || []).map((p: any) => ({
+                    nombre: p.nombre,
+                    cantidad: p.cantidad,
+                    precio: Number(p.precioUnitario.toFixed(2)),
+                    total: Number(p.total.toFixed(2)),
+                })),
+                pagos: [],
+                usandoFallback: false,
+            };
+        });
+
+        // Combinar reservas, ventas, cambios y devoluciones
+        let recaudaciones = [...reservasTransformadas, ...ventasTransformadas, ...cambiosTransformados, ...devolucionesTransformadas];
 
         // Aplicar filtro adicional de usuario/trabajador después de transformar
         // Esto es necesario porque cada pago puede tener un usuario/trabajador diferente
@@ -1269,8 +1343,7 @@ export class VentasService {
                 return acc;
             }, {});
             const totalRecaudado: number = recaudaciones.reduce((sum: number, rec: any) => {
-                const monto = rec.tipo === 'CAMBIO' && rec.pagadoRecaudacion !== undefined ? rec.pagadoRecaudacion : rec.pagado;
-                return sum + (typeof monto === 'number' ? monto : 0);
+                return sum + montoRecaudacion(rec);
             }, 0);
             
         }

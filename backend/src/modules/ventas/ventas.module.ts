@@ -12,6 +12,7 @@ import { Tienda, TiendaSchema } from '../tiendas/schemas/tienda.schema';
 import { ReservasModule } from '../reservas/reservas.module';
 import { UsersModule } from '../users/users.module';
 import { CambiosModule } from '../cambios/cambios.module';
+import { Devolucion, DevolucionSchema } from '../devoluciones/schemas/devolucion.schema';
 
 @Module({
     imports: [
@@ -22,7 +23,8 @@ import { CambiosModule } from '../cambios/cambios.module';
             { name: Socio.name, schema: SocioSchema },
             { name: Trabajador.name, schema: TrabajadorSchema },
             { name: User.name, schema: UserSchema },
-            { name: Tienda.name, schema: TiendaSchema }
+            { name: Tienda.name, schema: TiendaSchema },
+            { name: Devolucion.name, schema: DevolucionSchema }
         ]),
         ReservasModule,
         UsersModule,

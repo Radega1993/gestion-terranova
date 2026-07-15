@@ -22,3 +22,18 @@ export function ventaEstadoFromPagado(total: number, pagado: number): VentaEstad
   }
   return 'PENDIENTE';
 }
+
+/** Monto efectivo de una fila de recaudaciones (venta positiva o movimiento negativo). */
+export function montoRecaudacion(rec: {
+  tipo: string;
+  pagado: number;
+  pagadoRecaudacion?: number;
+}): number {
+  if (
+    (rec.tipo === 'CAMBIO' || rec.tipo === 'DEVOLUCION') &&
+    rec.pagadoRecaudacion !== undefined
+  ) {
+    return rec.pagadoRecaudacion;
+  }
+  return typeof rec.pagado === 'number' ? rec.pagado : 0;
+}

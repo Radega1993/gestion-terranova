@@ -353,5 +353,103 @@ describe('ReservasService (unit)', () => {
     expect(updatePayload.pagos[0].monto).toBe(40);
     expect(updatePayload.pagos[1].monto).toBe(60);
   });
+
+  it('cancelar: calcula montoDevuelto como precio menos montoAbonado y resetea abonado', async () => {
+    const updated = {
+      estado: EstadoReserva.CANCELADA,
+      precio: 100,
+      montoAbonado: 0,
+      montoDevuelto: 70,
+    } as any;
+
+    const findByIdAndUpdateMock = jest.fn().mockReturnValue(mockChain(updated));
+    const reservaModelMock: any = {
+      findById: jest.fn().mockResolvedValue({
+        _id: 'res1',
+        estado: EstadoReserva.PENDIENTE,
+        precio: 100,
+        montoAbonado: 30,
+      }),
+      findByIdAndUpdate: findByIdAndUpdateMock,
+    };
+
+    const service = new ReservasService(reservaModelMock, {} as any, {} as any);
+
+    const result = await service.cancelar(
+      'res1',
+      { motivo: 'No disponible', observaciones: 'Cliente cancela' } as any,
+      'user-admin',
+    );
+
+    expect(result.montoDevuelto).toBe(70);
+    expect(result.montoAbonado).toBe(0);
+
+    const updatePayload = findByIdAndUpdateMock.mock.calls[0][1];
+    expect(updatePayload.montoDevuelto).toBe(70);
+    expect(updatePayload.montoAbonado).toBe(0);
+  });
+
+  it('cancelar: usa montoDevuelto explícito del DTO', async () => {
+    const updated = {
+      estado: EstadoReserva.CANCELADA,
+      montoDevuelto: 25,
+      montoAbonado: 0,
+    } as any;
+
+    const findByIdAndUpdateMock = jest.fn().mockReturnValue(mockChain(updated));
+    const reservaModelMock: any = {
+      findById: jest.fn().mockResolvedValue({
+        _id: 'res1',
+        estado: EstadoReserva.PENDIENTE,
+        precio: 100,
+        montoAbonado: 30,
+      }),
+      findByIdAndUpdate: findByIdAndUpdateMock,
+    };
+
+    const service = new ReservasService(reservaModelMock, {} as any, {} as any);
+
+    await service.cancelar(
+      'res1',
+      { motivo: 'Ajuste manual', montoDevuelto: 25 } as any,
+      'user-admin',
+    );
+
+    const updatePayload = findByIdAndUpdateMock.mock.calls[0][1];
+    expect(updatePayload.montoDevuelto).toBe(25);
+  });
+
+  it('cancelar: rechaza reserva LIQUIDADA', async () => {
+    const reservaModelMock: any = {
+      findById: jest.fn().mockResolvedValue({ estado: EstadoReserva.LIQUIDADA }),
+    };
+    const service = new ReservasService(reservaModelMock, {} as any, {} as any);
+
+    await expect(
+      service.cancelar('res1', { motivo: 'Tarde' } as any, 'user-admin'),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('cancelar: redondea importe pendiente a 2 decimales', async () => {
+    const findByIdAndUpdateMock = jest.fn().mockReturnValue(
+      mockChain({ estado: EstadoReserva.CANCELADA, montoDevuelto: 7.22, montoAbonado: 0 }),
+    );
+    const reservaModelMock: any = {
+      findById: jest.fn().mockResolvedValue({
+        _id: 'res1',
+        estado: EstadoReserva.PENDIENTE,
+        precio: 10.333,
+        montoAbonado: 3.111,
+      }),
+      findByIdAndUpdate: findByIdAndUpdateMock,
+    };
+
+    const service = new ReservasService(reservaModelMock, {} as any, {} as any);
+
+    await service.cancelar('res1', { motivo: 'Cancelación' } as any, 'user-admin');
+
+    const updatePayload = findByIdAndUpdateMock.mock.calls[0][1];
+    expect(updatePayload.montoDevuelto).toBe(7.22);
+  });
 });
 

@@ -65,7 +65,7 @@ export class Venta {
     @Prop({ required: true, type: Number, default: 0 })
     pagado: number;
 
-    @Prop({ required: true, type: String, enum: ['PENDIENTE', 'PAGADO_PARCIAL', 'PAGADO'], default: 'PENDIENTE' })
+    @Prop({ required: true, type: String, enum: ['PENDIENTE', 'PAGADO_PARCIAL', 'PAGADO', 'PARCIALMENTE_DEVUELTA', 'DEVUELTA'], default: 'PENDIENTE' })
     estado: string;
 
     @Prop({ type: String, enum: ['EFECTIVO', 'TARJETA', 'TRANSFERENCIA'], default: 'EFECTIVO' })
