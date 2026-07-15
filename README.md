@@ -277,6 +277,73 @@ Este proyecto está bajo la Licencia MIT.
    - El servidor frontend (puerto 5173)
    - Abrirá automáticamente la aplicación en su navegador predeterminado
 
+## Actualizar la Aplicación
+
+Cuando haya una nueva versión en GitHub y el PC tenga conexión a internet puntual:
+
+1. Cierre el uso activo de la aplicación (no hace falta detener MongoDB).
+2. Haga clic derecho en `update-app.bat` y seleccione **Ejecutar como administrador**.
+3. Espere a que termine. El script:
+   - Detiene backend y frontend
+   - Crea una copia de seguridad en `backups/AAAA-MM-DD_HH-mm-ss/`
+   - Descarga la última versión de `main` desde GitHub
+   - Preserva `backend/.env`, `frontend/.env` y `backend/uploads/`
+   - Reinstala dependencias y reinicia con `start-app.bat`
+4. Compruebe que la aplicación abre correctamente en http://localhost:5173
+
+### Qué se preserva automáticamente
+
+- **Base de datos MongoDB** (ubicada en `C:\data\db`, fuera del proyecto)
+- **Configuración** (`backend/.env` y `frontend/.env`)
+- **Archivos subidos** (`backend/uploads/`)
+
+### Copias de seguridad
+
+Cada actualización guarda en `backups/`:
+
+- `mongodb/` — dump de la base de datos (`mongodump`)
+- `config/` — copia de los archivos `.env`
+- `uploads/` — copia de archivos subidos
+- `code/` — copia del código anterior para rollback rápido
+
+### Migraciones de datos
+
+Si la nueva versión requiere cambios en la base de datos, consulte [MIGRATIONS.md](MIGRATIONS.md). Por defecto las migraciones no se ejecutan solas; para ejecutarlas con confirmación:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File update-app.ps1 -RunMigrations
+```
+
+### Restaurar manualmente si algo falla
+
+1. Detenga la aplicación (cierre terminales o ejecute `stop-app.ps1` como administrador).
+2. Restaure la base de datos desde el backup más reciente:
+
+```powershell
+mongorestore --uri="mongodb://127.0.0.1:27017/terranova" --drop backups\FECHA\mongodb\terranova
+```
+
+(Ajuste la ruta `FECHA` y el nombre de la base de datos según su `MONGODB_URI` en `backend/.env`.)
+
+3. Restaure configuración y uploads si hiciera falta:
+
+```powershell
+copy backups\FECHA\config\backend.env backend\.env
+copy backups\FECHA\config\frontend.env frontend\.env
+xcopy backups\FECHA\uploads backend\uploads /E /I /Y
+```
+
+4. Reinicie con `start-app.bat`.
+
+### Parámetros avanzados (PowerShell)
+
+| Parámetro | Descripción |
+|-----------|-------------|
+| `-DryRun` | Muestra si hay actualización disponible sin aplicar cambios |
+| `-Force` | Actualiza aunque el commit local coincida con GitHub |
+| `-SkipBackup` | Omite la copia de seguridad (solo pruebas) |
+| `-RunMigrations` | Pregunta antes de ejecutar migraciones de `MIGRATIONS.md` |
+
 ## Solución de Problemas
 
 ### Problemas Comunes
@@ -309,6 +376,19 @@ Para verificar que todo está funcionando correctamente:
 1. Backend: http://localhost:3000/api/health
 2. Frontend: http://localhost:5173
 3. MongoDB: `mongosh` en la terminal
+
+## Configuración MCP (Cursor)
+
+Para usar los MCP desde Cursor, consulta la configuración del repositorio en `.cursor/mcp.json`.
+
+- Playwright MCP: disponible para automatizar flujos completos en `http://localhost:5173`.
+- Context7 MCP: requiere una clave de API. Define `CONTEXT7_API_KEY` en el entorno (o en la configuración de variables de Cursor) antes de iniciar los MCP. No es necesario (ni recomendable) commitear la clave en el repositorio.
+
+Ejemplo (Linux / bash):
+
+```bash
+export CONTEXT7_API_KEY="tu_clave_aqui"
+```
 
 ## Desinstalación
 
