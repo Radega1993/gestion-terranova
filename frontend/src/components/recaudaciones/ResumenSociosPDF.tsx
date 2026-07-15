@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Document, Page, Text, View, StyleSheet, PDFViewer } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { montoRecaudacion } from '../../utils/formatters';
 
 const styles = StyleSheet.create({
     page: {
@@ -152,7 +153,7 @@ const styles = StyleSheet.create({
 interface ResumenSociosPDFProps {
     ventas: Array<{
         _id: string;
-        tipo: 'VENTA' | 'RESERVA';
+        tipo: 'VENTA' | 'RESERVA' | 'CAMBIO' | 'DEVOLUCION';
         fecha: string;
         socio: {
             codigo: string;
@@ -230,10 +231,7 @@ export const ResumenSociosPDF: React.FC<ResumenSociosPDFProps> = ({ ventas, fech
             socioData.diasConsumo.add(fechaConsumo);
             
             // Sumar al total pagado
-            // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
-            const montoVenta = venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined 
-                ? (venta as any).pagadoRecaudacion 
-                : venta.pagado;
+            const montoVenta = montoRecaudacion(venta);
             socioData.totalPagado += montoVenta;
             socioData.totalVentas += 1;
 

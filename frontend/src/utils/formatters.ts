@@ -21,6 +21,24 @@ export const formatCurrency = (value: number | string | undefined | null, decima
 /** Redondeo a 2 decimales (céntimos), alineado con el backend. */
 export const roundMoney = (n: number): number => Math.round(Number(n) * 100) / 100;
 
+/** Monto efectivo de una fila de recaudaciones (venta positiva o movimiento negativo). */
+export const montoRecaudacion = (rec: {
+    tipo: string;
+    pagado: number;
+    pagadoRecaudacion?: number;
+}): number => {
+    if (
+        (rec.tipo === 'CAMBIO' || rec.tipo === 'DEVOLUCION') &&
+        rec.pagadoRecaudacion !== undefined
+    ) {
+        return rec.pagadoRecaudacion;
+    }
+    return typeof rec.pagado === 'number' ? rec.pagado : 0;
+};
+
+export const usaPagadoRecaudacion = (tipo: string, pagadoRecaudacion?: number): boolean =>
+    (tipo === 'CAMBIO' || tipo === 'DEVOLUCION') && pagadoRecaudacion !== undefined;
+
 /**
  * Normaliza un valor decimal aceptando tanto punto como coma
  * @param value - Valor con punto o coma como separador decimal

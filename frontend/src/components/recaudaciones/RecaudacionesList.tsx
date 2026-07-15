@@ -40,6 +40,7 @@ import { Cliente } from '../ventas/types';
 import { ResumenGeneralPDF } from './ResumenGeneralPDF';
 import { ResumenDetalladoPDF } from './ResumenDetalladoPDF';
 import { ResumenSociosPDF } from './ResumenSociosPDF';
+import { montoRecaudacion, usaPagadoRecaudacion } from '../../utils/formatters';
 
 interface Filtros {
     fechaInicio: Date | null;
@@ -62,7 +63,7 @@ interface Usuario {
 
 interface Venta {
     _id: string;
-    tipo: 'VENTA' | 'RESERVA' | 'CAMBIO';
+    tipo: 'VENTA' | 'RESERVA' | 'CAMBIO' | 'DEVOLUCION';
     fecha: string;
     socio: {
         codigo: string;
@@ -83,7 +84,8 @@ interface Venta {
     metodoPago?: string;
     estado: string;
     diferenciaPrecio?: number; // Solo para cambios
-    pagadoRecaudacion?: number; // Para cambios: positivo si PAGADO, negativo si DEVUELTO
+    pagadoRecaudacion?: number; // Para cambios/devoluciones: positivo si PAGADO, negativo si DEVUELTO
+    ventaId?: string;
     totalPagadoAcumulado?: number; // Para ventas con múltiples pagos: total pagado acumulado hasta este pago
     esMultiPago?: boolean; // Indica si la venta tiene múltiples pagos
     indicePago?: number; // Índice del pago (0, 1, 2, ...)
@@ -234,13 +236,7 @@ const RecaudacionesList: React.FC = () => {
         setVentas([]);
     };
 
-    const totalRecaudado = ventas.reduce((sum, venta) => {
-        // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
-        if (venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined) {
-            return sum + (venta as any).pagadoRecaudacion;
-        }
-        return sum + venta.pagado;
-    }, 0);
+    const totalRecaudado = ventas.reduce((sum, venta) => sum + montoRecaudacion(venta), 0);
 
     // Calcular totales por usuario/trabajador (solo de las ventas filtradas)
     const totalesPorUsuario = ventas.reduce((acc: { [key: string]: { username: string; total: number; cantidad: number } }, venta) => {
@@ -256,10 +252,7 @@ const RecaudacionesList: React.FC = () => {
                 cantidad: 0
             };
         }
-        // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
-        const monto = venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined
-            ? (venta as any).pagadoRecaudacion
-            : venta.pagado;
+        const monto = montoRecaudacion(venta);
         acc[identificador].total += monto;
         acc[identificador].cantidad += 1;
         return acc;
@@ -298,6 +291,18 @@ const RecaudacionesList: React.FC = () => {
             case 'DEVUELTO':
                 color = 'info';
                 label = 'Devuelto';
+                break;
+            case 'DEVUELTA':
+                color = 'error';
+                label = 'Devuelta';
+                break;
+            case 'PARCIALMENTE_DEVUELTA':
+                color = 'warning';
+                label = 'Parcialmente devuelta';
+                break;
+            case 'PROCESADA':
+                color = 'error';
+                label = 'Procesada';
                 break;
             default:
                 color = 'default';
@@ -533,9 +538,11 @@ const RecaudacionesList: React.FC = () => {
                                         <TableCell>
                                             <Chip 
                                                 label={venta.tipo === 'VENTA' ? 'Venta' : 
-                                                       venta.tipo === 'RESERVA' ? 'Reserva' : 'Cambio'}
+                                                       venta.tipo === 'RESERVA' ? 'Reserva' :
+                                                       venta.tipo === 'DEVOLUCION' ? 'Devolución' : 'Cambio'}
                                                 color={venta.tipo === 'VENTA' ? 'primary' : 
-                                                       venta.tipo === 'RESERVA' ? 'secondary' : 'warning'}
+                                                       venta.tipo === 'RESERVA' ? 'secondary' :
+                                                       venta.tipo === 'DEVOLUCION' ? 'error' : 'warning'}
                                                 size="small"
                                             />
                                         </TableCell>
@@ -560,13 +567,13 @@ const RecaudacionesList: React.FC = () => {
                                             </Box>
                                         </TableCell>
                                         <TableCell align="right">
-                                            {venta.tipo === 'CAMBIO' && venta.pagadoRecaudacion !== undefined
+                                            {usaPagadoRecaudacion(venta.tipo, venta.pagadoRecaudacion)
                                                 ? (
                                                     <Box>
                                                         <Typography variant="body2">
-                                                            {venta.pagadoRecaudacion.toFixed(2)}€
+                                                            {venta.pagadoRecaudacion!.toFixed(2)}€
                                                         </Typography>
-                                                        {venta.pagadoRecaudacion < 0 && (
+                                                        {venta.pagadoRecaudacion! < 0 && (
                                                             <Typography variant="caption" color="error">
                                                                 (Devolución)
                                                             </Typography>
@@ -615,7 +622,16 @@ const RecaudacionesList: React.FC = () => {
                                             )}
                                         </TableCell>
                                         <TableCell>
-                                            {venta.tipo === 'CAMBIO' ? (
+                                            {venta.tipo === 'DEVOLUCION' ? (
+                                                <Box>
+                                                    {getEstadoChip(venta.estado)}
+                                                    {venta.motivo && (
+                                                        <Typography variant="caption" display="block" color="text.secondary">
+                                                            {venta.motivo}
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            ) : venta.tipo === 'CAMBIO' ? (
                                                 <Box>
                                                     {getEstadoChip(venta.estado)}
                                                     {venta.diferenciaPrecio !== undefined && (
@@ -630,7 +646,20 @@ const RecaudacionesList: React.FC = () => {
                                             )}
                                         </TableCell>
                                         <TableCell>
-                                            {venta.tipo === 'CAMBIO' && venta.productoOriginal && venta.productoNuevo ? (
+                                            {venta.tipo === 'DEVOLUCION' ? (
+                                                <Box>
+                                                    {venta.detalles.map((producto, index) => (
+                                                        <div key={index}>
+                                                            {producto.cantidad} x {producto.nombre} = {producto.total.toFixed(2)}€
+                                                        </div>
+                                                    ))}
+                                                    {venta.motivo && (
+                                                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                                                            Motivo: {venta.motivo}
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            ) : venta.tipo === 'CAMBIO' && venta.productoOriginal && venta.productoNuevo ? (
                                                 <Box>
                                                     <Typography variant="body2" color="error">
                                                         {venta.productoOriginal.nombre} x{venta.productoOriginal.cantidad} = {venta.productoOriginal.total.toFixed(2)}€

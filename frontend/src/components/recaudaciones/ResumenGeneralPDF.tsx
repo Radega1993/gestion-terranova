@@ -3,6 +3,7 @@ import { Document, Page, Text, View, StyleSheet, PDFViewer } from '@react-pdf/re
 import { format } from 'date-fns';
 import { API_BASE_URL } from '../../config';
 import { useAuthStore } from '../../stores/authStore';
+import { montoRecaudacion } from '../../utils/formatters';
 
 const styles = StyleSheet.create({
     page: {
@@ -103,7 +104,7 @@ const styles = StyleSheet.create({
 interface ResumenGeneralPDFProps {
     ventas: Array<{
         _id: string;
-        tipo: 'VENTA' | 'RESERVA' | 'CAMBIO';
+        tipo: 'VENTA' | 'RESERVA' | 'CAMBIO' | 'DEVOLUCION';
         fecha: string;
         socio: {
             codigo: string;
@@ -200,10 +201,7 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
             }
 
             // Sumar al total del trabajador/usuario (siempre sumar el pagado de cada transacción)
-            // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
-            const montoVenta = venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined 
-                ? (venta as any).pagadoRecaudacion 
-                : (venta.pagado || 0);
+            const montoVenta = montoRecaudacion(venta);
             const pagadoRedondeado = Number(montoVenta.toFixed(2));
             acc[key].total = Number((acc[key].total + pagadoRedondeado).toFixed(2));
 
@@ -364,10 +362,7 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
         // Calcular totales por método de pago
         const totalesPorMetodoPagoResult = ventas.reduce((acc: { efectivo: number; tarjeta: number }, venta) => {
             const metodoPago = venta.metodoPago || (venta.pagos && venta.pagos.length > 0 ? venta.pagos[0].metodoPago : '');
-            // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
-            const montoVenta = venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined 
-                ? (venta as any).pagadoRecaudacion 
-                : (venta.pagado || 0);
+            const montoVenta = montoRecaudacion(venta);
             const pagadoRedondeado = Number(montoVenta.toFixed(2));
             if (metodoPago === 'EFECTIVO' || metodoPago === 'efectivo') {
                 acc.efectivo += pagadoRedondeado;

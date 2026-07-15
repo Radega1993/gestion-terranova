@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { API_BASE_URL } from '../../config';
 import { useAuthStore } from '../../stores/authStore';
+import { montoRecaudacion } from '../../utils/formatters';
 
 const styles = StyleSheet.create({
     page: {
@@ -113,7 +114,7 @@ const styles = StyleSheet.create({
 interface ResumenDetalladoPDFProps {
     ventas: Array<{
         _id: string;
-        tipo: 'VENTA' | 'RESERVA';
+        tipo: 'VENTA' | 'RESERVA' | 'CAMBIO' | 'DEVOLUCION';
         fecha: string;
         socio: {
             codigo: string;
@@ -194,10 +195,7 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
             }
             
             agrupadas[fechaKey].ventas.push(venta);
-            // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
-            const montoVenta = venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined 
-                ? (venta as any).pagadoRecaudacion 
-                : venta.pagado;
+            const montoVenta = montoRecaudacion(venta);
             agrupadas[fechaKey].total += montoVenta;
             agrupadas[fechaKey].cantidadVentas += 1;
             
@@ -240,10 +238,7 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
             // Solo incrementamos si esta venta no ha sido contada antes
             if (!acc[key].ventas.has(venta._id)) {
                 acc[key].unidades += 1;
-                // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
-                const montoVenta = venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined 
-                    ? (venta as any).pagadoRecaudacion 
-                    : venta.pagado;
+                const montoVenta = montoRecaudacion(venta);
                 acc[key].total += montoVenta;
                 acc[key].ventas.add(venta._id);
             }
@@ -314,26 +309,15 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
     }, {});
 
 
-    // Calcular totales generales
-    // Para cambios, usar pagadoRecaudacion si está disponible (incluye signo negativo para devoluciones)
-    const totalGeneral = ventas.reduce((sum, v) => {
-        if (v.tipo === 'CAMBIO' && (v as any).pagadoRecaudacion !== undefined) {
-            return sum + (v as any).pagadoRecaudacion;
-        }
-        return sum + v.pagado;
-    }, 0);
+    const totalGeneral = ventas.reduce((sum, v) => sum + montoRecaudacion(v), 0);
     const totalEfectivo = ventas.reduce((sum, v) => {
         const metodoPago = v.metodoPago || (v.pagos && v.pagos.length > 0 ? v.pagos[0].metodoPago : '');
-        const monto = v.tipo === 'CAMBIO' && (v as any).pagadoRecaudacion !== undefined 
-            ? (v as any).pagadoRecaudacion 
-            : v.pagado;
+        const monto = montoRecaudacion(v);
         return sum + (metodoPago === 'EFECTIVO' || metodoPago === 'efectivo' ? monto : 0);
     }, 0);
     const totalTarjeta = ventas.reduce((sum, v) => {
         const metodoPago = v.metodoPago || (v.pagos && v.pagos.length > 0 ? v.pagos[0].metodoPago : '');
-        const monto = v.tipo === 'CAMBIO' && (v as any).pagadoRecaudacion !== undefined 
-            ? (v as any).pagadoRecaudacion 
-            : v.pagado;
+        const monto = montoRecaudacion(v);
         return sum + (metodoPago === 'TARJETA' || metodoPago === 'tarjeta' ? monto : 0);
     }, 0);
 
@@ -458,9 +442,7 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
                                             </View>
                                             <View style={styles.tableColSmall}>
                                                 <Text style={styles.tableCellSmall}>
-                                                    {(venta.tipo === 'CAMBIO' && (venta as any).pagadoRecaudacion !== undefined
-                                                        ? (venta as any).pagadoRecaudacion
-                                                        : venta.pagado).toFixed(2)}€
+                                                    {montoRecaudacion(venta).toFixed(2)}€
                                                 </Text>
                                             </View>
                                         </View>
