@@ -38,7 +38,16 @@ export interface Venta {
     metodoPago: 'EFECTIVO' | 'TARJETA';
     observaciones?: string;
     estado: 'PENDIENTE' | 'PAGADO' | 'PAGADO_PARCIAL';
-    usuario: string;
+    usuario: string | {
+        _id: string;
+        username: string;
+        nombre?: string;
+    };
+    trabajador?: {
+        _id: string;
+        nombre: string;
+        identificador: string;
+    } | string;
     createdAt: string;
     updatedAt: string;
-} 
+}

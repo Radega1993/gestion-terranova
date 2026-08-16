@@ -1,7 +1,6 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, PDFViewer } from '@react-pdf/renderer';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 
 const styles = StyleSheet.create({
     page: {
@@ -46,7 +45,14 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
     },
     tableCol: {
-        width: '16.66%',
+        width: '14.28%',
+        borderStyle: 'solid',
+        borderWidth: 1,
+        borderLeftWidth: 0,
+        borderTopWidth: 0,
+    },
+    tableColPago: {
+        width: '25%',
         borderStyle: 'solid',
         borderWidth: 1,
         borderLeftWidth: 0,
@@ -55,7 +61,7 @@ const styles = StyleSheet.create({
     tableCell: {
         margin: 'auto',
         padding: 5,
-        fontSize: 10,
+        fontSize: 9,
     },
     tableHeader: {
         backgroundColor: '#f0f0f0',
@@ -67,8 +73,6 @@ const styles = StyleSheet.create({
         left: 30,
         right: 30,
         textAlign: 'center',
-        borderTop: 1,
-        paddingTop: 20,
     },
     infoBox: {
         margin: 10,
@@ -102,43 +106,67 @@ const styles = StyleSheet.create({
     },
 });
 
+interface DeudaVentaPDF {
+    _id: string;
+    createdAt: string;
+    total: number;
+    pagado: number;
+    estado: string;
+    observaciones?: string;
+    productos: Array<{
+        nombre: string;
+        unidades: number;
+        precioUnitario: number;
+        precioTotal: number;
+    }>;
+    pagos?: Array<{
+        fecha: string;
+        monto: number;
+        metodoPago: string;
+        observaciones?: string;
+    }>;
+    trabajador?: {
+        _id: string;
+        nombre: string;
+        identificador: string;
+    } | string;
+    usuario?: string | {
+        _id: string;
+        username: string;
+        nombre?: string;
+    };
+}
+
 interface DeudasPDFProps {
     socio: {
         codigo: string;
         nombre: string;
     };
-    ventas: Array<{
-        _id: string;
-        createdAt: string;
-        total: number;
-        pagado: number;
-        estado: string;
-        observaciones?: string;
-        productos: Array<{
-            nombre: string;
-            unidades: number;
-            precioUnitario: number;
-            precioTotal: number;
-        }>;
-        pagos?: Array<{
-            fecha: string;
-            monto: number;
-            metodoPago: string;
-            observaciones?: string;
-        }>;
-    }>;
+    ventas: DeudaVentaPDF[];
+}
+
+function getTrabajadorLabel(venta: DeudaVentaPDF): string {
+    if (venta.trabajador && typeof venta.trabajador === 'object') {
+        const { nombre, identificador } = venta.trabajador;
+        if (nombre && identificador) {
+            return `${nombre} (${identificador})`;
+        }
+        return nombre || identificador || '-';
+    }
+    if (venta.usuario && typeof venta.usuario === 'object') {
+        return venta.usuario.username || venta.usuario.nombre || '-';
+    }
+    return '-';
 }
 
 export const DeudasPDF: React.FC<DeudasPDFProps> = ({
     socio,
     ventas = []
 }) => {
-    // Calcular totales
     const totalDeuda = ventas.reduce((sum, venta) => sum + (venta.total - venta.pagado), 0);
     const totalPagado = ventas.reduce((sum, venta) => sum + venta.pagado, 0);
     const totalVentas = ventas.reduce((sum, venta) => sum + venta.total, 0);
 
-    // Ordenar ventas por fecha (más recientes primero)
     const ventasOrdenadas = [...ventas].sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
@@ -152,7 +180,6 @@ export const DeudasPDF: React.FC<DeudasPDFProps> = ({
                         <Text style={styles.subtitle}>Comunidad de Vecinos Terranova</Text>
                     </View>
 
-                    {/* Información del Socio */}
                     <View style={styles.infoBox}>
                         <Text style={styles.infoText}>
                             <Text style={styles.infoLabel}>Socio:</Text> {socio?.nombre || 'No especificado'}
@@ -162,7 +189,6 @@ export const DeudasPDF: React.FC<DeudasPDFProps> = ({
                         </Text>
                     </View>
 
-                    {/* Resumen de Totales */}
                     <View style={styles.totalBox}>
                         <Text style={styles.totalText}>Resumen de Deudas</Text>
                         <Text style={styles.infoText}>
@@ -176,13 +202,15 @@ export const DeudasPDF: React.FC<DeudasPDFProps> = ({
                         </Text>
                     </View>
 
-                    {/* Detalle de Ventas */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Detalle de Ventas</Text>
                         <View style={styles.table}>
                             <View style={[styles.tableRow, styles.tableHeader]}>
                                 <View style={styles.tableCol}>
                                     <Text style={styles.tableCell}>Fecha</Text>
+                                </View>
+                                <View style={styles.tableCol}>
+                                    <Text style={styles.tableCell}>Trabajador</Text>
                                 </View>
                                 <View style={styles.tableCol}>
                                     <Text style={styles.tableCell}>Total</Text>
@@ -207,6 +235,9 @@ export const DeudasPDF: React.FC<DeudasPDFProps> = ({
                                             <Text style={styles.tableCell}>
                                                 {format(new Date(venta.createdAt), 'dd/MM/yyyy HH:mm')}
                                             </Text>
+                                        </View>
+                                        <View style={styles.tableCol}>
+                                            <Text style={styles.tableCell}>{getTrabajadorLabel(venta)}</Text>
                                         </View>
                                         <View style={styles.tableCol}>
                                             <Text style={styles.tableCell}>{venta.total.toFixed(2)}€</Text>
@@ -239,39 +270,38 @@ export const DeudasPDF: React.FC<DeudasPDFProps> = ({
                         </View>
                     </View>
 
-                    {/* Historial de Pagos */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Historial de Pagos</Text>
                         <View style={styles.table}>
                             <View style={[styles.tableRow, styles.tableHeader]}>
-                                <View style={styles.tableCol}>
+                                <View style={styles.tableColPago}>
                                     <Text style={styles.tableCell}>Fecha</Text>
                                 </View>
-                                <View style={styles.tableCol}>
+                                <View style={styles.tableColPago}>
                                     <Text style={styles.tableCell}>Monto</Text>
                                 </View>
-                                <View style={styles.tableCol}>
+                                <View style={styles.tableColPago}>
                                     <Text style={styles.tableCell}>Método</Text>
                                 </View>
-                                <View style={styles.tableCol}>
+                                <View style={styles.tableColPago}>
                                     <Text style={styles.tableCell}>Observaciones</Text>
                                 </View>
                             </View>
                             {ventasOrdenadas.flatMap(venta =>
                                 venta.pagos?.map((pago, index) => (
                                     <View key={`${venta._id}-${index}`} style={styles.tableRow}>
-                                        <View style={styles.tableCol}>
+                                        <View style={styles.tableColPago}>
                                             <Text style={styles.tableCell}>
                                                 {format(new Date(pago.fecha), 'dd/MM/yyyy HH:mm')}
                                             </Text>
                                         </View>
-                                        <View style={styles.tableCol}>
+                                        <View style={styles.tableColPago}>
                                             <Text style={styles.tableCell}>{pago.monto.toFixed(2)}€</Text>
                                         </View>
-                                        <View style={styles.tableCol}>
+                                        <View style={styles.tableColPago}>
                                             <Text style={styles.tableCell}>{pago.metodoPago}</Text>
                                         </View>
-                                        <View style={styles.tableCol}>
+                                        <View style={styles.tableColPago}>
                                             <Text style={styles.tableCell}>{pago.observaciones || '-'}</Text>
                                         </View>
                                     </View>
@@ -287,4 +317,4 @@ export const DeudasPDF: React.FC<DeudasPDFProps> = ({
             </Document>
         </PDFViewer>
     );
-}; 
+};

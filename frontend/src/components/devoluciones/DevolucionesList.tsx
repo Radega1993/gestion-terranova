@@ -29,6 +29,7 @@ import {
     Visibility as VisibilityIcon,
     Add as AddIcon
 } from '@mui/icons-material';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { devolucionesService, Devolucion, DevolucionesFilters } from '../../services/devoluciones';
 import { formatCurrency } from '../../utils/formatters';
 import { useAuthStore } from '../../stores/authStore';
@@ -39,6 +40,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { es } from 'date-fns/locale';
 import { DevolucionModal } from './DevolucionModal';
+import { DevolucionesPDF } from './DevolucionesPDF';
 import { Venta } from '../ventas/types';
 import { API_BASE_URL } from '../../config';
 import { authenticatedFetchJson } from '../../utils/apiHelper';
@@ -57,7 +59,7 @@ export const DevolucionesList: React.FC = () => {
     const [ventas, setVentas] = useState<Venta[]>([]);
     const [loadingVentas, setLoadingVentas] = useState(false);
     const [busquedaVenta, setBusquedaVenta] = useState('');
-
+    const [showPDF, setShowPDF] = useState(false);
     useEffect(() => {
         fetchDevoluciones();
     }, []);
@@ -232,6 +234,10 @@ export const DevolucionesList: React.FC = () => {
         setVentaSeleccionada(null);
     };
 
+    const handleImprimirDevoluciones = () => {
+        setShowPDF(true);
+    };
+
     if (loading && devoluciones.length === 0) {
         return (
             <Container>
@@ -246,16 +252,26 @@ export const DevolucionesList: React.FC = () => {
         <Container>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h4">Devoluciones</Typography>
-                {(user?.role === UserRole.ADMINISTRADOR || user?.role === UserRole.JUNTA || user?.role === UserRole.TRABAJADOR) && (
+                <Box sx={{ display: 'flex', gap: 1 }}>
                     <Button
-                        variant="contained"
-                        color="primary"
-                        startIcon={<AddIcon />}
-                        onClick={handleNuevaDevolucion}
+                        variant="outlined"
+                        startIcon={<PictureAsPdfIcon />}
+                        onClick={handleImprimirDevoluciones}
+                        disabled={devoluciones.length === 0}
                     >
-                        Nueva Devolución
+                        Imprimir
                     </Button>
-                )}
+                    {(user?.role === UserRole.ADMINISTRADOR || user?.role === UserRole.JUNTA || user?.role === UserRole.TRABAJADOR) && (
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            startIcon={<AddIcon />}
+                            onClick={handleNuevaDevolucion}
+                        >
+                            Nueva Devolución
+                        </Button>
+                    )}
+                </Box>
             </Box>
 
             {error && (
@@ -572,6 +588,35 @@ export const DevolucionesList: React.FC = () => {
                 venta={ventaSeleccionada}
                 onDevolucionCompletada={handleDevolucionCompletada}
             />
+
+            <Dialog
+                open={showPDF}
+                onClose={() => setShowPDF(false)}
+                maxWidth="md"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        height: '90vh',
+                        maxHeight: '90vh'
+                    }
+                }}
+            >
+                <DialogTitle>
+                    Informe de Devoluciones
+                </DialogTitle>
+                <DialogContent sx={{
+                    p: 0,
+                    height: 'calc(90vh - 64px)',
+                    '& > div': {
+                        height: '100%'
+                    }
+                }}>
+                    <DevolucionesPDF
+                        devoluciones={devoluciones}
+                        filtros={filtros}
+                    />
+                </DialogContent>
+            </Dialog>
         </Container>
     );
 };

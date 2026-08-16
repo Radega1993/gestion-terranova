@@ -906,4 +906,132 @@ describe('VentasService (unit)', () => {
     const net = result.reduce((sum: number, rec: any) => sum + montoRecaudacion(rec), 0);
     expect(net).toBe(10);
   });
+
+  describe('consistencia tras eliminar socio (caja)', () => {
+    it('crea socio, 2 ventas, elimina socio y recaudaciones siguen consistentes (15)', async () => {
+      const socioId = new Types.ObjectId();
+      let socioDoc: Record<string, unknown> | null = {
+        _id: socioId,
+        socio: 'S001',
+        nombre: { nombre: 'Juan', primerApellido: 'Garcia', segundoApellido: '' },
+        foto: undefined,
+        asociados: [],
+      };
+
+      const ventaStore: Record<string, unknown>[] = [];
+      const ventaDeleteMany = jest.fn();
+      const ventaDeleteOne = jest.fn();
+      const ventaFindByIdAndDelete = jest.fn();
+
+      const { service: createService, ventaSave } = buildCreateVentaService();
+      ventaSave.mockImplementation(function (this: Record<string, unknown>) {
+        const saved = {
+          ...this,
+          _id: new Types.ObjectId(),
+          createdAt: new Date('2026-07-13T10:00:00.000Z'),
+        };
+        ventaStore.push(saved);
+        return Promise.resolve(saved);
+      });
+
+      await createService.create(
+        {
+          codigoSocio: 'S001',
+          nombreSocio: 'Juan Garcia',
+          esSocio: true,
+          productos: [{ nombre: 'Coca', unidades: 2, precioUnitario: 5, precioTotal: 10 }],
+          total: 10,
+          pagado: 10,
+          metodoPago: MetodoPago.EFECTIVO,
+          observaciones: '',
+        } as any,
+        userId,
+        'ADMINISTRADOR',
+      );
+
+      await createService.create(
+        {
+          codigoSocio: 'S001',
+          nombreSocio: 'Juan Garcia',
+          esSocio: true,
+          productos: [{ nombre: 'Coca', unidades: 1, precioUnitario: 5, precioTotal: 5 }],
+          total: 5,
+          pagado: 5,
+          metodoPago: MetodoPago.EFECTIVO,
+          observaciones: '',
+        } as any,
+        userId,
+        'ADMINISTRADOR',
+      );
+
+      expect(ventaStore).toHaveLength(2);
+
+      // Eliminar socio (hard delete): el documento desaparece, las ventas no.
+      socioDoc = null;
+      expect(socioDoc).toBeNull();
+      expect(ventaDeleteMany).not.toHaveBeenCalled();
+      expect(ventaDeleteOne).not.toHaveBeenCalled();
+      expect(ventaFindByIdAndDelete).not.toHaveBeenCalled();
+
+      const ventasParaRecaudacion = ventaStore.map((venta) => ({
+        ...venta,
+        usuario: { _id: new Types.ObjectId(userId), username: 'admin' },
+        trabajador: undefined,
+      })) as unknown as Array<Record<string, unknown> & {
+        codigoSocio: string;
+        nombreSocio: string;
+        usuario: { _id: Types.ObjectId; username: string };
+      }>;
+
+      const socioModelMock: any = {
+        findOne: jest.fn().mockResolvedValue(null),
+        findById: jest.fn().mockResolvedValue(null),
+      };
+
+      const ventaModelMock: any = {
+        find: jest.fn().mockImplementation((query: Record<string, unknown> = {}) => {
+          const filtered = ventasParaRecaudacion.filter((venta) => {
+            if (query.codigoSocio && venta.codigoSocio !== query.codigoSocio) {
+              return false;
+            }
+            return true;
+          });
+          return createChainableQuery(filtered);
+        }),
+      };
+
+      const service = new VentasService(
+        ventaModelMock,
+        {} as any,
+        { find: jest.fn().mockReturnValue(createChainableQuery([])) } as any,
+        socioModelMock,
+        { findAll: jest.fn().mockResolvedValue([]) } as any,
+        { find: jest.fn().mockReturnValue(createChainableQuery([])) } as any,
+        { find: jest.fn().mockReturnValue(createChainableQuery([])) } as any,
+        {} as any,
+        createDevolucionModelMock() as any,
+        { findOne: jest.fn() } as any,
+      );
+
+      const result = await service.getRecaudaciones({
+        fechaInicio: '2026-07-13',
+        fechaFin: '2026-07-13',
+        codigoSocio: 'S001',
+      } as any);
+
+      expect(socioModelMock.findOne).toHaveBeenCalled();
+      await expect(socioModelMock.findOne.mock.results[0].value).resolves.toBeNull();
+
+      const ventasRec = result.filter((rec: any) => rec.tipo === 'VENTA');
+      expect(ventasRec).toHaveLength(2);
+      expect(ventasRec.every((rec: any) => rec.socio.codigo === 'S001')).toBe(true);
+      expect(ventasRec.every((rec: any) => rec.socio.nombre === 'Juan Garcia')).toBe(true);
+
+      const net = result.reduce((sum: number, rec: any) => sum + montoRecaudacion(rec), 0);
+      expect(net).toBe(15);
+
+      const ventasPorCodigo = await ventaModelMock.find({ codigoSocio: 'S001' }).lean().exec();
+      expect(ventasPorCodigo).toHaveLength(2);
+    });
+  });
 });

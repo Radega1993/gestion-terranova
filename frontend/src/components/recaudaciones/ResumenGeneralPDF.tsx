@@ -506,6 +506,84 @@ export const ResumenGeneralPDF: React.FC<ResumenGeneralPDFProps> = ({ ventas, fe
                         </View>
                     </View>
 
+                    {/* Totales por Trabajador */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Totales por Trabajador</Text>
+                        {Object.entries(ventasPorTrabajador).length > 0 ? (
+                            <View style={styles.table}>
+                                <View style={[styles.tableRow, styles.tableHeader]}>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>Trabajador</Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>Efectivo</Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>Tarjeta</Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>Total</Text>
+                                    </View>
+                                </View>
+                                {Object.entries(ventasPorTrabajador)
+                                    .map(([nombre, datos]: [string, any]) => ({
+                                        nombre,
+                                        efectivo: Number(datos?.metodoPago?.efectivo || 0),
+                                        tarjeta: Number(datos?.metodoPago?.tarjeta || 0),
+                                        total: Number(datos?.total || 0),
+                                    }))
+                                    .sort((a, b) => b.total - a.total)
+                                    .map((trabajador) => (
+                                        <View key={trabajador.nombre} style={styles.tableRow}>
+                                            <View style={styles.tableCol}>
+                                                <Text style={styles.tableCell}>{trabajador.nombre}</Text>
+                                            </View>
+                                            <View style={styles.tableCol}>
+                                                <Text style={styles.tableCell}>{trabajador.efectivo.toFixed(2)}€</Text>
+                                            </View>
+                                            <View style={styles.tableCol}>
+                                                <Text style={styles.tableCell}>{trabajador.tarjeta.toFixed(2)}€</Text>
+                                            </View>
+                                            <View style={styles.tableCol}>
+                                                <Text style={styles.tableCell}>{trabajador.total.toFixed(2)}€</Text>
+                                            </View>
+                                        </View>
+                                    ))}
+                                <View style={[styles.tableRow, { backgroundColor: '#f0f0f0', fontWeight: 'bold' }]}>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>TOTAL</Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>
+                                            {Object.values(ventasPorTrabajador).reduce(
+                                                (sum: number, t: any) => sum + Number(t?.metodoPago?.efectivo || 0),
+                                                0,
+                                            ).toFixed(2)}€
+                                        </Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>
+                                            {Object.values(ventasPorTrabajador).reduce(
+                                                (sum: number, t: any) => sum + Number(t?.metodoPago?.tarjeta || 0),
+                                                0,
+                                            ).toFixed(2)}€
+                                        </Text>
+                                    </View>
+                                    <View style={styles.tableCol}>
+                                        <Text style={styles.tableCell}>
+                                            {Object.values(ventasPorTrabajador).reduce(
+                                                (sum: number, t: any) => sum + Number(t?.total || 0),
+                                                0,
+                                            ).toFixed(2)}€
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+                        ) : (
+                            <Text style={{ fontSize: 10 }}>No hay recaudaciones por trabajador en el período.</Text>
+                        )}
+                    </View>
+
                     {/* Tabla resumen de productos vendidos en el período */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Resumen de productos vendidos</Text>
