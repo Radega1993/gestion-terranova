@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     Container,
     Typography,
@@ -13,19 +13,19 @@ import {
     TableContainer,
     TableHead,
     TableRow,
+    TablePagination,
     CircularProgress,
     Alert,
     Dialog,
     DialogTitle,
     DialogContent,
-    IconButton,
     Chip,
     FormControl,
     InputLabel,
     Select,
     MenuItem,
 } from '@mui/material';
-import { Close as CloseIcon, PictureAsPdf as PdfIcon } from '@mui/icons-material';
+import { PictureAsPdf as PdfIcon } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -41,6 +41,8 @@ import { ResumenGeneralPDF } from './ResumenGeneralPDF';
 import { ResumenDetalladoPDF } from './ResumenDetalladoPDF';
 import { ResumenSociosPDF } from './ResumenSociosPDF';
 import { montoRecaudacion, usaPagadoRecaudacion } from '../../utils/formatters';
+import { downloadPdfDocument } from '../../utils/downloadPdf';
+import { format } from 'date-fns';
 
 interface Filtros {
     fechaInicio: Date | null;
@@ -131,9 +133,9 @@ const RecaudacionesList: React.FC = () => {
     });
     const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<Usuario | null>(null);
     const [trabajadorSeleccionado, setTrabajadorSeleccionado] = useState<string | null>(null);
-    const [showResumenProductos, setShowResumenProductos] = useState(false);
-    const [showResumenSocios, setShowResumenSocios] = useState(false);
-    const [showResumenDetallado, setShowResumenDetallado] = useState(false);
+    const [generatingPdf, setGeneratingPdf] = useState(false);
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(50);
 
     const handleFiltroChange = (campo: keyof Filtros, valor: any) => {
         setFiltros(prev => ({
@@ -161,53 +163,72 @@ const RecaudacionesList: React.FC = () => {
         handleFiltroChange('usuario', usuarioIds);
     };
 
+    const buildFiltrosQuery = () => {
+        let fechaInicio = filtros.fechaInicio;
+        let fechaFin = filtros.fechaFin;
+
+        if (fechaInicio) {
+            fechaInicio = new Date(fechaInicio);
+            fechaInicio.setHours(0, 0, 0, 0);
+        }
+
+        if (fechaFin) {
+            fechaFin = new Date(fechaFin);
+            fechaFin.setHours(23, 59, 59, 999);
+        }
+
+        const queryParams = new URLSearchParams();
+        if (fechaInicio) queryParams.append('fechaInicio', fechaInicio.toISOString());
+        if (fechaFin) queryParams.append('fechaFin', fechaFin.toISOString());
+        if (filtros.codigoSocio) queryParams.append('codigoSocio', filtros.codigoSocio);
+
+        const trabajadorIds = Array.isArray(filtros.trabajadorId)
+            ? filtros.trabajadorId.filter(id => id)
+            : filtros.trabajadorId ? [filtros.trabajadorId] : [];
+        const usuarioIds = Array.isArray(filtros.usuario)
+            ? filtros.usuario.filter(id => id)
+            : filtros.usuario ? [filtros.usuario] : [];
+
+        trabajadorIds.forEach(id => queryParams.append('trabajadorId', id));
+        usuarioIds.forEach(id => queryParams.append('usuario', id));
+
+        if (filtros.metodoPago && filtros.metodoPago !== 'todos') {
+            queryParams.append('metodoPago', filtros.metodoPago);
+        }
+
+        return queryParams;
+    };
+
+    const fetchResumenServer = async () => {
+        const response = await fetch(
+            `${API_BASE_URL}/ventas/recaudaciones/resumen?${buildFiltrosQuery().toString()}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            },
+        );
+        if (!response.ok) {
+            throw new Error('Error al cargar el resumen de recaudaciones');
+        }
+        return response.json();
+    };
+
     const handleBuscar = async () => {
         try {
             setLoading(true);
             setError(null);
 
-            // Ajustar las fechas para incluir todo el día
-            let fechaInicio = filtros.fechaInicio;
-            let fechaFin = filtros.fechaFin;
-
-            if (fechaInicio) {
-                fechaInicio = new Date(fechaInicio);
-                fechaInicio.setHours(0, 0, 0, 0);
-            }
-
-            if (fechaFin) {
-                fechaFin = new Date(fechaFin);
-                fechaFin.setHours(23, 59, 59, 999);
-            }
-
-            // Construir query string con soporte para arrays
-            const queryParams = new URLSearchParams();
-            if (fechaInicio) queryParams.append('fechaInicio', fechaInicio.toISOString());
-            if (fechaFin) queryParams.append('fechaFin', fechaFin.toISOString());
-            if (filtros.codigoSocio) queryParams.append('codigoSocio', filtros.codigoSocio);
-            
-            // Agregar usuarios y trabajadores como arrays
-            const trabajadorIds = Array.isArray(filtros.trabajadorId) 
-                ? filtros.trabajadorId.filter(id => id) 
-                : filtros.trabajadorId ? [filtros.trabajadorId] : [];
-            const usuarioIds = Array.isArray(filtros.usuario) 
-                ? filtros.usuario.filter(id => id) 
-                : filtros.usuario ? [filtros.usuario] : [];
-            
-            trabajadorIds.forEach(id => queryParams.append('trabajadorId', id));
-            usuarioIds.forEach(id => queryParams.append('usuario', id));
-            
-            // Agregar filtro de método de pago si no es 'todos'
-            if (filtros.metodoPago && filtros.metodoPago !== 'todos') {
-                queryParams.append('metodoPago', filtros.metodoPago);
-            }
-
-            const response = await fetch(`${API_BASE_URL}/ventas/recaudaciones?${queryParams.toString()}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
+            const response = await fetch(
+                `${API_BASE_URL}/ventas/recaudaciones?${buildFiltrosQuery().toString()}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
                 },
-            });
+            );
 
             if (!response.ok) {
                 throw new Error('Error al cargar las recaudaciones');
@@ -215,6 +236,7 @@ const RecaudacionesList: React.FC = () => {
 
             const data = await response.json();
             setVentas(data);
+            setPage(0);
         } catch (error: any) {
             setError(error.message || 'Error desconocido');
         } finally {
@@ -236,29 +258,120 @@ const RecaudacionesList: React.FC = () => {
         setVentas([]);
     };
 
-    const totalRecaudado = ventas.reduce((sum, venta) => sum + montoRecaudacion(venta), 0);
+    const totalRecaudado = useMemo(
+        () => ventas.reduce((sum, venta) => sum + montoRecaudacion(venta), 0),
+        [ventas],
+    );
 
-    // Calcular totales por usuario/trabajador (solo de las ventas filtradas)
-    const totalesPorUsuario = ventas.reduce((acc: { [key: string]: { username: string; total: number; cantidad: number } }, venta) => {
-        // Si hay trabajador, usar el trabajador; si no, usar el usuario
-        const identificador = venta.trabajador 
-            ? `${venta.trabajador.nombre} (${venta.trabajador.identificador})`
-            : venta.usuario.username;
-        
-        if (!acc[identificador]) {
-            acc[identificador] = {
-                username: identificador,
-                total: 0,
-                cantidad: 0
-            };
+    const totalFianzas = useMemo(
+        () => ventas.filter(v => v.tipo === 'RESERVA' && v.fianza).reduce((sum, v) => sum + (v.fianza || 0), 0),
+        [ventas],
+    );
+
+    const totalesPorUsuarioArray = useMemo(() => {
+        const totalesPorUsuario = ventas.reduce((acc: { [key: string]: { username: string; total: number; cantidad: number } }, venta) => {
+            const identificador = venta.trabajador
+                ? `${venta.trabajador.nombre} (${venta.trabajador.identificador})`
+                : venta.usuario.username;
+            if (!acc[identificador]) {
+                acc[identificador] = { username: identificador, total: 0, cantidad: 0 };
+            }
+            acc[identificador].total += montoRecaudacion(venta);
+            acc[identificador].cantidad += 1;
+            return acc;
+        }, {});
+        return Object.values(totalesPorUsuario).sort((a, b) => b.total - a.total);
+    }, [ventas]);
+
+    const ventasPaginadas = useMemo(
+        () => ventas.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+        [ventas, page, rowsPerPage],
+    );
+
+    const getRangoFechas = () => {
+        const fechaInicio = filtros.fechaInicio || (ventas.length > 0
+            ? new Date(Math.min(...ventas.map(v => new Date(v.fecha).getTime())))
+            : new Date());
+        const fechaFin = filtros.fechaFin || (ventas.length > 0
+            ? new Date(Math.max(...ventas.map(v => new Date(v.fecha).getTime())))
+            : new Date());
+        const fechaInicioValida = fechaInicio instanceof Date && !isNaN(fechaInicio.getTime()) ? fechaInicio : new Date();
+        const fechaFinValida = fechaFin instanceof Date && !isNaN(fechaFin.getTime()) ? fechaFin : new Date();
+        return { fechaInicioValida, fechaFinValida };
+    };
+
+    const handleDescargarResumenGeneral = async () => {
+        try {
+            setGeneratingPdf(true);
+            const { fechaInicioValida, fechaFinValida } = getRangoFechas();
+            const data = await fetchResumenServer();
+            await downloadPdfDocument(
+                <ResumenGeneralPDF
+                    resumen={data.general}
+                    fechaInicio={fechaInicioValida}
+                    fechaFin={fechaFinValida}
+                />,
+                `resumen-general-${format(fechaInicioValida, 'yyyy-MM-dd')}_${format(fechaFinValida, 'yyyy-MM-dd')}.pdf`,
+            );
+        } catch (err) {
+            console.error(err);
+            setError('Error al generar el resumen general PDF');
+        } finally {
+            setGeneratingPdf(false);
         }
-        const monto = montoRecaudacion(venta);
-        acc[identificador].total += monto;
-        acc[identificador].cantidad += 1;
-        return acc;
-    }, {});
+    };
 
-    const totalesPorUsuarioArray = Object.values(totalesPorUsuario).sort((a, b) => b.total - a.total);
+    const handleDescargarResumenSocios = async () => {
+        try {
+            setGeneratingPdf(true);
+            const { fechaInicioValida, fechaFinValida } = getRangoFechas();
+            const data = await fetchResumenServer();
+            await downloadPdfDocument(
+                <ResumenSociosPDF
+                    resumen={data.socios}
+                    fechaInicio={fechaInicioValida}
+                    fechaFin={fechaFinValida}
+                />,
+                `resumen-socios-${format(fechaInicioValida, 'yyyy-MM-dd')}_${format(fechaFinValida, 'yyyy-MM-dd')}.pdf`,
+            );
+        } catch (err) {
+            console.error(err);
+            setError('Error al generar el resumen de socios PDF');
+        } finally {
+            setGeneratingPdf(false);
+        }
+    };
+
+    const handleDescargarResumenDetallado = async () => {
+        try {
+            if (ventas.length > 500) {
+                const ok = window.confirm(
+                    `El resumen detallado incluye ${ventas.length} filas y puede tardar o bloquear el navegador. ¿Continuar?`,
+                );
+                if (!ok) return;
+            }
+            setGeneratingPdf(true);
+            const { fechaInicioValida, fechaFinValida } = getRangoFechas();
+            const categoriasRes = await fetch(`${API_BASE_URL}/inventory/types`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const categorias = categoriasRes.ok ? await categoriasRes.json() : [];
+            await downloadPdfDocument(
+                <ResumenDetalladoPDF
+                    ventas={ventas}
+                    fechaInicio={fechaInicioValida}
+                    fechaFin={fechaFinValida}
+                    categorias={categorias}
+                />,
+                `resumen-detallado-${format(fechaInicioValida, 'yyyy-MM-dd')}_${format(fechaFinValida, 'yyyy-MM-dd')}.pdf`,
+            );
+        } catch (err) {
+            console.error(err);
+            setError('Error al generar el resumen detallado PDF');
+        } finally {
+            setGeneratingPdf(false);
+        }
+    };
 
     const getEstadoChip = (estado: string) => {
         let color: 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' = 'default';
@@ -387,30 +500,24 @@ const RecaudacionesList: React.FC = () => {
                             <Button
                                 variant="outlined"
                                 startIcon={<PdfIcon />}
-                                onClick={() => {
-                                    setShowResumenProductos(true);
-                                }}
-                                disabled={ventas.length === 0}
+                                onClick={handleDescargarResumenGeneral}
+                                disabled={ventas.length === 0 || generatingPdf}
                             >
                                 Resumen general
                             </Button>
                             <Button
                                 variant="outlined"
                                 startIcon={<PdfIcon />}
-                                onClick={() => {
-                                    setShowResumenSocios(true);
-                                }}
-                                disabled={ventas.length === 0}
+                                onClick={handleDescargarResumenSocios}
+                                disabled={ventas.length === 0 || generatingPdf}
                             >
                                 Resumen de Socios
                             </Button>
                             <Button
                                 variant="outlined"
                                 startIcon={<PdfIcon />}
-                                onClick={() => {
-                                    setShowResumenDetallado(true);
-                                }}
-                                disabled={ventas.length === 0}
+                                onClick={handleDescargarResumenDetallado}
+                                disabled={ventas.length === 0 || generatingPdf}
                             >
                                 Resumen Detallado
                             </Button>
@@ -451,7 +558,7 @@ const RecaudacionesList: React.FC = () => {
                             </Grid>
                             <Grid item xs={12} sm={4}>
                                 <Typography variant="h6" gutterBottom>
-                                    Total Fianzas: {ventas.filter(v => v.tipo === 'RESERVA' && v.fianza).reduce((sum, v) => sum + (v.fianza || 0), 0).toFixed(2)}€
+                                    Total Fianzas: {totalFianzas.toFixed(2)}€
                                 </Typography>
                             </Grid>
                         </Grid>
@@ -519,7 +626,7 @@ const RecaudacionesList: React.FC = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {ventas.map((venta, index) => {
+                                {ventasPaginadas.map((venta, index) => {
                                     // Crear una clave única combinando _id, fecha y si hay pagos, el índice del pago
                                     const uniqueKey = venta.pagos && venta.pagos.length > 0
                                         ? `${venta._id}-${venta.fecha}-${index}-${venta.pagos[0]?.fecha || index}`
@@ -691,203 +798,31 @@ const RecaudacionesList: React.FC = () => {
                 </>
             )}
 
-            {/* Modal para Resumen de Productos */}
-            <Dialog
-                open={showResumenProductos}
-                onClose={() => setShowResumenProductos(false)}
-                maxWidth="md"
-                fullWidth
-                PaperProps={{
-                    sx: {
-                        height: '90vh',
-                        maxHeight: '90vh'
-                    }
-                }}
-            >
-                <DialogTitle>
-                    Resumen general
-                    <IconButton
-                        onClick={() => setShowResumenProductos(false)}
-                        sx={{ position: 'absolute', right: 8, top: 8 }}
-                    >
-                        <CloseIcon />
-                    </IconButton>
-                </DialogTitle>
-                <DialogContent sx={{
-                    p: 0,
-                    height: 'calc(90vh - 64px)',
-                    '& > div': {
-                        height: '100%'
-                    }
-                }}>
-                    {(() => {
-                        if (ventas.length === 0) {
-                            return (
-                                <Box sx={{ p: 3, textAlign: 'center' }}>
-                                    <Typography variant="body1" color="text.secondary">
-                                        No hay datos para mostrar. Por favor, aplica filtros y busca recaudaciones.
-                                    </Typography>
-                                </Box>
-                            );
-                        }
-                        
-                        const fechaInicio = filtros.fechaInicio || (ventas.length > 0 
-                            ? new Date(Math.min(...ventas.map(v => new Date(v.fecha).getTime())))
-                            : new Date());
-                        const fechaFin = filtros.fechaFin || (ventas.length > 0
-                            ? new Date(Math.max(...ventas.map(v => new Date(v.fecha).getTime())))
-                            : new Date());
-                        
-                        // Validar que las fechas sean válidas
-                        const fechaInicioValida = fechaInicio instanceof Date && !isNaN(fechaInicio.getTime()) 
-                            ? fechaInicio 
-                            : new Date();
-                        const fechaFinValida = fechaFin instanceof Date && !isNaN(fechaFin.getTime())
-                            ? fechaFin
-                            : new Date();
-                        
-                        return (
-                            <ResumenGeneralPDF
-                                ventas={ventas}
-                                fechaInicio={fechaInicioValida}
-                                fechaFin={fechaFinValida}
-                            />
-                        );
-                    })()}
-                </DialogContent>
-            </Dialog>
+                    <TablePagination
+                        component="div"
+                        count={ventas.length}
+                        page={page}
+                        onPageChange={(_e, newPage) => setPage(newPage)}
+                        rowsPerPage={rowsPerPage}
+                        onRowsPerPageChange={(e) => {
+                            setRowsPerPage(parseInt(e.target.value, 10));
+                            setPage(0);
+                        }}
+                        rowsPerPageOptions={[25, 50, 100, 200]}
+                        labelRowsPerPage="Filas por página"
+                        labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
+                    />
 
-            {/* Modal para Resumen de Socios */}
-            <Dialog
-                open={showResumenSocios}
-                onClose={() => setShowResumenSocios(false)}
-                maxWidth="md"
-                fullWidth
-                PaperProps={{
-                    sx: {
-                        height: '90vh',
-                        maxHeight: '90vh'
-                    }
-                }}
-            >
-                <DialogTitle>
-                    Resumen de Socios
-                    <IconButton
-                        onClick={() => setShowResumenSocios(false)}
-                        sx={{ position: 'absolute', right: 8, top: 8 }}
-                    >
-                        <CloseIcon />
-                    </IconButton>
-                </DialogTitle>
-                <DialogContent sx={{
-                    p: 0,
-                    height: 'calc(90vh - 64px)',
-                    '& > div': {
-                        height: '100%'
-                    }
-                }}>
-                    {(() => {
-                        if (ventas.length === 0) {
-                            return (
-                                <Box sx={{ p: 3, textAlign: 'center' }}>
-                                    <Typography variant="body1" color="text.secondary">
-                                        No hay datos para mostrar. Por favor, aplica filtros y busca recaudaciones.
-                                    </Typography>
-                                </Box>
-                            );
-                        }
-                        
-                        const fechaInicio = filtros.fechaInicio || (ventas.length > 0 
-                            ? new Date(Math.min(...ventas.map(v => new Date(v.fecha).getTime())))
-                            : new Date());
-                        const fechaFin = filtros.fechaFin || (ventas.length > 0
-                            ? new Date(Math.max(...ventas.map(v => new Date(v.fecha).getTime())))
-                            : new Date());
-                        
-                        // Validar que las fechas sean válidas
-                        const fechaInicioValida = fechaInicio instanceof Date && !isNaN(fechaInicio.getTime()) 
-                            ? fechaInicio 
-                            : new Date();
-                        const fechaFinValida = fechaFin instanceof Date && !isNaN(fechaFin.getTime())
-                            ? fechaFin
-                            : new Date();
-                        
-                        return (
-                            <ResumenSociosPDF
-                                ventas={ventas}
-                                fechaInicio={fechaInicioValida}
-                                fechaFin={fechaFinValida}
-                            />
-                        );
-                    })()}
-                </DialogContent>
-            </Dialog>
+                    <Dialog open={generatingPdf}>
+                        <DialogTitle>Generando PDF</DialogTitle>
+                        <DialogContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2 }}>
+                                <CircularProgress size={28} />
+                                <Typography>Preparando el documento, esto puede tardar unos segundos...</Typography>
+                            </Box>
+                        </DialogContent>
+                    </Dialog>
 
-            {/* Modal para Resumen Detallado */}
-            <Dialog
-                open={showResumenDetallado}
-                onClose={() => setShowResumenDetallado(false)}
-                maxWidth="md"
-                fullWidth
-                PaperProps={{
-                    sx: {
-                        height: '90vh',
-                        maxHeight: '90vh'
-                    }
-                }}
-            >
-                <DialogTitle>
-                    Resumen Detallado de Ventas
-                    <IconButton
-                        onClick={() => setShowResumenDetallado(false)}
-                        sx={{ position: 'absolute', right: 8, top: 8 }}
-                    >
-                        <CloseIcon />
-                    </IconButton>
-                </DialogTitle>
-                <DialogContent sx={{
-                    p: 0,
-                    height: 'calc(90vh - 64px)',
-                    '& > div': {
-                        height: '100%'
-                    }
-                }}>
-                    {(() => {
-                        if (ventas.length === 0) {
-                            return (
-                                <Box sx={{ p: 3, textAlign: 'center' }}>
-                                    <Typography variant="body1" color="text.secondary">
-                                        No hay datos para mostrar. Por favor, aplica filtros y busca recaudaciones.
-                                    </Typography>
-                                </Box>
-                            );
-                        }
-                        
-                        const fechaInicio = filtros.fechaInicio || (ventas.length > 0
-                            ? new Date(Math.min(...ventas.map(v => new Date(v.fecha).getTime())))
-                            : new Date());
-                        const fechaFin = filtros.fechaFin || (ventas.length > 0
-                            ? new Date(Math.max(...ventas.map(v => new Date(v.fecha).getTime())))
-                            : new Date());
-                        
-                        // Validar que las fechas sean válidas
-                        const fechaInicioValida = fechaInicio instanceof Date && !isNaN(fechaInicio.getTime())
-                            ? fechaInicio
-                            : new Date();
-                        const fechaFinValida = fechaFin instanceof Date && !isNaN(fechaFin.getTime())
-                            ? fechaFin
-                            : new Date();
-                        
-                        return (
-                            <ResumenDetalladoPDF
-                                ventas={ventas}
-                                fechaInicio={fechaInicioValida}
-                                fechaFin={fechaFinValida}
-                            />
-                        );
-                    })()}
-                </DialogContent>
-            </Dialog>
         </Container>
     );
 };

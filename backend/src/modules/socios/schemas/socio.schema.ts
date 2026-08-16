@@ -131,3 +131,5 @@ export class Socio extends Document {
 }
 
 export const SocioSchema = SchemaFactory.createForClass(Socio); 
+SocioSchema.index({ active: 1 });
+SocioSchema.index({ socioPrincipal: 1 });

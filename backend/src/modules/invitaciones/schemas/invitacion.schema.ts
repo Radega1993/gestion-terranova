@@ -28,3 +28,5 @@ export class Invitacion extends Document {
 }
 
 export const InvitacionSchema = SchemaFactory.createForClass(Invitacion); 
+InvitacionSchema.index({ ejercicio: 1, fechaUso: -1 });
+InvitacionSchema.index({ socio: 1, ejercicio: 1 });

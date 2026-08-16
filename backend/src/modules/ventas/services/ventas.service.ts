@@ -19,6 +19,10 @@ import { CambiosService } from '../../cambios/services/cambios.service';
 import { Devolucion, EstadoDevolucion } from '../../devoluciones/schemas/devolucion.schema';
 import { UserRole } from '../../users/types/user-roles.enum';
 import { roundMoney, ventaEstadoFromPagado, isVentaFullyPaid, montoRecaudacion } from '../../../common/money';
+import {
+    buildResumenGeneral,
+    buildResumenSocios,
+} from '../utils/recaudaciones-resumen.util';
 
 interface PopulatedReserva extends Omit<Reserva, 'socio' | 'usuarioCreacion' | 'usuarioActualizacion' | 'confirmadoPor' | 'trabajador'> {
     _id: Types.ObjectId;
@@ -109,6 +113,7 @@ export class VentasService {
             .populate('trabajador', 'nombre identificador')
             .populate('usuario', 'username nombre')
             .sort({ createdAt: -1 })
+            .lean()
             .exec();
     }
 
@@ -128,6 +133,7 @@ export class VentasService {
             .populate('trabajador', 'nombre identificador')
             .populate('usuario', 'username nombre')
             .sort({ createdAt: -1 })
+            .lean()
             .exec();
     }
 
@@ -147,6 +153,7 @@ export class VentasService {
             .populate('trabajador', 'nombre identificador')
             .populate('usuario', 'username nombre')
             .sort({ createdAt: -1 })
+            .lean()
             .exec();
     }
 
@@ -178,6 +185,7 @@ export class VentasService {
             .populate('trabajador', 'nombre identificador')
             .populate('usuario', 'username nombre')
             .sort({ createdAt: -1 })
+            .lean()
             .exec();
         
         return ventas;
@@ -682,18 +690,12 @@ export class VentasService {
             }
         }
 
-        // Obtener ventas SIN lean primero para verificar estructura
-        const ventasSinLean = await this.ventaModel
-            .find(filtroVentas)
-            .populate('usuario', 'username')
-            .populate('trabajador', 'nombre identificador')
-            .exec();
-        
         // Obtener ventas con lean para procesamiento
         const ventas = await this.ventaModel
             .find(filtroVentas)
             .populate('usuario', 'username')
             .populate('trabajador', 'nombre identificador')
+            .select('-__v')
             .lean()
             .exec() as unknown as PopulatedVenta[];
 
@@ -788,6 +790,7 @@ export class VentasService {
                         ...filtroReservas,
                         socio: socio._id
                     })
+                    .select('-firmaSocio -__v')
                     .populate({
                         path: 'socio',
                         model: 'Socio',
@@ -801,6 +804,7 @@ export class VentasService {
         } else {
             reservas = await this.reservaModel
                 .find(filtroReservas)
+                .select('-firmaSocio -__v')
                 .populate({
                     path: 'socio',
                     model: 'Socio',
@@ -1384,4 +1388,25 @@ export class VentasService {
 
         return recaudaciones;
     }
-} 
+
+    /**
+     * Resumen agregado para PDFs (general + socios), sin forzar al cliente
+     * a maquetar miles de filas en PDFViewer.
+     */
+    async getResumenRecaudaciones(filtros: RecaudacionesFiltrosDto) {
+        const [recaudaciones, categoriasRaw] = await Promise.all([
+            this.getRecaudaciones(filtros),
+            this.productModel.distinct('tipo'),
+        ]);
+        const categorias = (categoriasRaw || [])
+            .filter((t) => t != null && String(t).trim() !== '')
+            .map((t) => String(t));
+
+        return {
+            general: buildResumenGeneral(recaudaciones as any, categorias),
+            socios: buildResumenSocios(recaudaciones as any),
+            totalFilas: recaudaciones.length,
+        };
+    }
+}
+

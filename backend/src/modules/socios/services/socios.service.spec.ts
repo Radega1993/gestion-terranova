@@ -84,7 +84,10 @@ describe('SociosService.getProductosConsumidos (agregación monetaria)', () => {
     const service = new SociosService(
       socioModelMock,
       ventaModelMock,
-      { } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
     );
 
     return { service, socioModelMock, ventaModelMock };
@@ -150,6 +153,9 @@ describe('SociosService.getProductosConsumidos (agregación monetaria)', () => {
     const service = new SociosService(
       { findById: jest.fn().mockResolvedValue(null) } as any,
       { find: jest.fn() } as any,
+      {} as any,
+      {} as any,
+      {} as any,
       {} as any,
     );
 
@@ -236,6 +242,9 @@ describe('SociosService.remove (sin cascada a ventas)', () => {
     const service = new SociosService(
       socioModelMock,
       ventaModelMock,
+      {} as any,
+      {} as any,
+      {} as any,
       uploadsServiceMock,
     );
 
@@ -251,5 +260,219 @@ describe('SociosService.remove (sin cascada a ventas)', () => {
     const ventasPorCodigo = await ventaModelMock.find({ codigoSocio: 'S001' }).lean().exec();
     expect(ventasPorCodigo).toHaveLength(2);
     expect(ventasPorCodigo.reduce((sum: number, v: any) => sum + v.total, 0)).toBe(15);
+  });
+});
+
+describe('SociosService.confirmImportUpdate', () => {
+  it('aplica update sin forzar active/rgpd/foto', async () => {
+    const id = new Types.ObjectId().toString();
+    const findByIdAndUpdate = jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue({
+        _id: id,
+        socio: 'AET010',
+        contacto: { telefonos: ['699'], emails: [] },
+      }),
+    });
+
+    const service = new SociosService(
+      { findByIdAndUpdate } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await service.confirmImportUpdate(id, {
+      contacto: { telefonos: ['699'], emails: [] },
+      active: false,
+      rgpd: false,
+      foto: 'hack.jpg',
+    } as any);
+
+    expect(findByIdAndUpdate).toHaveBeenCalled();
+    const setPayload = findByIdAndUpdate.mock.calls[0][1].$set;
+    expect(setPayload.active).toBeUndefined();
+    expect(setPayload.rgpd).toBeUndefined();
+    expect(setPayload.foto).toBeUndefined();
+    expect(setPayload.contacto.telefonos).toEqual(['699']);
+  });
+});
+
+describe('SociosService.fixHyphenMemberCodes', () => {
+  const parentId = new Types.ObjectId();
+  const bogusId = new Types.ObjectId();
+
+  function buildFixService(opts: {
+    bogusSocios?: any[];
+    parent?: any | null;
+    parentAlreadyHasAsociado?: boolean;
+    hyphenAsociadosSocios?: any[];
+    orphanVentas?: any[];
+  }) {
+    const parent =
+      opts.parent === null
+        ? null
+        : opts.parent ?? {
+            _id: parentId,
+            socio: 'AET010',
+            asociados: opts.parentAlreadyHasAsociado
+              ? [{ codigo: 'AET010_01', nombre: 'Ya existe', telefono: '', foto: '' }]
+              : [],
+            save: jest.fn().mockResolvedValue(true),
+          };
+
+    const bogus =
+      opts.bogusSocios ??
+      [
+        {
+          _id: bogusId,
+          socio: 'AET010-01',
+          nombre: { nombre: 'Pepe', primerApellido: 'Lopez', segundoApellido: '' },
+          contacto: { telefonos: ['600'], emails: [] },
+          foto: '',
+        },
+      ];
+
+    const findByIdAndDelete = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({}) });
+
+    const socioModelMock: any = {
+      find: jest.fn().mockImplementation((query: any) => {
+        if (query?.socio?.$regex) {
+          return { exec: jest.fn().mockResolvedValue(bogus) };
+        }
+        if (query?.['asociados.codigo']?.$regex) {
+          return { exec: jest.fn().mockResolvedValue(opts.hyphenAsociadosSocios ?? []) };
+        }
+        return { exec: jest.fn().mockResolvedValue([]) };
+      }),
+      findOne: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(parent),
+      }),
+      findByIdAndDelete,
+    };
+
+    const ventaUpdateMany = jest.fn().mockResolvedValue({ modifiedCount: 1 });
+    const ventaUpdateOne = jest.fn().mockResolvedValue({ modifiedCount: 1 });
+    const ventaModelMock: any = {
+      countDocuments: jest.fn().mockResolvedValue(2),
+      updateMany: ventaUpdateMany,
+      updateOne: ventaUpdateOne,
+      find: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue(opts.orphanVentas ?? []),
+          }),
+        }),
+      }),
+    };
+
+    const reservaUpdateMany = jest.fn().mockResolvedValue({ modifiedCount: 1 });
+    const reservaModelMock: any = {
+      countDocuments: jest.fn().mockResolvedValue(1),
+      updateMany: reservaUpdateMany,
+    };
+
+    const invitacionUpdateMany = jest.fn().mockResolvedValue({ modifiedCount: 1 });
+    const invitacionModelMock: any = {
+      countDocuments: jest.fn().mockResolvedValue(1),
+      updateMany: invitacionUpdateMany,
+    };
+
+    const socioInvUpdateMany = jest.fn().mockResolvedValue({ modifiedCount: 0 });
+    const socioInvModelMock: any = {
+      countDocuments: jest.fn().mockResolvedValue(0),
+      updateMany: socioInvUpdateMany,
+    };
+
+    const service = new SociosService(
+      socioModelMock,
+      ventaModelMock,
+      reservaModelMock,
+      invitacionModelMock,
+      socioInvModelMock,
+      {} as any,
+    );
+
+    return {
+      service,
+      parent,
+      findByIdAndDelete,
+      ventaUpdateMany,
+      reservaUpdateMany,
+      invitacionUpdateMany,
+    };
+  }
+
+  it('dry-run: reporta migración sin escribir', async () => {
+    const { service, parent, findByIdAndDelete, ventaUpdateMany, reservaUpdateMany } =
+      buildFixService({});
+
+    const result = await service.fixHyphenMemberCodes({ dryRun: true });
+
+    expect(result.dryRun).toBe(true);
+    expect(result.scanned).toBe(1);
+    expect(result.migrated).toEqual([
+      expect.objectContaining({
+        from: 'AET010-01',
+        to: 'AET010_01',
+        parent: 'AET010',
+        ventas: 2,
+        reservas: 1,
+      }),
+    ]);
+    expect(parent.save).not.toHaveBeenCalled();
+    expect(findByIdAndDelete).not.toHaveBeenCalled();
+    expect(ventaUpdateMany).not.toHaveBeenCalled();
+    expect(reservaUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('apply: fusiona asociado, remapea refs y borra socio erróneo', async () => {
+    const { service, parent, findByIdAndDelete, ventaUpdateMany, reservaUpdateMany, invitacionUpdateMany } =
+      buildFixService({});
+
+    const result = await service.fixHyphenMemberCodes({ dryRun: false });
+
+    expect(result.dryRun).toBe(false);
+    expect(parent.asociados).toEqual([
+      expect.objectContaining({ codigo: 'AET010_01', nombre: 'Pepe Lopez' }),
+    ]);
+    expect(parent.save).toHaveBeenCalled();
+    expect(ventaUpdateMany).toHaveBeenCalledWith(
+      { codigoSocio: 'AET010-01' },
+      { $set: { codigoSocio: 'AET010_01' } },
+    );
+    expect(reservaUpdateMany).toHaveBeenCalledWith(
+      { socio: bogusId },
+      { $set: { socio: parentId } },
+    );
+    expect(invitacionUpdateMany).toHaveBeenCalled();
+    expect(findByIdAndDelete).toHaveBeenCalledWith(bogusId);
+  });
+
+  it('padre inexistente: error y no borra', async () => {
+    const { service, findByIdAndDelete } = buildFixService({ parent: null });
+
+    const result = await service.fixHyphenMemberCodes({ dryRun: false });
+
+    expect(result.migrated).toHaveLength(0);
+    expect(result.errors).toEqual([
+      { code: 'AET010-01', error: 'No existe el socio padre AET010' },
+    ]);
+    expect(findByIdAndDelete).not.toHaveBeenCalled();
+  });
+
+  it('asociado ya existente con _: no duplica, sí remapea y borra', async () => {
+    const { service, parent, findByIdAndDelete, ventaUpdateMany } = buildFixService({
+      parentAlreadyHasAsociado: true,
+    });
+
+    await service.fixHyphenMemberCodes({ dryRun: false });
+
+    expect(parent.asociados).toHaveLength(1);
+    expect(parent.asociados[0].codigo).toBe('AET010_01');
+    expect(parent.save).not.toHaveBeenCalled();
+    expect(ventaUpdateMany).toHaveBeenCalled();
+    expect(findByIdAndDelete).toHaveBeenCalledWith(bogusId);
   });
 });

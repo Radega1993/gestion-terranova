@@ -13,6 +13,10 @@ import { CreateAsociadoDto } from '../dto/create-asociado.dto';
 import { UpdateAsociadoDto } from '../dto/update-asociado.dto';
 import * as ExcelJS from 'exceljs';
 import { Response } from 'express';
+import {
+    buildSocioUpdatePayloadFromImport,
+    diffSocioImport,
+} from '../utils/socio-import-compare.util';
 
 @Controller('socios')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -62,42 +66,47 @@ export class SociosController {
         await workbook.xlsx.load(file.buffer);
         const worksheet = workbook.getWorksheet(1);
 
-        const results = {
+        const results: {
+            success: string[];
+            skipped: string[];
+            updates: Array<{
+                id: string;
+                socio: string;
+                changes: Array<{ field: string; from: string; to: string }>;
+                data: Record<string, unknown>;
+            }>;
+            errors: Array<{ socio?: string; error: string }>;
+        } = {
             success: [],
-            errors: []
+            skipped: [],
+            updates: [],
+            errors: [],
         };
 
-        let currentSocio = null;
-        let asociados = [];
-        let existingSocioId = null;
+        let currentSocio: any = null;
+        let asociados: any[] = [];
         let emptyRowCount = 0;
 
-        // Función para sanitizar strings
         const sanitizeString = (value: any): string => {
             if (!value) return '';
             try {
-                // Convertir a string y eliminar caracteres no válidos
                 const str = String(value).trim();
-                // Reemplazar caracteres especiales y acentos
                 return str.normalize('NFD')
-                    .replace(/[\u0300-\u036f]/g, '') // Eliminar diacríticos
-                    .replace(/[^\x20-\x7E]/g, ''); // Mantener solo caracteres ASCII imprimibles
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^\x20-\x7E]/g, '');
             } catch (error) {
                 this.logger.error(`Error sanitizando string: ${error.message}`);
                 return '';
             }
         };
 
-        // Función robusta para procesar cualquier valor de fecha
         function parseToValidDate(value: any): Date | undefined {
             if (!value) return undefined;
             if (typeof value === 'string') {
                 const trimmed = value.trim();
                 if (!trimmed || trimmed === '--') return undefined;
-                // Si es un string ISO o MM/DD/YYYY
                 const date = new Date(trimmed);
                 if (!isNaN(date.getTime())) return date;
-                // Probar MM/DD/YYYY
                 const match = trimmed.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
                 if (match) {
                     const [, month, day, year] = match;
@@ -108,7 +117,6 @@ export class SociosController {
             }
             if (value instanceof Date && !isNaN(value.getTime())) return value;
             if (typeof value === 'number') {
-                // Excel almacena fechas como días desde 1900-01-01
                 const excelEpoch = new Date(1900, 0, 1);
                 const millisecondsPerDay = 24 * 60 * 60 * 1000;
                 const date = new Date(excelEpoch.getTime() + (value - 1) * millisecondsPerDay);
@@ -117,7 +125,6 @@ export class SociosController {
             return undefined;
         }
 
-        // Limpieza de emails y teléfonos
         function cleanEmail(value: any): string {
             if (!value) return '';
             if (typeof value === 'string') return value.replace(/[, ]+$/, '').trim();
@@ -129,106 +136,69 @@ export class SociosController {
             return '';
         }
 
-        // Convert worksheet to array for sequential processing
+        const finalizeSocio = async (socioData: any, asociadosList: any[]) => {
+            const incoming = { ...socioData, asociados: asociadosList };
+            try {
+                const existingSocio = await this.sociosService.findBySocioCode(incoming.socio);
+                if (!existingSocio) {
+                    await this.sociosService.create(incoming);
+                    results.success.push(incoming.socio);
+                    return;
+                }
+
+                const changes = diffSocioImport(existingSocio as any, incoming);
+                if (changes.length === 0) {
+                    results.skipped.push(incoming.socio);
+                    return;
+                }
+
+                if (!results.updates.some((u) => u.socio === incoming.socio)) {
+                    results.updates.push({
+                        id: (existingSocio as any)._id.toString(),
+                        socio: incoming.socio,
+                        changes,
+                        data: buildSocioUpdatePayloadFromImport(incoming),
+                    });
+                }
+            } catch (error) {
+                this.logger.error(`Error procesando socio ${incoming.socio}: ${error.message}`);
+                if (!results.errors.some((e) => e.socio === incoming.socio)) {
+                    results.errors.push({
+                        socio: incoming.socio,
+                        error: error.message,
+                    });
+                }
+            }
+        };
+
         const rows = worksheet.getRows(1, worksheet.rowCount);
         if (!rows) {
             return results;
         }
 
-
-        // Función para procesar email
-        const processEmail = (value: any): string => {
-            if (!value) return '';
-            if (typeof value === 'string') return value.trim();
-            if (typeof value === 'object' && value !== null) {
-                // Intentar extraer el email del objeto
-                if (value.text) return value.text.trim();
-                if (value.hyperlink) return value.hyperlink.trim();
-                if (value.value) return value.value.trim();
-            }
-            return '';
-        };
-
-        // Skip header row
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             const codigo = sanitizeString(row.getCell(1).value);
-            // Log de todos los valores de la fila para debug
-            const filaValores = row.values ? (Array.isArray(row.values) ? row.values : Object.values(row.values)) : [];
 
             if (!codigo) {
                 emptyRowCount++;
-                // Si hay más de 10 filas vacías seguidas, detenemos la importación
                 if (emptyRowCount > 10) {
                     this.logger.warn(`Se encontraron más de 10 filas seguidas vacías. Deteniendo la importación en la fila ${i}.`);
                     break;
                 }
                 continue;
             } else {
-                emptyRowCount = 0; // Reinicia el contador si hay datos
+                emptyRowCount = 0;
             }
 
-
-            // Check if this is a main socio or an asociado
             const isAsociado = codigo.includes('_');
 
             if (!isAsociado) {
-                // If we have a previous socio, save it with its asociados
                 if (currentSocio) {
-                    try {
-                        // Check if socio exists before trying to create it
-                        const existingSocio = await this.sociosService.findBySocioCode(currentSocio.socio);
-                        if (existingSocio) {
-                            // Actualizar los asociados del socio existente
-                            if (asociados.length > 0) {
-                                const existingAsociados = existingSocio.asociados || [];
-                                // Filtrar asociados duplicados por código
-                                const uniqueAsociados = asociados.filter(newAsociado =>
-                                    !existingAsociados.some(existing => existing.codigo === newAsociado.codigo)
-                                );
-                                const updatedAsociados = [...existingAsociados, ...uniqueAsociados];
-                                await this.sociosService.updateAsociados(existingSocio._id, updatedAsociados);
-                            }
-                            if (!results.errors.some(e => e.socio === currentSocio.socio)) {
-                                results.errors.push({
-                                    socio: currentSocio.socio,
-                                    error: `El socio ${currentSocio.socio} ya existe en la base de datos`
-                                });
-                            }
-                        } else {
-                            const socioData = {
-                                ...currentSocio,
-                                asociados: asociados
-                            };
-                            await this.sociosService.create(socioData);
-                            results.success.push(currentSocio.socio);
-                        }
-                    } catch (error) {
-                        this.logger.error(`Error procesando socio ${currentSocio.socio}: ${error.message}`);
-                        if (!results.errors.some(e => e.socio === currentSocio.socio)) {
-                            results.errors.push({
-                                socio: currentSocio.socio,
-                                error: error.message
-                            });
-                        }
-                    }
+                    await finalizeSocio(currentSocio, asociados);
                 }
 
-                // Verificar si el nuevo socio ya existe antes de procesarlo
-                const existingSocio = await this.sociosService.findBySocioCode(codigo);
-                if (existingSocio) {
-                    existingSocioId = existingSocio._id;
-                    if (!results.errors.some(e => e.socio === codigo)) {
-                        results.errors.push({
-                            socio: codigo,
-                            error: `El socio ${codigo} ya existe en la base de datos`
-                        });
-                    }
-                } else {
-                    existingSocioId = null;
-                }
-
-                const socioData: any = {
+                currentSocio = {
                     socio: codigo,
                     nombre: {
                         nombre: sanitizeString(row.getCell(2).value) || '',
@@ -244,8 +214,8 @@ export class SociosController {
                         provincia: sanitizeString(row.getCell(10).value) || ''
                     },
                     contacto: {
-                        telefonos: [cleanTelefono(row.getCell(11).value) || ''],
-                        emails: [cleanEmail(row.getCell(12).value) || '']
+                        telefonos: [cleanTelefono(row.getCell(11).value) || ''].filter(Boolean),
+                        emails: [cleanEmail(row.getCell(12).value) || ''].filter(Boolean)
                     },
                     dni: sanitizeString(row.getCell(13).value) || '',
                     casa: Number(row.getCell(14).value) || 1,
@@ -265,11 +235,9 @@ export class SociosController {
                     active: true,
                     rgpd: true
                 };
-                currentSocio = socioData;
                 asociados = [];
-            } else {
-                // Procesar asociado
-                const asociado: any = {
+            } else if (currentSocio) {
+                asociados.push({
                     codigo: codigo,
                     nombre: sanitizeString(row.getCell(2).value) || '',
                     primerApellido: sanitizeString(row.getCell(3).value) || '',
@@ -278,74 +246,33 @@ export class SociosController {
                     email: cleanEmail(row.getCell(12).value) || '',
                     fechaNacimiento: parseToValidDate(row.getCell(25).value),
                     foto: ''
-                };
-                if (existingSocioId) {
-                    try {
-                        const existingSocio = await this.sociosService.findOne(existingSocioId.toString());
-                        const existingAsociados = existingSocio.asociados || [];
-                        // Verificar si el asociado ya existe
-                        if (!existingAsociados.some(a => a.codigo === asociado.codigo)) {
-                            const updatedAsociados = [...existingAsociados, asociado];
-                            await this.sociosService.updateAsociados(existingSocioId.toString(), updatedAsociados);
-                        } else {
-                        }
-                    } catch (error) {
-                        this.logger.error(`Error añadiendo asociado ${codigo} a socio existente: ${error.message}`);
-                        results.errors.push({
-                            socio: codigo.split('_')[0],
-                            error: `Error añadiendo asociado ${codigo}: ${error.message}`
-                        });
-                    }
-                } else if (currentSocio) {
-                    // Si no es un socio existente, añadir a la lista de asociados del socio actual
-                    asociados.push(asociado);
-                } else {
-                }
+                });
             }
         }
 
-        // Save the last socio
         if (currentSocio) {
-            try {
-                // Check if socio exists before trying to create it
-                const existingSocio = await this.sociosService.findBySocioCode(currentSocio.socio);
-                if (existingSocio) {
-                    // Actualizar los asociados del socio existente
-                    if (asociados.length > 0) {
-                        const existingAsociados = existingSocio.asociados || [];
-                        // Filtrar asociados duplicados por código
-                        const uniqueAsociados = asociados.filter(newAsociado =>
-                            !existingAsociados.some(existing => existing.codigo === newAsociado.codigo)
-                        );
-                        const updatedAsociados = [...existingAsociados, ...uniqueAsociados];
-                        await this.sociosService.updateAsociados(existingSocio._id, updatedAsociados);
-                    }
-                    if (!results.errors.some(e => e.socio === currentSocio.socio)) {
-                        results.errors.push({
-                            socio: currentSocio.socio,
-                            error: `El socio ${currentSocio.socio} ya existe en la base de datos`
-                        });
-                    }
-                } else {
-                    const socioData = {
-                        ...currentSocio,
-                        asociados: asociados
-                    };
-                    await this.sociosService.create(socioData);
-                    results.success.push(currentSocio.socio);
-                }
-            } catch (error) {
-                this.logger.error(`Error procesando último socio ${currentSocio.socio}: ${error.message}`);
-                if (!results.errors.some(e => e.socio === currentSocio.socio)) {
-                    results.errors.push({
-                        socio: currentSocio.socio,
-                        error: error.message
-                    });
-                }
-            }
+            await finalizeSocio(currentSocio, asociados);
         }
 
         return results;
+    }
+
+    @Post('import/confirm-update')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA)
+    async confirmImportUpdate(@Body() body: { id: string; data: UpdateSocioDto }) {
+        if (!body?.id || !body?.data) {
+            throw new BadRequestException('Se requieren id y data para confirmar la actualización');
+        }
+        const updated = await this.sociosService.confirmImportUpdate(body.id, body.data);
+        return { success: true, socio: (updated as any).socio };
+    }
+
+    @Post('maintenance/fix-hyphen-member-codes')
+    @Roles(UserRole.ADMINISTRADOR)
+    async fixHyphenMemberCodes(@Query('dryRun') dryRun?: string) {
+        // Default dry-run=true unless explicitly dryRun=false
+        const isDryRun = dryRun !== 'false';
+        return this.sociosService.fixHyphenMemberCodes({ dryRun: isDryRun });
     }
 
     @Get('export')

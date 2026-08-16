@@ -79,6 +79,12 @@ export class VentasController {
         return this.ventasService.getRecaudaciones(filtros);
     }
 
+    @Get('recaudaciones/resumen')
+    @Roles(UserRole.ADMINISTRADOR, UserRole.JUNTA, UserRole.TRABAJADOR, UserRole.TIENDA)
+    async getResumenRecaudaciones(@Query() filtros: RecaudacionesFiltrosDto) {
+        return this.ventasService.getResumenRecaudaciones(filtros);
+    }
+
     @Put(':id')
     @Roles(UserRole.ADMINISTRADOR)
     async update(@Param('id') id: string, @Body() updateVentaDto: UpdateVentaDto) {

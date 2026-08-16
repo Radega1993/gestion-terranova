@@ -287,36 +287,40 @@ export class CambiosService {
             .populate('usuario', 'username nombre')
             .populate('trabajador', 'nombre apellidos')
             .sort({ createdAt: -1 })
+            .lean()
             .exec();
 
-        // Obtener cambios para cada venta
-        const ventasConCambios = await Promise.all(
-            ventas.map(async (venta) => {
-                const cambios = await this.cambioModel.find({ venta: venta._id })
-                    .populate('trabajador', 'nombre apellidos')
-                    .populate('usuario', 'username nombre')
-                    .sort({ createdAt: 1 })
-                    .exec();
+        const ventaIds = ventas.map((venta: any) => venta._id);
+        const cambios = ventaIds.length === 0
+            ? []
+            : await this.cambioModel.find({ venta: { $in: ventaIds } })
+                .populate('trabajador', 'nombre apellidos')
+                .populate('usuario', 'username nombre')
+                .sort({ createdAt: 1 })
+                .lean()
+                .exec();
 
-                return {
-                    ...venta.toObject(),
-                    cambios: cambios.map(c => {
-                        const cambioDoc = c.toObject ? c.toObject() : c as any;
-                        return {
-                            _id: cambioDoc._id,
-                            productoOriginal: cambioDoc.productoOriginal,
-                            productoNuevo: cambioDoc.productoNuevo,
-                            diferenciaPrecio: cambioDoc.diferenciaPrecio,
-                            estadoPago: cambioDoc.estadoPago,
-                            motivo: cambioDoc.motivo,
-                            createdAt: cambioDoc.createdAt
-                        };
-                    })
-                };
-            })
-        );
+        const cambiosPorVenta = new Map<string, any[]>();
+        for (const cambio of cambios) {
+            const ventaId = (cambio as any).venta?.toString?.() || String((cambio as any).venta);
+            if (!cambiosPorVenta.has(ventaId)) {
+                cambiosPorVenta.set(ventaId, []);
+            }
+            cambiosPorVenta.get(ventaId)!.push({
+                _id: (cambio as any)._id,
+                productoOriginal: (cambio as any).productoOriginal,
+                productoNuevo: (cambio as any).productoNuevo,
+                diferenciaPrecio: (cambio as any).diferenciaPrecio,
+                estadoPago: (cambio as any).estadoPago,
+                motivo: (cambio as any).motivo,
+                createdAt: (cambio as any).createdAt
+            });
+        }
 
-        return ventasConCambios;
+        return ventas.map((venta: any) => ({
+            ...venta,
+            cambios: cambiosPorVenta.get(venta._id.toString()) || []
+        }));
     }
 
     async procesarPagoCambio(

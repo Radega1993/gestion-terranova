@@ -12,6 +12,7 @@ import {
     TableContainer,
     TableHead,
     TableRow,
+    TablePagination,
     CircularProgress,
     Alert,
     Chip,
@@ -94,6 +95,8 @@ const GestionVentasList: React.FC = () => {
     });
     const [ventaSeleccionada, setVentaSeleccionada] = useState<Venta | null>(null);
     const [modalEditarOpen, setModalEditarOpen] = useState(false);
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(50);
 
     const handleFiltroChange = (campo: keyof Filtros, valor: any) => {
         setFiltros(prev => ({
@@ -159,6 +162,7 @@ const GestionVentasList: React.FC = () => {
 
             const data = await response.json();
             setVentas(data);
+            setPage(0);
         } catch (error: any) {
             setError(error.message || 'Error desconocido');
         } finally {
@@ -176,6 +180,7 @@ const GestionVentasList: React.FC = () => {
             metodoPago: 'todos',
         });
         setVentas([]);
+        setPage(0);
     };
 
     const handleEditarVenta = (venta: Venta) => {
@@ -321,7 +326,9 @@ const GestionVentasList: React.FC = () => {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {ventas.map((venta) => (
+                            {ventas
+                                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                                .map((venta) => (
                                 <TableRow key={venta._id}>
                                     <TableCell>
                                         {new Date(venta.createdAt).toLocaleDateString('es-ES', {
@@ -380,6 +387,20 @@ const GestionVentasList: React.FC = () => {
                             ))}
                         </TableBody>
                     </Table>
+                    <TablePagination
+                        component="div"
+                        count={ventas.length}
+                        page={page}
+                        onPageChange={(_, newPage) => setPage(newPage)}
+                        rowsPerPage={rowsPerPage}
+                        onRowsPerPageChange={(e) => {
+                            setRowsPerPage(parseInt(e.target.value, 10));
+                            setPage(0);
+                        }}
+                        rowsPerPageOptions={[25, 50, 100]}
+                        labelRowsPerPage="Filas por página"
+                        labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+                    />
                 </TableContainer>
             )}
 

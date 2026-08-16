@@ -76,6 +76,7 @@ describe('VentasService (unit)', () => {
     devoluciones?: unknown[];
     reservas?: unknown[];
     cambios?: unknown[];
+    categorias?: string[];
   }) {
     const ventaModelMock: any = {
       find: jest.fn().mockImplementation(() => createChainableQuery(options.ventas)),
@@ -83,9 +84,13 @@ describe('VentasService (unit)', () => {
 
     const devolucionModelMock = createDevolucionModelMock(options.devoluciones ?? []);
 
+    const productModelMock: any = {
+      distinct: jest.fn().mockResolvedValue(options.categorias ?? ['BEBIDAS', 'COMIDA']),
+    };
+
     const service = new VentasService(
       ventaModelMock,
-      {} as any,
+      productModelMock,
       {
         find: jest.fn().mockReturnValue(createChainableQuery(options.reservas ?? [])),
       } as any,
@@ -100,7 +105,7 @@ describe('VentasService (unit)', () => {
       { findOne: jest.fn() } as any,
     );
 
-    return { service, devolucionModelMock };
+    return { service, devolucionModelMock, productModelMock };
   }
 
   function buildCreateVentaService() {
@@ -1032,6 +1037,212 @@ describe('VentasService (unit)', () => {
 
       const ventasPorCodigo = await ventaModelMock.find({ codigoSocio: 'S001' }).lean().exec();
       expect(ventasPorCodigo).toHaveLength(2);
+    });
+  });
+
+  describe('getResumenRecaudaciones (paridad con getRecaudaciones)', () => {
+    it('combinado: totalFilas y neto coinciden con el listado', async () => {
+      const venta = {
+        _id: new Types.ObjectId(),
+        total: 10,
+        pagado: 10,
+        estado: 'PAGADO',
+        codigoSocio: 'S001',
+        nombreSocio: 'Cliente',
+        usuario: { _id: new Types.ObjectId(), username: 'admin' },
+        productos: [{ nombre: 'A', unidades: 1, precioUnitario: 10, precioTotal: 10, categoria: 'BEBIDAS' }],
+        createdAt: new Date('2026-07-13T09:00:00.000Z'),
+        pagos: [],
+        metodoPago: 'EFECTIVO',
+      };
+
+      const reserva = {
+        _id: new Types.ObjectId(),
+        precio: 50,
+        montoAbonado: 50,
+        estado: 'COMPLETADA',
+        tipoInstalacion: 'PISCINA',
+        fecha: new Date('2026-07-13T10:00:00.000Z'),
+        createdAt: new Date('2026-07-13T10:00:00.000Z'),
+        metodoPago: 'TARJETA',
+        socio: { socio: 'S002', nombre: { nombre: 'Ana', primerApellido: 'Lopez' } },
+        usuarioCreacion: { _id: new Types.ObjectId(), username: 'admin' },
+        pagos: [],
+      };
+
+      const cambio = {
+        _id: new Types.ObjectId(),
+        createdAt: new Date('2026-07-13T11:00:00.000Z'),
+        venta: { codigoSocio: 'S001', nombreSocio: 'Cliente' },
+        usuario: { _id: new Types.ObjectId(), username: 'admin' },
+        diferenciaPrecio: -2,
+        estadoPago: 'DEVUELTO',
+        metodoPago: 'EFECTIVO',
+        productoOriginal: { nombre: 'A', cantidad: 1, precioUnitario: 10, total: 10 },
+        productoNuevo: { nombre: 'B', cantidad: 1, precioUnitario: 8, total: 8 },
+      };
+
+      const devolucion = {
+        _id: new Types.ObjectId(),
+        venta: { _id: venta._id, codigoSocio: 'S001', nombreSocio: 'Cliente' },
+        usuario: { _id: new Types.ObjectId(), username: 'admin' },
+        productos: [{ nombre: 'A', cantidad: 1, precioUnitario: 1, total: 1 }],
+        totalDevolucion: 1,
+        metodoDevolucion: 'EFECTIVO',
+        estado: EstadoDevolucion.PROCESADA,
+        fechaProcesamiento: new Date('2026-07-13T12:00:00.000Z'),
+      };
+
+      const { service } = buildRecaudacionesService({
+        ventas: [venta],
+        reservas: [reserva],
+        cambios: [cambio],
+        devoluciones: [devolucion],
+      });
+
+      const filtros = { fechaInicio: '2026-07-13', fechaFin: '2026-07-13' } as any;
+      const filas = await service.getRecaudaciones(filtros);
+      const resumen = await service.getResumenRecaudaciones(filtros);
+
+      const net = roundMoney(filas.reduce((sum: number, rec: any) => sum + montoRecaudacion(rec), 0));
+
+      expect(resumen.totalFilas).toBe(filas.length);
+      expect(resumen.general.totalesGenerales.total).toBe(net);
+      expect(resumen.socios.totales.totalPagado).toBe(net);
+      expect(net).toBe(57);
+    });
+
+    it('filtro metodoPago=efectivo: resumen solo refleja efectivo', async () => {
+      const ventas = [
+        {
+          _id: new Types.ObjectId(),
+          total: 10,
+          pagado: 10,
+          estado: 'PAGADO',
+          codigoSocio: 'S001',
+          nombreSocio: 'Cliente',
+          usuario: { _id: new Types.ObjectId(), username: 'admin' },
+          productos: [{ nombre: 'A', unidades: 1, precioUnitario: 10, precioTotal: 10 }],
+          createdAt: new Date('2026-07-13T10:00:00.000Z'),
+          pagos: [],
+          metodoPago: 'EFECTIVO',
+        },
+        {
+          _id: new Types.ObjectId(),
+          total: 5,
+          pagado: 5,
+          estado: 'PAGADO',
+          codigoSocio: 'S002',
+          nombreSocio: 'Cliente 2',
+          usuario: { _id: new Types.ObjectId(), username: 'admin' },
+          productos: [{ nombre: 'B', unidades: 1, precioUnitario: 5, precioTotal: 5 }],
+          createdAt: new Date('2026-07-13T11:00:00.000Z'),
+          pagos: [],
+          metodoPago: 'TARJETA',
+        },
+      ];
+
+      const { service } = buildRecaudacionesService({ ventas });
+      const filtros = {
+        fechaInicio: '2026-07-13',
+        fechaFin: '2026-07-13',
+        metodoPago: 'efectivo',
+      } as any;
+
+      const filas = await service.getRecaudaciones(filtros);
+      const resumen = await service.getResumenRecaudaciones(filtros);
+      const net = roundMoney(filas.reduce((sum: number, rec: any) => sum + montoRecaudacion(rec), 0));
+
+      expect(filas).toHaveLength(1);
+      expect(resumen.totalFilas).toBe(1);
+      expect(resumen.general.totalesGenerales.total).toBe(net);
+      expect(resumen.general.totalesPorMetodoPago.efectivo).toBe(10);
+      expect(resumen.general.totalesPorMetodoPago.tarjeta).toBe(0);
+      expect(resumen.socios.totales.totalPagado).toBe(10);
+    });
+
+    it('regresión 13/07/2026: resumen reporta el mismo neto 8.9', async () => {
+      const ventaEfectivoId = new Types.ObjectId();
+      const ventas = [
+        {
+          _id: ventaEfectivoId,
+          total: 10,
+          pagado: 10,
+          estado: 'DEVUELTA',
+          codigoSocio: 'S001',
+          nombreSocio: 'Cliente 1',
+          usuario: { _id: new Types.ObjectId(), username: 'reyes' },
+          productos: [{ nombre: 'Entrada', unidades: 2, precioUnitario: 5, precioTotal: 10 }],
+          createdAt: new Date('2026-07-13T09:00:00.000Z'),
+          pagos: [],
+          metodoPago: 'EFECTIVO',
+        },
+        {
+          _id: new Types.ObjectId(),
+          total: 1.4,
+          pagado: 1.4,
+          estado: 'PAGADO',
+          codigoSocio: 'S002',
+          nombreSocio: 'Cliente 2',
+          usuario: { _id: new Types.ObjectId(), username: 'reyes' },
+          productos: [{ nombre: 'Producto B', unidades: 1, precioUnitario: 1.4, precioTotal: 1.4 }],
+          createdAt: new Date('2026-07-13T10:00:00.000Z'),
+          pagos: [],
+          metodoPago: 'TARJETA',
+        },
+        {
+          _id: new Types.ObjectId(),
+          total: 2.9,
+          pagado: 2.9,
+          estado: 'PAGADO',
+          codigoSocio: 'S003',
+          nombreSocio: 'Cliente 3',
+          usuario: { _id: new Types.ObjectId(), username: 'reyes' },
+          productos: [{ nombre: 'Producto C', unidades: 1, precioUnitario: 2.9, precioTotal: 2.9 }],
+          createdAt: new Date('2026-07-13T11:00:00.000Z'),
+          pagos: [],
+          metodoPago: 'TARJETA',
+        },
+        {
+          _id: new Types.ObjectId(),
+          total: 4.6,
+          pagado: 4.6,
+          estado: 'PAGADO',
+          codigoSocio: 'S004',
+          nombreSocio: 'Cliente 4',
+          usuario: { _id: new Types.ObjectId(), username: 'reyes' },
+          productos: [{ nombre: 'Producto D', unidades: 1, precioUnitario: 4.6, precioTotal: 4.6 }],
+          createdAt: new Date('2026-07-13T14:00:00.000Z'),
+          pagos: [],
+          metodoPago: 'TARJETA',
+        },
+      ];
+
+      const devolucion = {
+        _id: new Types.ObjectId(),
+        venta: { _id: ventaEfectivoId, codigoSocio: 'S001', nombreSocio: 'Cliente 1', total: 10 },
+        usuario: { _id: new Types.ObjectId(), username: 'reyes' },
+        productos: [{ nombre: 'Entrada', cantidad: 2, precioUnitario: 5, total: 10 }],
+        totalDevolucion: 10,
+        metodoDevolucion: 'EFECTIVO',
+        motivo: 'Devolución completa',
+        estado: EstadoDevolucion.PROCESADA,
+        fechaProcesamiento: new Date('2026-07-13T12:00:00.000Z'),
+      };
+
+      const { service } = buildRecaudacionesService({ ventas, devoluciones: [devolucion] });
+      const filtros = { fechaInicio: '2026-07-13', fechaFin: '2026-07-13' } as any;
+
+      const filas = await service.getRecaudaciones(filtros);
+      const resumen = await service.getResumenRecaudaciones(filtros);
+      const net = roundMoney(filas.reduce((sum: number, rec: any) => sum + montoRecaudacion(rec), 0));
+
+      expect(net).toBe(8.9);
+      expect(resumen.general.totalesGenerales.total).toBe(8.9);
+      expect(resumen.socios.totales.totalPagado).toBe(8.9);
+      expect(resumen.totalFilas).toBe(filas.length);
+      expect(resumen.general.totalesPorMetodoPago.efectivo).toBe(0);
+      expect(resumen.general.totalesPorMetodoPago.tarjeta).toBe(8.9);
     });
   });
 });

@@ -79,6 +79,10 @@ export class Devolucion {
 
 export const DevolucionSchema = SchemaFactory.createForClass(Devolucion);
 
+DevolucionSchema.index({ estado: 1, fechaProcesamiento: -1 });
+DevolucionSchema.index({ venta: 1 });
+DevolucionSchema.index({ createdAt: -1 });
+
 
 
 

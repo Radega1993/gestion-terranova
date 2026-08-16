@@ -17,7 +17,9 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "migrate:ventas-money": "ts-node -r tsconfig-paths/register src/scripts/normalize-ventas-money.ts",
-    "migrate:ventas-money:dry": "ts-node -r tsconfig-paths/register src/scripts/normalize-ventas-money.ts --dry-run"
+    "migrate:ventas-money:dry": "ts-node -r tsconfig-paths/register src/scripts/normalize-ventas-money.ts --dry-run",
+    "migrate:fix-hyphen-members": "ts-node -r tsconfig-paths/register src/scripts/fix-hyphen-member-codes.ts --apply",
+    "migrate:fix-hyphen-members:dry": "ts-node -r tsconfig-paths/register src/scripts/fix-hyphen-member-codes.ts"
   },
   "keywords": [],
   "author": "",

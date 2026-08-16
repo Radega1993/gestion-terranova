@@ -79,3 +79,8 @@ export class Venta {
 }
 
 export const VentaSchema = SchemaFactory.createForClass(Venta); 
+VentaSchema.index({ createdAt: -1 });
+VentaSchema.index({ estado: 1, createdAt: -1 });
+VentaSchema.index({ codigoSocio: 1, createdAt: -1 });
+VentaSchema.index({ trabajador: 1, createdAt: -1 });
+VentaSchema.index({ usuario: 1, createdAt: -1 });

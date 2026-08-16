@@ -114,3 +114,7 @@ export class Reserva {
 }
 
 export const ReservaSchema = SchemaFactory.createForClass(Reserva); 
+ReservaSchema.index({ fecha: -1 });
+ReservaSchema.index({ createdAt: -1 });
+ReservaSchema.index({ socio: 1, fecha: -1 });
+ReservaSchema.index({ montoAbonado: 1 });

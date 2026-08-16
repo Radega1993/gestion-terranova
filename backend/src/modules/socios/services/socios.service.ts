@@ -9,6 +9,14 @@ import { Asociado } from '../schemas/asociado.schema';
 import { CreateAsociadoDto } from '../dto/create-asociado.dto';
 import { UpdateAsociadoDto } from '../dto/update-asociado.dto';
 import { Venta } from '../../ventas/schemas/venta.schema';
+import { Reserva } from '../../reservas/schemas/reserva.schema';
+import { Invitacion } from '../../invitaciones/schemas/invitacion.schema';
+import { SocioInvitaciones } from '../../invitaciones/schemas/socio-invitaciones.schema';
+import {
+    buildAsociadoFromBogusSocio,
+    HYPHEN_MEMBER_CODE_RE,
+    parseHyphenMemberCode,
+} from '../utils/fix-hyphen-member-codes.util';
 
 export function normalizeSocioUpdatePayload(data: any): any {
     if (!data || typeof data !== 'object') {
@@ -64,6 +72,9 @@ export class SociosService {
     constructor(
         @InjectModel(Socio.name) private socioModel: Model<Socio>,
         @InjectModel(Venta.name) private ventaModel: Model<Venta>,
+        @InjectModel(Reserva.name) private reservaModel: Model<Reserva>,
+        @InjectModel(Invitacion.name) private invitacionModel: Model<Invitacion>,
+        @InjectModel(SocioInvitaciones.name) private socioInvitacionesModel: Model<SocioInvitaciones>,
         private uploadsService: UploadsService
     ) { }
 
@@ -178,7 +189,7 @@ export class SociosService {
 
     async findAll(): Promise<Socio[]> {
         try {
-            return await this.socioModel.find().sort({ socio: 1 }).exec();
+            return await this.socioModel.find().sort({ socio: 1 }).lean().exec() as unknown as Socio[];
         } catch (error) {
             this.logger.error(`Error finding all socios: ${error.message}`);
             throw error;
@@ -550,9 +561,176 @@ export class SociosService {
         }
     }
 
+    /**
+     * Aplica una actualización confirmada desde importación Excel (1 a 1).
+     * No fuerza active/rgpd/foto.
+     */
+    async confirmImportUpdate(id: string, data: UpdateSocioDto): Promise<Socio> {
+        const { active, rgpd, foto, isActive, ...safeData } = data as any;
+        return this.update(id, safeData as UpdateSocioDto);
+    }
+
+    /**
+     * Corrige socios erróneamente creados con código PREFIJO-NN (guión)
+     * pasando a asociados PREFIJO_NN del padre y remapeando referencias.
+     */
+    async fixHyphenMemberCodes(options: { dryRun?: boolean } = {}): Promise<{
+        dryRun: boolean;
+        scanned: number;
+        migrated: Array<{
+            from: string;
+            to: string;
+            parent: string;
+            ventas: number;
+            reservas: number;
+            invitaciones: number;
+        }>;
+        asociadosFixed: number;
+        ventasOrphanFixed: number;
+        errors: Array<{ code: string; error: string }>;
+    }> {
+        const dryRun = options.dryRun !== false;
+        const migrated: Array<{
+            from: string;
+            to: string;
+            parent: string;
+            ventas: number;
+            reservas: number;
+            invitaciones: number;
+        }> = [];
+        const errors: Array<{ code: string; error: string }> = [];
+        let asociadosFixed = 0;
+        let ventasOrphanFixed = 0;
+
+        const bogusSocios = await this.socioModel
+            .find({ socio: { $regex: HYPHEN_MEMBER_CODE_RE } })
+            .exec();
+
+        for (const bogus of bogusSocios) {
+            const parsed = parseHyphenMemberCode(bogus.socio);
+            if (!parsed) continue;
+
+            const parent = await this.socioModel.findOne({ socio: parsed.parent }).exec();
+            if (!parent) {
+                errors.push({
+                    code: parsed.original,
+                    error: `No existe el socio padre ${parsed.parent}`,
+                });
+                continue;
+            }
+
+            const ventasCount = await this.ventaModel.countDocuments({ codigoSocio: parsed.original });
+            const reservasCount = await this.reservaModel.countDocuments({ socio: bogus._id });
+            const invitacionesCount =
+                (await this.invitacionModel.countDocuments({ socio: bogus._id })) +
+                (await this.socioInvitacionesModel.countDocuments({ socio: bogus._id }));
+
+            migrated.push({
+                from: parsed.original,
+                to: parsed.corrected,
+                parent: parsed.parent,
+                ventas: ventasCount,
+                reservas: reservasCount,
+                invitaciones: invitacionesCount,
+            });
+
+            if (dryRun) {
+                continue;
+            }
+
+            const asociados = [...(parent.asociados || [])];
+            const already = asociados.some((a) => a.codigo === parsed.corrected);
+            if (!already) {
+                asociados.push(buildAsociadoFromBogusSocio(bogus as any) as any);
+                parent.asociados = asociados;
+                await parent.save();
+            }
+
+            if (ventasCount > 0) {
+                await this.ventaModel.updateMany(
+                    { codigoSocio: parsed.original },
+                    { $set: { codigoSocio: parsed.corrected } },
+                );
+            }
+
+            if (reservasCount > 0) {
+                await this.reservaModel.updateMany(
+                    { socio: bogus._id },
+                    { $set: { socio: parent._id } },
+                );
+            }
+
+            if (invitacionesCount > 0) {
+                await this.invitacionModel.updateMany(
+                    { socio: bogus._id },
+                    { $set: { socio: parent._id } },
+                );
+                await this.socioInvitacionesModel.updateMany(
+                    { socio: bogus._id },
+                    { $set: { socio: parent._id } },
+                );
+            }
+
+            await this.socioModel.findByIdAndDelete(bogus._id).exec();
+        }
+
+        // Corregir códigos de asociados embebidos que aún tengan guión
+        const sociosWithHyphenAsociados = await this.socioModel
+            .find({ 'asociados.codigo': { $regex: HYPHEN_MEMBER_CODE_RE } })
+            .exec();
+
+        for (const socio of sociosWithHyphenAsociados) {
+            let changed = false;
+            const asociados = (socio.asociados || []).map((a) => {
+                const p = parseHyphenMemberCode(a.codigo);
+                if (!p) return a;
+                changed = true;
+                asociadosFixed += 1;
+                return { ...((a as any).toObject?.() ?? a), codigo: p.corrected };
+            });
+            if (changed && !dryRun) {
+                socio.asociados = asociados as any;
+                await socio.save();
+            }
+        }
+
+        // Barrido final de ventas huérfanas con guión
+        const orphanVentas = await this.ventaModel
+            .find({ codigoSocio: { $regex: HYPHEN_MEMBER_CODE_RE } })
+            .select('_id codigoSocio')
+            .lean()
+            .exec();
+
+        for (const venta of orphanVentas) {
+            const p = parseHyphenMemberCode(venta.codigoSocio);
+            if (!p) continue;
+            ventasOrphanFixed += 1;
+            if (!dryRun) {
+                await this.ventaModel.updateOne(
+                    { _id: venta._id },
+                    { $set: { codigoSocio: p.corrected } },
+                );
+            }
+        }
+
+        return {
+            dryRun,
+            scanned: bogusSocios.length,
+            migrated,
+            asociadosFixed,
+            ventasOrphanFixed,
+            errors,
+        };
+    }
+
     async getSimplifiedList(): Promise<any[]> {
         try {
-            const socios = await this.socioModel.find().sort({ socio: 1 }).exec();
+            const socios = await this.socioModel
+                .find()
+                .select('socio nombre asociados._id asociados.codigo asociados.nombre')
+                .sort({ socio: 1 })
+                .lean()
+                .exec();
             return socios.map(socio => ({
                 _id: socio._id,
                 socio: socio.socio,

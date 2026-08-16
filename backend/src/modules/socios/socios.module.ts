@@ -4,13 +4,19 @@ import { SociosController } from './controllers/socios.controller';
 import { SociosService } from './services/socios.service';
 import { Socio, SocioSchema } from './schemas/socio.schema';
 import { Venta, VentaSchema } from '../ventas/schemas/venta.schema';
+import { Reserva, ReservaSchema } from '../reservas/schemas/reserva.schema';
+import { Invitacion, InvitacionSchema } from '../invitaciones/schemas/invitacion.schema';
+import { SocioInvitaciones, SocioInvitacionesSchema } from '../invitaciones/schemas/socio-invitaciones.schema';
 import { UploadsModule } from '../uploads/uploads.module';
 
 @Module({
     imports: [
         MongooseModule.forFeature([
             { name: Socio.name, schema: SocioSchema },
-            { name: Venta.name, schema: VentaSchema }
+            { name: Venta.name, schema: VentaSchema },
+            { name: Reserva.name, schema: ReservaSchema },
+            { name: Invitacion.name, schema: InvitacionSchema },
+            { name: SocioInvitaciones.name, schema: SocioInvitacionesSchema },
         ]),
         UploadsModule
     ],
@@ -18,4 +24,4 @@ import { UploadsModule } from '../uploads/uploads.module';
     providers: [SociosService],
     exports: [SociosService]
 })
-export class SociosModule { } 
+export class SociosModule { }

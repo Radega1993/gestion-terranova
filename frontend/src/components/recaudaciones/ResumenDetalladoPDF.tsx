@@ -1,9 +1,7 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { Document, Page, Text, View, StyleSheet, PDFViewer } from '@react-pdf/renderer';
+import React, { useMemo } from 'react';
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { API_BASE_URL } from '../../config';
-import { useAuthStore } from '../../stores/authStore';
 import { montoRecaudacion } from '../../utils/formatters';
 
 const styles = StyleSheet.create({
@@ -149,32 +147,10 @@ interface ResumenDetalladoPDFProps {
     }>;
     fechaInicio: Date;
     fechaFin: Date;
+    categorias?: string[];
 }
 
-export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas, fechaInicio, fechaFin }) => {
-    const [categorias, setCategorias] = useState<string[]>([]);
-    const { token } = useAuthStore();
-
-    useEffect(() => {
-        const fetchCategorias = async () => {
-            try {
-                const response = await fetch(`${API_BASE_URL}/inventory/types`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error('Error al obtener categorías');
-                }
-                const data = await response.json();
-                setCategorias(data);
-            } catch (error) {
-                console.error('Error al obtener categorías:', error);
-            }
-        };
-        fetchCategorias();
-    }, [token]);
-
+export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas, fechaInicio, fechaFin, categorias = [] }) => {
     // Agrupar ventas por día
     const ventasPorDia = useMemo(() => {
         const agrupadas: any = {};
@@ -321,17 +297,7 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
         return sum + (metodoPago === 'TARJETA' || metodoPago === 'tarjeta' ? monto : 0);
     }, 0);
 
-    // No renderizar el PDF hasta que las categorías estén cargadas
-    if (categorias.length === 0) {
-        return (
-            <div style={{ padding: '20px', textAlign: 'center' }}>
-                <p>Cargando categorías...</p>
-            </div>
-        );
-    }
-
     return (
-        <PDFViewer key={`pdf-detallado-${categorias.length}-${ventas.length}`} style={{ width: '100%', height: '100%', border: 'none' }}>
             <Document>
                 <Page size="A4" style={styles.page}>
                     <View style={styles.header}>
@@ -501,6 +467,5 @@ export const ResumenDetalladoPDF: React.FC<ResumenDetalladoPDFProps> = ({ ventas
                     </View>
                 </Page>
             </Document>
-        </PDFViewer>
     );
 }; 

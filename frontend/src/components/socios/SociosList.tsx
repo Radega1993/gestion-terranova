@@ -9,6 +9,7 @@ import {
     TableRow,
     TableCell,
     TableBody,
+    TablePagination,
     Button,
     IconButton,
     TextField,
@@ -42,7 +43,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { API_BASE_URL } from '../../config';
 import { Socio, SocioWithId } from '../../types/socio';
 import { useNavigate } from 'react-router-dom';
-import { PhotoCamera, FamilyRestroom, Block, FileUpload, FileDownload, CleaningServices } from '@mui/icons-material';
+import { PhotoCamera, FamilyRestroom, Block, FileUpload, FileDownload, CleaningServices, AutoFixHigh } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import GestionarMiembrosModal from './GestionarMiembrosModal';
 import LimpiarAsociadosInvalidosModal from './LimpiarAsociadosInvalidosModal';
@@ -87,6 +88,8 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
     const [openToggleDialog, setOpenToggleDialog] = useState(false);
     const [ordenCodigo, setOrdenCodigo] = useState<'asc' | 'desc' | 'none'>('none');
     const [filtroEstado, setFiltroEstado] = useState<'all' | 'active' | 'inactive'>('all');
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(50);
     const [openLimpiarModal, setOpenLimpiarModal] = useState(false);
     const queryClient = useQueryClient();
 
@@ -124,6 +127,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
     // Handlers memoizados para evitar recreaciones
     const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         setInputValue(e.target.value);
+        setPage(0);
     }, []);
 
     const handleInputFocus = useCallback(() => {
@@ -189,6 +193,102 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
 
     const handleLimpiarAsociadosInvalidos = () => {
         setOpenLimpiarModal(true);
+    };
+
+    const handleFixHyphenMemberCodes = async () => {
+        try {
+            const dryRes = await fetch(
+                `${API_BASE_URL}/socios/maintenance/fix-hyphen-member-codes?dryRun=true`,
+                {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}` },
+                },
+            );
+            const dryData = await dryRes.json();
+            if (!dryRes.ok) {
+                throw new Error(dryData.message || 'Error al analizar códigos con guión');
+            }
+
+            const migrated = Array.isArray(dryData.migrated) ? dryData.migrated : [];
+            const errors = Array.isArray(dryData.errors) ? dryData.errors : [];
+            const totalRefs = migrated.reduce(
+                (sum: number, m: { ventas?: number; reservas?: number; invitaciones?: number }) =>
+                    sum + (m.ventas || 0) + (m.reservas || 0) + (m.invitaciones || 0),
+                0,
+            );
+
+            if (
+                migrated.length === 0 &&
+                (dryData.asociadosFixed || 0) === 0 &&
+                (dryData.ventasOrphanFixed || 0) === 0 &&
+                errors.length === 0
+            ) {
+                await Swal.fire({
+                    icon: 'info',
+                    title: 'Sin cambios',
+                    text: 'No se encontraron códigos de miembro con guión (-) para corregir.',
+                });
+                return;
+            }
+
+            const listHtml = migrated
+                .slice(0, 20)
+                .map(
+                    (m: { from: string; to: string; parent: string; ventas: number }) =>
+                        `<li><code>${m.from}</code> → <code>${m.to}</code> (padre ${m.parent}, ventas: ${m.ventas})</li>`,
+                )
+                .join('');
+
+            const confirm = await Swal.fire({
+                icon: 'warning',
+                title: 'Corregir códigos con guión',
+                html: `
+                    <p>Se convertirán miembros mal importados (<code>AET010-01</code>) a asociados (<code>AET010_01</code>).</p>
+                    <p><strong>${migrated.length}</strong> socios erróneos · <strong>${totalRefs}</strong> referencias · 
+                    <strong>${dryData.asociadosFixed || 0}</strong> asociados · 
+                    <strong>${dryData.ventasOrphanFixed || 0}</strong> ventas huérfanas</p>
+                    ${errors.length ? `<p style="color:#c62828">${errors.length} errores (sin padre)</p>` : ''}
+                    <ul style="text-align:left;max-height:200px;overflow:auto;margin-top:8px">${listHtml || '<li>Solo correcciones menores</li>'}</ul>
+                    <p>¿Aplicar los cambios en la base de datos?</p>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Sí, corregir',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#ed6c02',
+            });
+
+            if (!confirm.isConfirmed) return;
+
+            const applyRes = await fetch(
+                `${API_BASE_URL}/socios/maintenance/fix-hyphen-member-codes?dryRun=false`,
+                {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}` },
+                },
+            );
+            const applyData = await applyRes.json();
+            if (!applyRes.ok) {
+                throw new Error(applyData.message || 'Error al aplicar la corrección');
+            }
+
+            queryClient.invalidateQueries({ queryKey: ['socios'] });
+            await Swal.fire({
+                icon: 'success',
+                title: 'Corrección aplicada',
+                html: `
+                    <p><strong>${(applyData.migrated || []).length}</strong> miembros migrados</p>
+                    <p><strong>${applyData.asociadosFixed || 0}</strong> códigos de asociados corregidos</p>
+                    <p><strong>${applyData.ventasOrphanFixed || 0}</strong> ventas huérfanas corregidas</p>
+                    ${(applyData.errors || []).length ? `<p>${applyData.errors.length} errores pendientes</p>` : ''}
+                `,
+            });
+        } catch (err) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: err instanceof Error ? err.message : 'Error al corregir códigos',
+            });
+        }
     };
 
     // Mutación para eliminar un socio
@@ -494,87 +594,105 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
 
             const data = await response.json();
 
-            if (response.ok) {
-                if (data.updates && data.updates.length > 0) {
-                    // Mostrar diálogo de confirmación para actualizaciones
-                    const result = await Swal.fire({
-                        title: 'Socios existentes encontrados',
-                        html: `
-                            <p>Se encontraron ${data.updates.length} socios que necesitan actualización:</p>
-                            <ul style="text-align: left; margin: 1rem 0;">
-                                ${data.updates.map((update: any) => `
-                                    <li>
-                                        Socio ${update.socio}
-                                        ${update.changes.socio ? '<br>- Datos del socio modificados' : ''}
-                                        ${update.changes.asociados ? '<br>- Asociados modificados' : ''}
-                                    </li>
-                                `).join('')}
-                            </ul>
-                            <p>¿Desea actualizar estos socios?</p>
-                        `,
-                        icon: 'warning',
-                        showCancelButton: true,
-                        confirmButtonText: 'Sí, actualizar',
-                        cancelButtonText: 'No, mantener actuales',
-                        confirmButtonColor: '#3085d6',
-                        cancelButtonColor: '#d33'
-                    });
-
-                    if (result.isConfirmed) {
-                        // Realizar la actualización
-                        const updateResponse = await fetch(`${API_BASE_URL}/socios/import/update`, {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${token}`
-                            },
-                            body: formData
-                        });
-
-                        const updateData = await updateResponse.json();
-
-                        if (updateResponse.ok) {
-                            Swal.fire({
-                                title: 'Actualización completada',
-                                text: `Se actualizaron ${updateData.success.length} socios correctamente`,
-                                icon: 'success'
-                            });
-                            // La actualización se maneja automáticamente con React Query
-                        } else {
-                            throw new Error(updateData.message || 'Error al actualizar socios');
-                        }
-                    }
-                }
-
-                if (data.success.length > 0) {
-                    Swal.fire({
-                        title: 'Importación exitosa',
-                        text: `Se importaron ${data.success.length} socios correctamente`,
-                        icon: 'success'
-                    });
-                    // La actualización se maneja automáticamente con React Query
-                }
-
-                if (data.errors.length > 0) {
-                    Swal.fire({
-                        title: 'Errores en la importación',
-                        html: `
-                            <p>Se encontraron los siguientes errores:</p>
-                            <ul style="text-align: left; margin: 1rem 0;">
-                                ${data.errors.map((error: any) => `
-                                    <li>
-                                        ${error.socio ? `Socio ${error.socio}: ` : ''}
-                                        ${error.asociado ? `Asociado ${error.asociado}: ` : ''}
-                                        ${error.error}
-                                    </li>
-                                `).join('')}
-                            </ul>
-                        `,
-                        icon: 'error'
-                    });
-                }
-            } else {
+            if (!response.ok) {
                 throw new Error(data.message || 'Error al importar socios');
             }
+
+            let actualizados = 0;
+            let rechazados = 0;
+
+            const updates = Array.isArray(data.updates) ? data.updates : [];
+            for (const update of updates) {
+                const changesHtml = (update.changes || [])
+                    .map((c: { field: string; from: string; to: string }) =>
+                        `<li><strong>${c.field}:</strong> "${c.from}" → "${c.to}"</li>`
+                    )
+                    .join('');
+
+                const result = await Swal.fire({
+                    title: `Modificación: ${update.socio}`,
+                    html: `
+                        <p>El socio <strong>${update.socio}</strong> ya existe con datos distintos.</p>
+                        <ul style="text-align: left; margin: 1rem 0; max-height: 240px; overflow: auto;">
+                            ${changesHtml || '<li>Hay diferencias en los datos</li>'}
+                        </ul>
+                        <p>¿Desea aplicar estos cambios?</p>
+                    `,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Actualizar',
+                    cancelButtonText: 'Omitir',
+                    confirmButtonColor: '#3085d6',
+                    cancelButtonColor: '#d33',
+                });
+
+                if (result.isConfirmed) {
+                    const updateResponse = await fetch(`${API_BASE_URL}/socios/import/confirm-update`, {
+                        method: 'POST',
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ id: update.id, data: update.data }),
+                    });
+                    const updateData = await updateResponse.json();
+                    if (!updateResponse.ok) {
+                        throw new Error(updateData.message || `Error al actualizar ${update.socio}`);
+                    }
+                    actualizados += 1;
+                } else {
+                    rechazados += 1;
+                }
+            }
+
+            const creados = Array.isArray(data.success) ? data.success.length : 0;
+            const omitidos = Array.isArray(data.skipped) ? data.skipped.length : 0;
+            const errores = Array.isArray(data.errors) ? data.errors : [];
+
+            const resumenParts = [
+                creados > 0 ? `${creados} creados` : null,
+                omitidos > 0 ? `${omitidos} omitidos (iguales)` : null,
+                actualizados > 0 ? `${actualizados} actualizados` : null,
+                rechazados > 0 ? `${rechazados} cambios omitidos` : null,
+            ].filter(Boolean);
+
+            if (resumenParts.length > 0) {
+                await Swal.fire({
+                    title: 'Importación completada',
+                    text: resumenParts.join(' · '),
+                    icon: 'success',
+                });
+            }
+
+            if (errores.length > 0) {
+                await Swal.fire({
+                    title: 'Errores en la importación',
+                    html: `
+                        <p>Se encontraron los siguientes errores:</p>
+                        <ul style="text-align: left; margin: 1rem 0;">
+                            ${errores.map((error: any) => `
+                                <li>
+                                    ${error.socio ? `Socio ${error.socio}: ` : ''}
+                                    ${error.asociado ? `Asociado ${error.asociado}: ` : ''}
+                                    ${error.error}
+                                </li>
+                            `).join('')}
+                        </ul>
+                    `,
+                    icon: 'error',
+                });
+            }
+
+            if (resumenParts.length === 0 && errores.length === 0) {
+                await Swal.fire({
+                    title: 'Sin cambios',
+                    text: 'No se encontraron socios nuevos ni modificaciones.',
+                    icon: 'info',
+                });
+            }
+
+            // Refrescar listado
+            queryClient.invalidateQueries({ queryKey: ['socios'] });
         } catch (error) {
             Swal.fire({
                 title: 'Error',
@@ -893,6 +1011,11 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
             : codigoB.localeCompare(codigoA, 'es', { numeric: true, sensitivity: 'base' });
     });
 
+    const sociosPaginados = sociosOrdenados.slice(
+        page * rowsPerPage,
+        page * rowsPerPage + rowsPerPage
+    );
+
     return (
         <Box sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
@@ -926,14 +1049,24 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                         </>
                     )}
                     {user?.role === 'ADMINISTRADOR' && (
-                        <Button
-                            variant="outlined"
-                            color="warning"
-                            startIcon={<CleaningServices />}
-                            onClick={handleLimpiarAsociadosInvalidos}
-                        >
-                            Limpiar Asociados Inválidos
-                        </Button>
+                        <>
+                            <Button
+                                variant="outlined"
+                                color="warning"
+                                startIcon={<CleaningServices />}
+                                onClick={handleLimpiarAsociadosInvalidos}
+                            >
+                                Limpiar Asociados Inválidos
+                            </Button>
+                            <Button
+                                variant="outlined"
+                                color="warning"
+                                startIcon={<AutoFixHigh />}
+                                onClick={handleFixHyphenMemberCodes}
+                            >
+                                Corregir códigos (-)
+                            </Button>
+                        </>
                     )}
                     <Button
                         variant="contained"
@@ -970,7 +1103,10 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                         <Select
                             value={filtroEstado}
                             label="Filtrar por Estado"
-                            onChange={(e) => setFiltroEstado(e.target.value as 'all' | 'active' | 'inactive')}
+                            onChange={(e) => {
+                                setFiltroEstado(e.target.value as 'all' | 'active' | 'inactive');
+                                setPage(0);
+                            }}
                         >
                             <MenuItem value="all">Todos</MenuItem>
                             <MenuItem value="active">Solo Activos</MenuItem>
@@ -1016,7 +1152,7 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {sociosOrdenados.map((socio) => (
+                            {sociosPaginados.map((socio) => (
                                 <React.Fragment key={socio._id}>
                                     <TableRow
                                         sx={{
@@ -1142,6 +1278,20 @@ const SociosList: React.FC<SociosListProps> = ({ socios, isLoading }) => {
                         </TableBody>
                     </Table>
                 </TableContainer>
+                <TablePagination
+                    component="div"
+                    count={sociosOrdenados.length}
+                    page={page}
+                    onPageChange={(_, newPage) => setPage(newPage)}
+                    rowsPerPage={rowsPerPage}
+                    onRowsPerPageChange={(e) => {
+                        setRowsPerPage(parseInt(e.target.value, 10));
+                        setPage(0);
+                    }}
+                    rowsPerPageOptions={[25, 50, 100]}
+                    labelRowsPerPage="Filas por página"
+                    labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+                />
             </Box>
 
             <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)}>
