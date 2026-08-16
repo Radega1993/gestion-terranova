@@ -156,3 +156,100 @@ describe('SociosService.getProductosConsumidos (agregación monetaria)', () => {
     await expect(service.getProductosConsumidos(socioId)).rejects.toThrow(NotFoundException);
   });
 });
+
+describe('SociosService.remove (sin cascada a ventas)', () => {
+  it('elimina el socio y no borra ventas; getProductosConsumidos falla, ventas por codigoSocio siguen', async () => {
+    const socioId = new Types.ObjectId().toString();
+    const ventasPersistidas = [
+      {
+        _id: new Types.ObjectId(),
+        codigoSocio: 'S001',
+        nombreSocio: 'Juan Garcia',
+        total: 10,
+        pagado: 10,
+        productos: [{ nombre: 'Coca', unidades: 2, precioUnitario: 5, precioTotal: 10 }],
+      },
+      {
+        _id: new Types.ObjectId(),
+        codigoSocio: 'S001',
+        nombreSocio: 'Juan Garcia',
+        total: 5,
+        pagado: 5,
+        productos: [{ nombre: 'Coca', unidades: 1, precioUnitario: 5, precioTotal: 5 }],
+      },
+    ];
+
+    const socioDoc = {
+      _id: socioId,
+      socio: 'S001',
+      nombre: { nombre: 'Juan', primerApellido: 'Garcia', segundoApellido: '' },
+      foto: undefined,
+      asociados: [],
+    };
+
+    const findByIdAndDelete = jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue(socioDoc),
+    });
+
+    const socioModelMock: any = {
+      findById: jest.fn()
+        .mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue(socioDoc),
+        })
+        .mockResolvedValueOnce(null), // getProductosConsumidos tras delete
+      findByIdAndDelete,
+    };
+
+    const ventaDeleteMany = jest.fn();
+    const ventaDeleteOne = jest.fn();
+    const ventaFindByIdAndDelete = jest.fn();
+
+    const ventaModelMock: any = {
+      find: jest.fn().mockImplementation((query: Record<string, unknown> = {}) => {
+        const filtered = ventasPersistidas.filter((venta) => {
+          if (query.codigoSocio && venta.codigoSocio !== query.codigoSocio) {
+            return false;
+          }
+          return true;
+        });
+        return {
+          sort: jest.fn().mockReturnValue({
+            lean: jest.fn().mockReturnValue({
+              exec: jest.fn().mockResolvedValue(filtered),
+            }),
+          }),
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue(filtered),
+          }),
+          exec: jest.fn().mockResolvedValue(filtered),
+        };
+      }),
+      deleteMany: ventaDeleteMany,
+      deleteOne: ventaDeleteOne,
+      findByIdAndDelete: ventaFindByIdAndDelete,
+    };
+
+    const uploadsServiceMock: any = {
+      deleteFile: jest.fn(),
+    };
+
+    const service = new SociosService(
+      socioModelMock,
+      ventaModelMock,
+      uploadsServiceMock,
+    );
+
+    await service.remove(socioId);
+
+    expect(findByIdAndDelete).toHaveBeenCalledWith(socioId);
+    expect(ventaDeleteMany).not.toHaveBeenCalled();
+    expect(ventaDeleteOne).not.toHaveBeenCalled();
+    expect(ventaFindByIdAndDelete).not.toHaveBeenCalled();
+
+    await expect(service.getProductosConsumidos(socioId)).rejects.toThrow(NotFoundException);
+
+    const ventasPorCodigo = await ventaModelMock.find({ codigoSocio: 'S001' }).lean().exec();
+    expect(ventasPorCodigo).toHaveLength(2);
+    expect(ventasPorCodigo.reduce((sum: number, v: any) => sum + v.total, 0)).toBe(15);
+  });
+});
