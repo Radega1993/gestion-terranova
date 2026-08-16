@@ -152,6 +152,30 @@ export const DeudasList: React.FC = () => {
         subVentas?: Venta[];
     };
 
+    const getTrabajadorLabelFromVenta = (venta: Venta): string => {
+        if (venta.trabajador && typeof venta.trabajador === 'object') {
+            const { nombre, identificador } = venta.trabajador;
+            if (nombre && identificador) {
+                return `${nombre} (${identificador})`;
+            }
+            return nombre || identificador || '-';
+        }
+        if (venta.usuario && typeof venta.usuario === 'object') {
+            return venta.usuario.username || venta.usuario.nombre || '-';
+        }
+        return '-';
+    };
+
+    const getTrabajadorLabel = (venta: VentaGroup): string => {
+        if (venta.subVentas && venta.subVentas.length > 0) {
+            const labels = Array.from(
+                new Set(venta.subVentas.map(getTrabajadorLabelFromVenta).filter((label) => label !== '-'))
+            );
+            return labels.length > 0 ? labels.join(', ') : '-';
+        }
+        return getTrabajadorLabelFromVenta(venta);
+    };
+
     const agruparProductos = (productos: Venta['productos'][]) => {
         const map = new Map<string, { nombre: string; tipo: string; unidades: number; precioUnitario: number; precioTotal: number; }>();
         productos.forEach((producto) => {
@@ -401,6 +425,7 @@ export const DeudasList: React.FC = () => {
                             </TableCell>
                                     <TableCell>Fecha</TableCell>
                             <TableCell>Cliente</TableCell>
+                            <TableCell>Trabajador</TableCell>
                             <TableCell>Productos</TableCell>
                             <TableCell>Total</TableCell>
                             <TableCell>Pagado</TableCell>
@@ -434,6 +459,9 @@ export const DeudasList: React.FC = () => {
                                 </TableCell>
                                 <TableCell>
                                     {venta.nombreSocio} ({venta.codigoSocio})
+                                </TableCell>
+                                <TableCell>
+                                    {getTrabajadorLabel(venta)}
                                 </TableCell>
                                 <TableCell>
                                     {venta.productos?.map((producto, index) => (
@@ -488,7 +516,7 @@ export const DeudasList: React.FC = () => {
                         })}
                         {ventasAgrupadas.length === 0 && !loading && (
                             <TableRow>
-                                <TableCell colSpan={10} align="center">
+                                <TableCell colSpan={11} align="center">
                                     {error ? `Error: ${error}` : 'No hay deudas pendientes'}
                                 </TableCell>
                             </TableRow>
