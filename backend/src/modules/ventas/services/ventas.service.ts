@@ -574,16 +574,24 @@ export class VentasService {
 
     async getRecaudaciones(filtros: RecaudacionesFiltrosDto) {
 
-        // Construir el filtro base para ventas
+        // Construir el filtro base para ventas.
+        // Importante: para deudas pagadas días después, la recaudación debe
+        // considerar la fecha del pago además de la fecha de creación de la venta.
         const filtroVentas: any = {};
+        const condicionesBaseVentas: any[] = [];
         if (filtros.fechaInicio && filtros.fechaFin) {
-            filtroVentas.createdAt = {
-                $gte: new Date(filtros.fechaInicio),
-                $lte: new Date(filtros.fechaFin)
-            };
+            const fechaInicio = new Date(filtros.fechaInicio);
+            const fechaFin = new Date(filtros.fechaFin);
+            fechaFin.setHours(23, 59, 59, 999);
+            condicionesBaseVentas.push({
+                $or: [
+                    { createdAt: { $gte: fechaInicio, $lte: fechaFin } },
+                    { 'pagos.fecha': { $gte: fechaInicio, $lte: fechaFin } },
+                ],
+            });
         }
         if (filtros.codigoSocio) {
-            filtroVentas.codigoSocio = filtros.codigoSocio;
+            condicionesBaseVentas.push({ codigoSocio: filtros.codigoSocio });
         }
 
         // Construir filtros de usuario y trabajador
@@ -634,13 +642,13 @@ export class VentasService {
         // Si hay condiciones de usuario o trabajador, usar $and para que ambas condiciones se cumplan
         // Si solo hay una condición, aplicarla directamente
         if (condicionesUsuarioTrabajador.length > 0) {
-            if (condicionesUsuarioTrabajador.length === 1) {
-                // Solo una condición, aplicarla directamente
-                Object.assign(filtroVentas, condicionesUsuarioTrabajador[0]);
-            } else {
-                // Múltiples condiciones, usar $and para que ambas se cumplan
-                filtroVentas.$and = condicionesUsuarioTrabajador;
-            }
+            condicionesBaseVentas.push(...condicionesUsuarioTrabajador);
+        }
+
+        if (condicionesBaseVentas.length === 1) {
+            Object.assign(filtroVentas, condicionesBaseVentas[0]);
+        } else if (condicionesBaseVentas.length > 1) {
+            filtroVentas.$and = condicionesBaseVentas;
         }
 
         // Construir el filtro base para reservas

@@ -853,6 +853,50 @@ describe('VentasService (unit)', () => {
     expect(result[0].metodoPago).toBe('EFECTIVO');
   });
 
+  it('getRecaudaciones: filtra ventas por createdAt o pagos.fecha', async () => {
+    const ventaModelMock: any = {
+      find: jest.fn().mockReturnValue(createChainableQuery([])),
+    };
+
+    const service = new VentasService(
+      ventaModelMock,
+      { distinct: jest.fn().mockResolvedValue([]) } as any,
+      { find: jest.fn().mockReturnValue(createChainableQuery([])) } as any,
+      { findOne: jest.fn().mockResolvedValue(null) } as any,
+      { findAll: jest.fn().mockResolvedValue([]) } as any,
+      { find: jest.fn().mockReturnValue(createChainableQuery([])) } as any,
+      { find: jest.fn().mockReturnValue(createChainableQuery([])) } as any,
+      {} as any,
+      createDevolucionModelMock() as any,
+      { findOne: jest.fn() } as any,
+    );
+
+    await service.getRecaudaciones({
+      fechaInicio: '2026-07-13',
+      fechaFin: '2026-07-13',
+    } as any);
+
+    expect(ventaModelMock.find).toHaveBeenCalled();
+    const filtro = ventaModelMock.find.mock.calls[0][0];
+    expect(filtro).toHaveProperty('$or');
+    expect(filtro.$or).toEqual(
+      expect.arrayContaining([
+        {
+          createdAt: {
+            $gte: expect.any(Date),
+            $lte: expect.any(Date),
+          },
+        },
+        {
+          'pagos.fecha': {
+            $gte: expect.any(Date),
+            $lte: expect.any(Date),
+          },
+        },
+      ]),
+    );
+  });
+
   it('getRecaudaciones: devolución fuera de rango de fechas no aparece', async () => {
     const venta = {
       _id: new Types.ObjectId(),
